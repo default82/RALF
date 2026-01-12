@@ -1,1 +1,8 @@
+name: bootstrap
+description: "Bootstrap pipeline: smoke + toolchain (no apply)"
+jobs:
+  - name: smoke
+    command: "bash tests/bootstrap/smoke.sh"
+  - name: toolchain
+    command: "bash tests/bootstrap/install-toolchain.sh"
 

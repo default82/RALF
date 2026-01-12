@@ -1,0 +1,102 @@
+metadata:
+  governed_by: "docs/network-baseline.md"
+  enforcement_level: "hard"
+
+network_health_checklist:
+  version: "1.0"
+  cidr: "10.10.0.0/16"
+  authority: "opnsense"
+  gateway_ip: "10.10.0.1"
+
+  decision_rule:
+    blocker_behavior: "block_all_deploys"
+    allowed_actions_when_blocked:
+      - observe
+      - report
+      - propose_healing_plan
+      - rollback_last_change
+
+  stability_definition:
+    required_days_stable: 7
+    without_manual_intervention: true
+
+  checks:
+    core_connectivity:
+      A1_gateway_reachable:
+        description: "OPNsense default gateway reachable"
+        criticality: "blocker"
+        target: "10.10.0.1"
+        expected: "reachable"
+
+      A2_internet_upstream:
+        description: "Internet connectivity via Fritzbox"
+        criticality: "blocker"
+        expected: "stable"
+
+    dns_health:
+      B1_internal_dns:
+        description: "Internal DNS resolution consistent"
+        criticality: "blocker"
+        expected: "consistent"
+
+      B2_external_dns:
+        description: "External DNS resolution functional"
+        criticality: "blocker"
+        expected: "resolves_public_domains"
+
+    dhcp_and_addressing:
+      C1_no_rogue_dhcp:
+        description: "Only OPNsense provides DHCP"
+        criticality: "blocker"
+        expected: "single_dhcp_authority"
+
+      C2_static_ip_consistency:
+        description: "All known hosts use static, documented IPs"
+        criticality: "blocker"
+        expected: "no_ip_conflicts"
+
+    time_health:
+      D1_time_sync:
+        description: "System time plausible (NTP)"
+        criticality: "blocker"
+        expected: "no_drift"
+
+    reverse_proxy_core:
+      E1_caddy_available:
+        description: "Caddy reverse proxy running on OPNsense"
+        criticality: "blocker"
+        expected: "available"
+
+    network_infrastructure:
+      F1_tplink_controller:
+        description: "TP-Link central controller reachable"
+        criticality: "blocker"
+        expected: "reachable"
+
+    observability:
+      G1_logs_available:
+        description: "Network logs and events visible"
+        criticality: "blocker"
+        expected: "available"
+
+    drift_and_order:
+      H1_unknown_devices:
+        description: "New devices detected and marked as unknown"
+        criticality: "blocker"
+        expected: "detected"
+
+      H2_ip_scheme_compliance:
+        description: "IP scheme 10.10.<category>.<host> is followed"
+        criticality: "blocker"
+        expected: "compliant"
+
+    recovery_capability:
+      I1_opnsense_backup:
+        description: "OPNsense configuration backup exists"
+        criticality: "blocker"
+        expected: "available"
+
+  final_verdict:
+    rule: "all_checks_green_for_required_days"
+    success_state: "network_functional_ready"
+    failure_state: "network_blocking_deploys"

@@ -63,52 +63,52 @@ flowchart TB
   %% =========================
 
   %% ---------- Robotic ----------
-  subgraph R[Robotic – Ausführende Ebenen]
-    subgraph L1[Physische Infrastruktur]
-      HW[Hosts]
-      SW[Switches]
-      PWR[Power / USV]
+  subgraph R["Robotic – Ausfuehrende Ebenen"]
+    subgraph L1["Physische Infrastruktur"]
+      HW["Hosts"]
+      SW["Switches"]
+      PWR["Power USV"]
     end
 
-    subgraph L2[Netzwerk & Transport]
-      EDGE[Internet]
-      FW[Firewall]
-      VLAN[VLANs]
-      IP[Routing / IP]
+    subgraph L2["Netzwerk Transport"]
+      EDGE["Internet"]
+      FW["Firewall"]
+      VLAN["VLANs"]
+      IP["Routing IP"]
     end
 
-    subgraph L3[Virtualisierung & Laufzeit]
-      PVE[Proxmox VE]
-      LXC[LXC]
-      VM[VM]
+    subgraph L3["Virtualisierung Laufzeit"]
+      PVE["Proxmox VE"]
+      LXC["LXC"]
+      VM["VM"]
     end
   end
 
   %% ---------- Algorithmic ----------
-  subgraph A[Algorithmic – Steuerung & Soll-Modell]
-    YAML[Normatives Soll-Modell\n(YAML / Inventar / Policies)]
-    IAC[Ansible / OpenTofu]
-    SEM[Semaphore]
-    SVC[Dienste]
+  subgraph A["Algorithmic – Steuerung Sollmodell"]
+    YAML["Normatives Sollmodell"]
+    IAC["Ansible OpenTofu"]
+    SEM["Semaphore"]
+    SVC["Dienste"]
   end
 
   %% ---------- Logic ----------
-  subgraph L[Logic – Beobachtung & Lernen]
-    MET[Metrics]
-    LOG[Logs]
-    EVT[Events]
-    TLINE[Zeitliche Verläufe]
+  subgraph L["Logic – Beobachtung Lernen"]
+    MET["Metrics"]
+    LOG["Logs"]
+    EVT["Events"]
+    TLINE["Zeitverlaeufe"]
 
-    subgraph RALF[RALF – Lern- & Kontrollprozess]
-      COMP[Soll / Ist Vergleich]
-      HYP[Hypothesen]
-      EXP[Experimente]
-      EVAL[Bewertung & Erkenntnis]
+    subgraph RALF["RALF Lern Kontrollprozess"]
+      COMP["Soll Ist Vergleich"]
+      HYP["Hypothesen"]
+      EXP["Experimente"]
+      EVAL["Bewertung Erkenntnis"]
     end
   end
 
   %% =========================
-  %% Ausführungspfad
+  %% Ausfuehrungspfad
   %% =========================
   PWR --> HW
   HW --> FW
@@ -119,7 +119,7 @@ flowchart TB
   PVE --> VM --> SVC
 
   %% =========================
-  %% Soll → Umsetzung
+  %% Soll zu Umsetzung
   %% =========================
   YAML --> IAC --> SEM
   SEM --> PVE
@@ -139,12 +139,14 @@ flowchart TB
   EVT --> TLINE
 
   %% =========================
-  %% Lernen & Experimente
+  %% Lernen Experimente
   %% =========================
   YAML --> COMP
   TLINE --> COMP
   COMP --> HYP --> EXP --> IAC
   EXP --> EVAL --> COMP
+
+
 Interpretation des Diagramms
 Bottom-up: Realität → Metriken → Verläufe
 

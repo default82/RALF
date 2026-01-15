@@ -145,7 +145,7 @@ flowchart TB
   TLINE --> COMP
   COMP --> HYP --> EXP --> IAC
   EXP --> EVAL --> COMP
-
+```
 
 Interpretation des Diagramms
 Bottom-up: Realität → Metriken → Verläufe

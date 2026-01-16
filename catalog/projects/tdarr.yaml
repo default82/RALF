@@ -1,0 +1,11 @@
+id: tdarr
+name: Tdarr
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8265 }
+  features: [media_transcode_pipeline, web_ui]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Media access + queue/state." }
+tags: [web_ui, stateful]

@@ -1,0 +1,17 @@
+id: vaultwarden
+name: Vaultwarden
+category: security
+provides:
+  services:
+    - name: web
+      protocol: http
+      default_port: 8080
+  features: [password_manager, api]
+requires:
+  dependencies:
+    - { type: database, engine: sqlite, required: false }
+    - { type: database, engine: postgres, required: false }
+    - { type: database, engine: mysql, required: false }
+    - { type: reverse_proxy, required: true }
+    - { type: filesystem, required: true, note: "Datenverzeichnis persistent." }
+tags: [web_ui, api, stateful, backup_recommended, health_http]

@@ -1,0 +1,13 @@
+id: cockroachdb
+name: CockroachDB
+category: database
+provides:
+  services:
+    - { name: db, protocol: tcp, default_port: 26257 }
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [distributed_sql, web_ui]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Node data persistent." }
+    - { type: dns, required: false, note: "Cluster naming/service discovery hilfreich." }
+tags: [stateful, backup_recommended, web_ui]

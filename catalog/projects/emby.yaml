@@ -1,0 +1,11 @@
+id: emby
+name: Emby
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8096 }
+  features: [media_server, transcoding, web_ui, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true }
+tags: [web_ui, api, stateful, backup_recommended]

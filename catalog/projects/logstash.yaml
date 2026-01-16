@@ -1,0 +1,11 @@
+id: logstash
+name: Logstash
+category: search
+provides:
+  services:
+    - { name: pipeline, protocol: tcp, default_port: 5044 }
+  features: [log_ingest, pipeline]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Pipeline configs persistent." }
+tags: [logs, stateful]

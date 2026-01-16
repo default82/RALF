@@ -1,0 +1,11 @@
+id: tautulli
+name: Tautulli
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8181 }
+  features: [plex_monitoring, web_ui]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "DB/Config persistent." }
+tags: [web_ui, stateful, backup_recommended]

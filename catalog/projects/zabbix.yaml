@@ -1,0 +1,13 @@
+id: zabbix
+name: Zabbix
+category: monitoring
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+    - { name: server, protocol: tcp, default_port: 10051 }
+  features: [monitoring, agent_based, alerting]
+requires:
+  dependencies:
+    - { type: database, engine: mysql, required: false }
+    - { type: database, engine: postgres, required: false }
+tags: [web_ui, agent_based, backup_recommended]

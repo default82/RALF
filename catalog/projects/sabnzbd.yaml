@@ -1,0 +1,11 @@
+id: sabnzbd
+name: SABnzbd
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [usenet_downloader, web_ui, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Downloads/config persistent." }
+tags: [web_ui, api, stateful]

@@ -1,0 +1,13 @@
+id: netbox
+name: NetBox
+category: inventory
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8000 }
+  features: [ipam, dcim, web_ui, api]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: true }
+    - { type: cache, engine: redis, required: true }
+    - { type: filesystem, required: true, note: "Media/Reports/Config persistent." }
+tags: [web_ui, api, stateful, backup_recommended, postgres_supported]

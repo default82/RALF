@@ -1,0 +1,11 @@
+id: mariadb
+name: MariaDB
+category: database
+provides:
+  services:
+    - { name: db, protocol: tcp, default_port: 3306 }
+  features: [relational_db]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Datadir persistent." }
+tags: [stateful, backup_recommended, mysql_supported]

@@ -1,0 +1,13 @@
+id: guacamole
+name: Apache Guacamole
+category: management
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [remote_access_gateway, web_ui]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: false }
+    - { type: database, engine: mysql, required: false }
+    - { type: filesystem, required: true, note: "Config/Extensions persistent." }
+tags: [web_ui, stateful, backup_recommended]

@@ -1,0 +1,7 @@
+observability:
+  healthcheck: { type: none }
+  metrics: []
+
+deployment_hints:
+  state: []
+  backup: []

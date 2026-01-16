@@ -1,0 +1,10 @@
+id: webmin
+name: Webmin
+category: management
+provides:
+  services:
+    - { name: web, protocol: https, default_port: 10000 }
+  features: [server_management, web_ui]
+requires:
+  dependencies: []
+tags: [web_ui, agent_based]

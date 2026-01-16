@@ -1,0 +1,11 @@
+id: minecraft
+name: Minecraft Server
+category: gaming
+provides:
+  services:
+    - { name: game, protocol: tcp, default_port: 25565 }
+  features: [game_server]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "World data persistent." }
+tags: [stateful, backup_recommended]

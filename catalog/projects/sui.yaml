@@ -1,0 +1,11 @@
+id: sui
+name: SUI (Server-UI)
+category: ui
+provides:
+  type: custom
+  features: [web_ui]
+requires:
+  dependencies:
+    - { type: reverse_proxy, required: false }
+    - { type: oidc, required: false }
+tags: [web_ui]

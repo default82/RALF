@@ -1,0 +1,11 @@
+id: uptime_kuma
+name: Uptime Kuma
+category: monitoring
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 3001 }
+  features: [uptime_monitoring, notifications]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Daten persistent (SQLite/Volume)." }
+tags: [web_ui, stateful, backup_recommended, health_http]

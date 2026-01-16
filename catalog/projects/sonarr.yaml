@@ -1,0 +1,11 @@
+id: sonarr
+name: Sonarr
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8989 }
+  features: [tv_management, web_ui, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Config + media mount persistent." }
+tags: [web_ui, api, stateful]

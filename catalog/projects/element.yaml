@@ -1,0 +1,12 @@
+id: element
+name: Element (Matrix Client)
+category: messaging
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [chat_client, web_ui]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Config/branding persistent." }
+    - { type: reverse_proxy, required: false }
+tags: [web_ui, stateless]

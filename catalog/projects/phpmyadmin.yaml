@@ -1,0 +1,11 @@
+id: phpmyadmin
+name: phpMyAdmin
+category: database
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [db_admin_ui, web_ui]
+requires:
+  dependencies:
+    - { type: database, engine: mysql, required: true }
+tags: [web_ui, stateless]

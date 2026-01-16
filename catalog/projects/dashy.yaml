@@ -1,0 +1,11 @@
+id: dashy
+name: Dashy
+category: dashboard
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [dashboard, web_ui]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Config persistent." }
+tags: [web_ui, stateless]

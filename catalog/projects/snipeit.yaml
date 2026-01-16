@@ -1,0 +1,13 @@
+id: snipeit
+name: Snipe-IT
+category: inventory
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [asset_management, web_ui, api]
+requires:
+  dependencies:
+    - { type: database, engine: mysql, required: true }
+    - { type: mail_smtp, required: false }
+    - { type: filesystem, required: true, note: "Uploads persistent." }
+tags: [web_ui, api, stateful, backup_recommended, mysql_supported]

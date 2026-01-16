@@ -1,0 +1,11 @@
+id: pgadmin
+name: pgAdmin
+category: database
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 5050 }
+  features: [db_admin_ui, web_ui]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Config/Session storage persistent." }
+tags: [web_ui, stateful, backup_recommended]

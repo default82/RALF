@@ -1,0 +1,14 @@
+id: semaphoreui
+name: Semaphore UI
+category: automation
+provides:
+  services:
+    - name: web
+      protocol: http
+      default_port: 3000
+  features: [ansible_runner, web_ui, api]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: false }
+    - { type: database, engine: mysql, required: false }
+tags: [web_ui, backup_recommended]

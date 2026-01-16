@@ -1,0 +1,13 @@
+id: grafana
+name: Grafana
+category: monitoring
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 3000 }
+  features: [dashboards, alerting, plugins]
+requires:
+  dependencies:
+    - { type: database, engine: sqlite, required: false }
+    - { type: database, engine: postgres, required: false }
+    - { type: filesystem, required: true, note: "Dashboards/Plugins persistent." }
+tags: [web_ui, stateful, backup_recommended]

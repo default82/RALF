@@ -1,0 +1,13 @@
+id: proxmox_mail_gateway
+name: Proxmox Mail Gateway
+category: mail
+provides:
+  services:
+    - { name: smtp, protocol: tcp, default_port: 25 }
+    - { name: web, protocol: https, default_port: 8006 }
+  features: [mail_gateway, spam_filter, web_ui]
+requires:
+  dependencies:
+    - { type: mail_smtp, required: true, note: "Upstream/Relay SMTP." }
+    - { type: filesystem, required: true, note: "Spool/Config persistent." }
+tags: [web_ui, stateful, backup_recommended]

@@ -1,0 +1,5 @@
+catalog_version: 0.1
+validated_on: "2026-01-16"
+notes:
+  - "MVC: kompakt gehalten; Details (Ports/Paths/Volumes) werden iterativ verfeinert."
+  - "Einige Einträge sind Familien (LDAP-Server, NAS, MySQL) – konkrete Implementierung ggf. später fixieren."

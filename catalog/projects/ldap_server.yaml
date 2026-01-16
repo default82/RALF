@@ -1,0 +1,12 @@
+id: ldap_server
+name: LDAP-Server
+category: directory
+provides:
+  services:
+    - { name: ldap, protocol: tcp, default_port: 389 }
+    - { name: ldaps, protocol: tcp, default_port: 636 }
+  features: [directory, auth_backend]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Directory DB persistent." }
+tags: [stateful, backup_recommended, sso_ldap]

@@ -1,0 +1,9 @@
+id: opentofu
+name: OpenTofu
+category: automation
+provides:
+  type: tool
+  features: [infrastructure_as_code]
+requires:
+  dependencies: []
+tags: [stateless]

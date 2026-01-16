@@ -1,0 +1,15 @@
+id: nextcloud
+name: Nextcloud
+category: storage
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [file_sync, sharing, web_ui, api]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: false }
+    - { type: database, engine: mysql, required: false }
+    - { type: filesystem, required: true, note: "Data directory persistent (groß!)." }
+    - { type: mail_smtp, required: false }
+    - { type: reverse_proxy, required: true }
+tags: [web_ui, api, stateful, backup_recommended]

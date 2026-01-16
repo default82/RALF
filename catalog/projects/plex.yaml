@@ -1,0 +1,11 @@
+id: plex
+name: Plex
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 32400 }
+  features: [media_server, transcoding, web_ui, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Media + config persistent." }
+tags: [web_ui, api, stateful, backup_recommended]

@@ -1,0 +1,11 @@
+id: postgresql
+name: PostgreSQL
+category: database
+provides:
+  services:
+    - { name: db, protocol: tcp, default_port: 5432 }
+  features: [relational_db]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "PGDATA persistent." }
+tags: [stateful, backup_recommended, postgres_supported]

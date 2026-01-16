@@ -1,0 +1,10 @@
+id: haproxy
+name: HAProxy
+category: proxy
+provides:
+  services:
+    - { name: reverse-proxy, protocol: tcp, default_port: 80 }
+  features: [reverse_proxy, load_balancing]
+requires:
+  dependencies: []
+tags: [stateless]

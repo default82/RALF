@@ -35,6 +35,14 @@ Aktueller Bootstrap-Stand:
 5. Repo wird nach Gitea migriert, Semaphore Repo-URL umgestellt
 6. Ab dann: Alles läuft intern (GitHub optional abschalten)
 
+Aktueller Bootstrap-Stand:
+- Remote: noch nicht gesetzt (Vorbereitungsphase)
+- Ziel: internes Gitea als einziges Remote
+- Runner: Semaphore (wird zuerst installiert)
+- Danach: PostgreSQL → Gitea → Repo-Remote setzen
+- Alles läuft in **LXC** unter Proxmox, kein Docker
+
+
 ## Zonen
 Zonen sind Flags (keine eigenen Netze):
 - Playground: Lernen/Experimente, darf „brechen“

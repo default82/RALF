@@ -1,0 +1,11 @@
+id: caddy
+name: Caddy
+category: proxy
+provides:
+  services:
+    - { name: reverse-proxy, protocol: http, default_port: 80 }
+    - { name: tls, protocol: https, default_port: 443 }
+  features: [reverse_proxy, tls_termination, acme]
+requires:
+  dependencies: []
+tags: [stateless, web_ui]

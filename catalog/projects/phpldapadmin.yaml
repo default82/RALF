@@ -1,0 +1,11 @@
+id: phpldapadmin
+name: phpLDAPadmin
+category: directory
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [ldap_admin_ui, web_ui]
+requires:
+  dependencies:
+    - { type: ldap, required: true }
+tags: [web_ui, stateless]

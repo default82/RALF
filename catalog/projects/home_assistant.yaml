@@ -1,0 +1,12 @@
+id: home_assistant
+name: Home Assistant
+category: home
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8123 }
+  features: [home_automation, integrations, web_ui, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Config persistent." }
+    - { type: dns, required: false }
+tags: [web_ui, api, stateful, backup_recommended]

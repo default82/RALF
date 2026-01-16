@@ -1,0 +1,11 @@
+id: elasticsearch
+name: Elasticsearch
+category: search
+provides:
+  services:
+    - { name: api, protocol: http, default_port: 9200 }
+  features: [search_index, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Indexdaten persistent." }
+tags: [stateful, backup_recommended, api]

@@ -1,0 +1,13 @@
+id: bacula
+name: Bacula
+category: backup
+provides:
+  services:
+    - { name: director, protocol: tcp, default_port: 9101 }
+  features: [backup, restore, scheduling]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: false }
+    - { type: database, engine: mysql, required: false }
+    - { type: filesystem, required: true, note: "Backup storage persistent." }
+tags: [stateful, backup_recommended]

@@ -1,0 +1,12 @@
+id: radarr
+name: Radarr
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 7878 }
+  features: [movie_management, web_ui, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true }
+tags: [web_ui, api, stateful]
+

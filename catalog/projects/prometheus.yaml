@@ -1,0 +1,11 @@
+id: prometheus
+name: Prometheus
+category: monitoring
+provides:
+  services:
+    - { name: metrics, protocol: http, default_port: 9090 }
+  features: [metrics_scrape, tsdb]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "TSDB Daten persistent." }
+tags: [metrics_prometheus, stateful, backup_recommended]

@@ -1,0 +1,11 @@
+id: influxdb
+name: InfluxDB
+category: database
+provides:
+  services:
+    - { name: api, protocol: http, default_port: 8086 }
+  features: [timeseries_db, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "DB persistent." }
+tags: [stateful, backup_recommended, api]

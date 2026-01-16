@@ -1,0 +1,11 @@
+id: lidarr
+name: Lidarr
+category: media
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8686 }
+  features: [music_management, web_ui, api]
+requires:
+  dependencies:
+    - { type: filesystem, required: true }
+tags: [web_ui, api, stateful]

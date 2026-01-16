@@ -1,0 +1,16 @@
+id: gitea
+name: Gitea
+category: devtools
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 3000 }
+    - { name: ssh, protocol: tcp, default_port: 22 }
+  features: [git_hosting, web_ui, api]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: false }
+    - { type: database, engine: mysql, required: false }
+    - { type: database, engine: sqlite, required: false }
+    - { type: filesystem, required: true, note: "Repos/Attachments persistent." }
+    - { type: mail_smtp, required: false }
+tags: [web_ui, api, stateful, backup_recommended]

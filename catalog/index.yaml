@@ -1,4 +1,6 @@
 by_category:
+  database: [postgresql, mariadb, mysql, influxdb, cockroachdb, pgadmin, phpmyadmin]
+  security: [vaultwarden]
   automation: [ansible, opentofu, semaphoreui, n8n]
   auth: [authelia, ldap_server]
   backup: [bacula]

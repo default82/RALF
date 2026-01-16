@@ -1,0 +1,10 @@
+id: nas
+name: NAS
+category: storage
+provides:
+  type: service_family
+  features: [smb, nfs, storage]
+requires:
+  dependencies:
+    - { type: filesystem, required: true }
+tags: [stateful, backup_recommended]

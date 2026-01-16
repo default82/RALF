@@ -41,6 +41,7 @@ taxonomy:
     - oidc
     - reverse_proxy
     - dns
+    - search_backend
   feature_tags:
     # Auth
     - sso_oidc

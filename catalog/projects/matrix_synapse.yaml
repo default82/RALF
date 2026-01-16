@@ -1,0 +1,14 @@
+id: matrix_synapse
+name: Matrix (Synapse)
+category: messaging
+provides:
+  services:
+    - { name: federation, protocol: https, default_port: 8448 }
+    - { name: client, protocol: https, default_port: 443 }
+  features: [chat_server, federation]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: true }
+    - { type: reverse_proxy, required: true }
+    - { type: filesystem, required: true, note: "Media store persistent." }
+tags: [stateful, backup_recommended, postgres_supported]

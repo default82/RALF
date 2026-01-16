@@ -1,0 +1,16 @@
+id: authelia
+name: Authelia
+category: auth
+provides:
+  services:
+    - name: web
+      protocol: http
+      default_port: 9091
+  features: [sso, mfa, policy_engine]
+requires:
+  dependencies:
+    - { type: reverse_proxy, required: true }
+    - { type: database, engine: postgres, required: false }
+    - { type: database, engine: mysql, required: false }
+    - { type: filesystem, required: true, note: "Konfiguration/Keys persistent." }
+tags: [sso_oidc, mfa, web_ui, stateful, backup_recommended]

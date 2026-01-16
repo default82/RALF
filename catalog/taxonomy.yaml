@@ -1,0 +1,58 @@
+categories:
+  - automation
+  - auth
+  - backup
+  - dashboard
+  - database
+  - devtools
+  - directory
+  - docs
+  - filesync
+  - gaming
+  - home
+  - inventory
+  - mail
+  - management
+  - media
+  - messaging
+  - monitoring
+  - networking
+  - proxy
+  - search
+  - security
+  - storage
+  - tracing
+  - ui
+
+dependency_types:
+  - database
+  - cache
+  - queue
+  - object_storage
+  - filesystem
+  - mail_smtp
+  - ldap
+  - oidc
+  - reverse_proxy
+  - dns
+  - search_backend
+
+feature_tags:
+  - sso_oidc
+  - sso_ldap
+  - mfa
+  - vault
+  - metrics_prometheus
+  - logs
+  - tracing
+  - health_http
+  - postgres_supported
+  - mysql_supported
+  - sqlite_supported
+  - s3_supported
+  - backup_recommended
+  - stateful
+  - stateless
+  - web_ui
+  - api
+  - agent_based

@@ -1,0 +1,13 @@
+id: inventree
+name: InvenTree
+category: inventory
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 1337 }
+  features: [parts_inventory, bom, web_ui, api]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: true }
+    - { type: cache, engine: redis, required: false }
+    - { type: filesystem, required: true, note: "Media/Config persistent." }
+tags: [web_ui, api, stateful, backup_recommended]

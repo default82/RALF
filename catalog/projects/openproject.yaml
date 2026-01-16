@@ -1,0 +1,13 @@
+id: openproject
+name: OpenProject
+category: docs
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8080 }
+  features: [project_management, web_ui, api]
+requires:
+  dependencies:
+    - { type: database, engine: postgres, required: true }
+    - { type: filesystem, required: true, note: "Assets/Attachments persistent." }
+    - { type: reverse_proxy, required: false }
+tags: [web_ui, api, stateful, backup_recommended, postgres_supported]

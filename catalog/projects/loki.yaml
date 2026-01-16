@@ -1,0 +1,12 @@
+id: loki
+name: Loki
+category: monitoring
+provides:
+  services:
+    - { name: logs, protocol: http, default_port: 3100 }
+  features: [log_storage, query]
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Log storage persistent." }
+    - { type: object_storage, required: false, note: "S3 kompatibel optional." }
+tags: [logs, stateful, backup_recommended]

@@ -1,0 +1,9 @@
+id: ansible
+name: Ansible
+category: automation
+provides:
+  type: tool
+  features: [automation, configuration_management]
+requires:
+  dependencies: []
+tags: [stateless]

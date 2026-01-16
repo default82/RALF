@@ -1,0 +1,12 @@
+id: syncthing
+name: Syncthing
+category: filesync
+provides:
+  services:
+    - { name: web, protocol: http, default_port: 8384 }
+    - { name: sync, protocol: tcp, default_port: 22000 }
+  note: "UDP discovery optional; hängt vom Netzwerk ab."
+requires:
+  dependencies:
+    - { type: filesystem, required: true, note: "Sync-Folder persistent." }
+tags: [stateful, backup_recommended, web_ui]

@@ -81,7 +81,28 @@ Erst danach folgen eigentliche Dienste (z. B. Gitea, Vaultwarden, Monitoring)
 als eigenständige Rollen.
 
 Prinzip:  
-**Erst Fundamen**
+**Erst Fundament, dann Hände, dann Plan, dann Logik.**
+
+## Aktueller Bootstrap-Stand
+
+- PostgreSQL als LXC bereitgestellt (persistente Basis)
+- Semaphore in Vorbereitung / angebunden an PostgreSQL
+- Repository dient aktuell der Planung und Strukturierung
+- Automatisierung wird schrittweise aktiviert
+- GitHub wird temporär als Remote für Planung und Ideensammlung genutzt
+
+Hinweis:  
+Das Repository ist bewusst strukturorientiert. Nicht alle enthaltenen Konzepte
+sind bereits produktiv umgesetzt.
+
+## Netzwerk-Hinweis
+
+Die aktuelle IP-Zuordnung (z. B. PostgreSQL im 10.10.100.0/16-Netz)
+entspricht dem aktuellen Bootstrap-Stand.
+Eine spätere Konsolidierung oder Segmentierung wird durch RALF vorbereitet
+und ist bewusst nicht Teil der initialen Phase.
+
+
 
 
 ## Zonen

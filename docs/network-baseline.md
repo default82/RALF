@@ -4,12 +4,6 @@
 Dieses Dokument definiert das Netzwerk als verbindliche Grundlage
 für alle Deployments, Automatisierungen und Entscheidungen durch RALF.
 
-# Network Baseline – RALF Homelab
-
-## Ziel
-Dieses Dokument definiert das Netzwerk als verbindliche Grundlage
-für alle Deployments, Automatisierungen und Entscheidungen durch RALF.
-
 Ohne grünes Netzwerk findet kein Deploy statt.
 
 ---
@@ -106,3 +100,4 @@ Diese Regel gilt für:
 ## Änderungsprinzip
 - Jede Netzwerkänderung erzeugt ein Artefakt
 - Jede Änderung ist rollback-fähig
+

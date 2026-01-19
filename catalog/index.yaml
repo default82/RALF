@@ -4,7 +4,6 @@ by_category:
   automation: [ansible, opentofu, semaphoreui, n8n]
   auth: [authelia, ldap_server]
   backup: [bacula]
-  database: [postgresql, mariadb, mysql, influxdb, cockroachdb]
   devtools: [gitea]
   directory: [ldap_server, phpldapadmin]
   docs: [paperless_ngx, openproject]

@@ -27,20 +27,61 @@ Aktueller Bootstrap-Stand:
 - `pipelines/` – Runner-Pipelines (Semaphore)
 - `tests/` – Smoke/Acceptance-Tests (Teil der Definition of Done)
 
-## Bootstrap Ablauf (kurz)
-1. Semaphore wird als LXC „seeded“ (einmalig)
-2. Semaphore zieht dieses Repo und führt Bootstrap-Jobs aus (Smoke/Toolchain)
-3. Semaphore deployed PostgreSQL (Functional)
-4. Semaphore deployed Gitea (extern: `gitea.otta.zone`)
-5. Repo wird nach Gitea migriert, Semaphore Repo-URL umgestellt
-6. Ab dann: Alles läuft intern (GitHub optional abschalten)
+## Bootstrap-Reihenfolge (RALF v1)
 
-Aktueller Bootstrap-Stand:
-- Remote: noch nicht gesetzt (Vorbereitungsphase)
-- Ziel: internes Gitea als einziges Remote
-- Runner: Semaphore (wird zuerst installiert)
-- Danach: PostgreSQL → Gitea → Repo-Remote setzen
-- Alles läuft in **LXC** unter Proxmox, kein Docker
+Der initiale Aufbau von RALF folgt einer festen und bewusst einfachen Reihenfolge.
+Ziel ist es, zuerst eine stabile technische Basis zu schaffen, bevor Automatisierung
+und logische Steuerung greifen.
+
+### 1. PostgreSQL – Persistente Basis
+PostgreSQL wird als erstes System bereitgestellt.
+
+- Zentrale Datenbank für RALF-nahe Dienste (z. B. Semaphore)
+- Statische IP
+- Zugriff nur aus dem Homelab
+- Separate Rollen und Datenbanken pro Dienst
+
+Begründung:  
+Automatisierung ohne stabile Persistenz führt zu impliziten Abhängigkeiten und
+nicht reproduzierbaren Zuständen. PostgreSQL ist der erste feste Anker.
+
+### 2. Semaphore – Ausführende Instanz („RALF-Hände“)
+Semaphore wird auf die bestehende PostgreSQL-Instanz aufgesetzt.
+
+- Führt Ansible-Playbooks aus
+- Verwaltet SSH-Keys, Repositories und Inventare
+- Enthält selbst keine fachliche Logik
+
+Begründung:  
+Semaphore ist kein Steuerzentrum, sondern ein ausführendes Werkzeug.
+Es wird erst sinnvoll, wenn eine stabile Datenbasis existiert.
+
+### 3. Repository & Inventar – Source of Truth
+Nach funktionierender Ausführungsebene wird das Repository angebunden.
+
+- Inventare (Hosts, Gruppen, Variablen)
+- Bootstrap-Playbooks
+- Rollen-Struktur
+
+RALF beschreibt den gewünschten Zustand im Repository,
+Semaphore setzt ihn um.
+
+### 4. Bootstrap-Playbooks – Minimalstandard
+Initiale Playbooks bringen Systeme in einen definierten Grundzustand:
+
+- Paketbasis
+- Zeitsynchronisation
+- Benutzer / SSH-Zugriff
+- Markierung als „RALF-bootstrapped“
+
+Noch keine Fachlogik, keine Dienste.
+
+### 5. Service-Module – Schrittweise Erweiterung
+Erst danach folgen eigentliche Dienste (z. B. Gitea, Vaultwarden, Monitoring)
+als eigenständige Rollen.
+
+Prinzip:  
+**Erst Fundamen**
 
 
 ## Zonen

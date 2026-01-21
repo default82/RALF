@@ -59,3 +59,36 @@ hosts:
     notes: >
       Erster Proxmox-Knoten.
       Aktuell keine bekannten LXCs oder VMs laut IP-Scan.
+      
+  svc-postgres:
+    type: lxc
+    role: database
+    hostname: svc-postgres.homelab.lan
+    ip: 10.10.20.10
+    zone: service
+    os: ubuntu-24.04
+    status: planned
+    provides: [postgresql]
+    notes: "DB for svc-gitea (and optionally ops-semaphore)."
+
+  svc-gitea:
+    type: lxc
+    role: git
+    hostname: svc-gitea.homelab.lan
+    ip: 10.10.20.12
+    zone: service
+    os: ubuntu-24.04
+    status: planned
+    provides: [gitea]
+    depends_on: [svc-postgres]
+
+  ops-semaphore:
+    type: lxc
+    role: automation
+    hostname: ops-semaphore.homelab.lan
+    ip: 10.10.100.15
+    zone: mgmt
+    os: ubuntu-24.04
+    status: planned
+    provides: [semaphore, ansible, opentofu]
+    depends_on: [svc-gitea, svc-postgres]

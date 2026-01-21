@@ -97,7 +97,7 @@ sind bereits produktiv umgesetzt.
 
 ## Netzwerk-Hinweis
 
-Die aktuelle IP-Zuordnung (z. B. PostgreSQL im 10.10.100.0/16-Netz)
+Die aktuelle IP-Zuordnung (z. B. PostgreSQL im 10.10.20.0/16-Netz)
 entspricht dem aktuellen Bootstrap-Stand.
 Eine spätere Konsolidierung oder Segmentierung wird durch RALF vorbereitet
 und ist bewusst nicht Teil der initialen Phase.

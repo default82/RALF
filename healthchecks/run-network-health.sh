@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[NET] Starting network health check..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-FAILED=0
-
-check() {
-  local desc="$1"
-  local cmd="$2"
-
-  echo -n "[NET] $desc ... "
-  if eval "$cmd" >/dev/null 2>&1; then
-    echo "OK"
-  else
-    echo "FAIL"
-    FAILED=1
-  fi
-}
+# Load runtime env (source of truth for simple runtime checks)
+if [[ -f "$REPO_ROOT/inventory/runtime.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$REPO_ROOT/inventory/runtime.env"
+else
+  echo "[NET] Missing inventory/runtime.env"
+  exit 1
+fi
 
 # Gateway erreichbar?
 check "Gateway reachable (opnsense)" "ping -c 1 -W 1 10.10.0.1"

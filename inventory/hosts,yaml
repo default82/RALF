@@ -1,0 +1,61 @@
+meta:
+  inventory_version: 1
+  generated_from: advanced-ip-scanner
+  source_date: 2026-01-21
+  owner: Kolja
+  homelab: RALF
+  state: initial
+  notes: >
+    Initiales Inventar basierend auf erstem IP-Scan.
+    Enthält nur bestätigte, aktive Systeme.
+    Keine Container/LXCs vorhanden.
+
+networks:
+  homelab:
+    cidr: 10.10.0.0/16
+    gateway: 10.10.0.1
+    dns:
+      - 10.10.0.1
+    domain: homelab.lan
+    segmentation: third_octet
+    notes: >
+      Zentrales Homelab-Netz. Segmentierung erfolgt über das dritte Oktett.
+
+hosts:
+
+  opnsense:
+    type: network
+    role: firewall
+    hostname: opnsense.homelab.lan
+    ip: 10.10.0.1
+    mac: "50:3E:AA:14:0F:8F"
+    vendor: "TP-LINK TECHNOLOGIES"
+    zone: infra
+    os: opnsense
+    status: online
+    managed_by: manual
+    provides:
+      - gateway
+      - dns
+      - dhcp
+      - firewall
+    notes: >
+      Zentrales Gateway des Homelabs.
+      Erreichbar per HTTP/HTTPS (Tunnel SSL sichtbar).
+
+  pve-deploy:
+    type: host
+    role: proxmox-node
+    hostname: pve-deploy.homelab.lan
+    ip: 10.10.10.10
+    mac: "10:FF:E0:B8:C0:9B"
+    zone: mgmt
+    os: proxmox
+    status: online
+    managed_by: manual
+    capabilities:
+      - lxc
+      - vm
+    notes: >
+      Erster Proxmox-Knoten.
+      Aktuell keine bekannten LXCs oder VMs laut IP-Scan.

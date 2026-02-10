@@ -1,0 +1,9 @@
+---
+# Bootstrap Base – Alle P1-Container in Grundzustand bringen
+# Verwendung: ansible-playbook -i inventory/hosts.yml playbooks/bootstrap-base.yml
+
+- name: RALF Bootstrap – Base
+  hosts: p1_bootstrap
+  become: yes
+  roles:
+    - base

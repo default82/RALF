@@ -1,0 +1,20 @@
+---
+# Deploy Gitea – Functional Zone
+# Verwendung: ansible-playbook -i inventory/hosts.yml playbooks/deploy-gitea.yml
+# Voraussetzung: PostgreSQL laeuft + DB/User existieren
+
+- name: RALF Deploy – Gitea
+  hosts: devtools
+  become: yes
+  vars:
+    gitea_version: "1.22.6"
+    gitea_http_port: 3000
+    gitea_ssh_port: 2222
+    gitea_db_host: "10.10.20.10"
+    gitea_db_port: 5432
+    gitea_db_name: gitea
+    gitea_db_user: gitea
+    # gitea_db_pass: via --extra-vars oder Semaphore Secret
+  roles:
+    - base
+    - gitea

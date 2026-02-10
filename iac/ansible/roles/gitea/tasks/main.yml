@@ -1,0 +1,54 @@
+---
+# Gitea Role – Installation und Grundkonfiguration
+
+- name: Gitea System-User erstellen
+  ansible.builtin.user:
+    name: gitea
+    system: yes
+    shell: /bin/bash
+    home: /home/gitea
+    create_home: yes
+
+- name: Gitea-Verzeichnisse erstellen
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: gitea
+    group: gitea
+    mode: '0750'
+  loop:
+    - /var/lib/gitea
+    - /var/lib/gitea/custom
+    - /var/lib/gitea/data
+    - /var/lib/gitea/log
+    - /etc/gitea
+
+- name: Gitea Binary herunterladen
+  ansible.builtin.get_url:
+    url: "https://dl.gitea.com/gitea/{{ gitea_version | default('1.22.6') }}/gitea-{{ gitea_version | default('1.22.6') }}-linux-amd64"
+    dest: /usr/local/bin/gitea
+    mode: '0755'
+
+- name: Gitea app.ini deployen
+  ansible.builtin.template:
+    src: app.ini.j2
+    dest: /etc/gitea/app.ini
+    owner: gitea
+    group: gitea
+    mode: '0640'
+  notify: restart gitea
+
+- name: Gitea systemd Service erstellen
+  ansible.builtin.template:
+    src: gitea.service.j2
+    dest: /etc/systemd/system/gitea.service
+    mode: '0644'
+  notify:
+    - daemon reload
+    - restart gitea
+
+- name: Gitea aktivieren und starten
+  ansible.builtin.systemd:
+    name: gitea
+    state: started
+    enabled: yes

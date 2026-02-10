@@ -1,0 +1,45 @@
+---
+# Base Role – RALF Bootstrap-Standard
+# Bringt jeden Container in einen definierten Grundzustand.
+
+- name: Paketquellen aktualisieren
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Basis-Pakete installieren
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - jq
+      - openssh-server
+      - sudo
+    state: present
+
+- name: Zeitzone setzen
+  ansible.builtin.timezone:
+    name: Europe/Berlin
+
+- name: NTP-Synchronisation sicherstellen
+  ansible.builtin.systemd:
+    name: systemd-timesyncd
+    state: started
+    enabled: yes
+
+- name: SSH-Dienst aktivieren
+  ansible.builtin.systemd:
+    name: ssh
+    state: started
+    enabled: yes
+
+- name: RALF-Bootstrap-Marker setzen
+  ansible.builtin.copy:
+    dest: /etc/ralf-bootstrapped
+    content: |
+      bootstrapped_at={{ ansible_date_time.iso8601 }}
+      hostname={{ inventory_hostname }}
+      zone={{ ralf_zone | default('unknown') }}
+    mode: '0644'

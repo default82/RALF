@@ -1,0 +1,23 @@
+name: deploy-gitea
+description: "Gitea Deployment Pipeline (P1 – Functional Zone)"
+jobs:
+  - name: network-health
+    command: "bash healthchecks/run-network-health.sh"
+
+  - name: check-postgresql
+    command: "bash tests/postgresql/smoke.sh"
+
+  - name: tofu-init
+    command: "cd iac/stacks/gitea-fz/tofu && tofu init"
+
+  - name: tofu-plan
+    command: "cd iac/stacks/gitea-fz/tofu && tofu plan -var-file=../env/functional.tfvars -out=plan.tfplan"
+
+  - name: tofu-apply
+    command: "cd iac/stacks/gitea-fz/tofu && tofu apply plan.tfplan"
+
+  - name: ansible-deploy
+    command: "cd iac/ansible && ansible-playbook -i inventory/hosts.yml playbooks/deploy-gitea.yml"
+
+  - name: smoke-post
+    command: "bash tests/gitea/smoke.sh"

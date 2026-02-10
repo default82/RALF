@@ -1,0 +1,29 @@
+APP_NAME = RALF Gitea
+RUN_USER = gitea
+RUN_MODE = prod
+WORK_PATH = /var/lib/gitea
+
+[server]
+SSH_DOMAIN       = {{ inventory_hostname }}.{{ homelab_domain }}
+DOMAIN           = {{ inventory_hostname }}.{{ homelab_domain }}
+HTTP_PORT        = {{ gitea_http_port | default(3000) }}
+ROOT_URL         = http://{{ inventory_hostname }}.{{ homelab_domain }}:{{ gitea_http_port | default(3000) }}/
+SSH_PORT         = {{ gitea_ssh_port | default(2222) }}
+START_SSH_SERVER = true
+LFS_START_SERVER = true
+
+[database]
+DB_TYPE  = postgres
+HOST     = {{ gitea_db_host | default('10.10.20.10') }}:{{ gitea_db_port | default(5432) }}
+NAME     = {{ gitea_db_name | default('gitea') }}
+USER     = {{ gitea_db_user | default('gitea') }}
+PASSWD   = {{ gitea_db_pass }}
+SSL_MODE = disable
+
+[repository]
+ROOT = /var/lib/gitea/data/gitea-repositories
+
+[log]
+MODE      = console
+LEVEL     = info
+ROOT_PATH = /var/lib/gitea/log

@@ -1,0 +1,12 @@
+---
+# Deploy PostgreSQL – Functional Zone
+# Verwendung: ansible-playbook -i inventory/hosts.yml playbooks/deploy-postgresql.yml
+
+- name: RALF Deploy – PostgreSQL
+  hosts: databases
+  become: yes
+  vars:
+    pg_version: 16
+  roles:
+    - base
+    - postgresql

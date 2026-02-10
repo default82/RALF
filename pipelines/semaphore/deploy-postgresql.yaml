@@ -1,0 +1,23 @@
+name: deploy-postgresql
+description: "PostgreSQL Deployment Pipeline (P1 – Functional Zone)"
+jobs:
+  - name: network-health
+    command: "bash healthchecks/run-network-health.sh"
+
+  - name: smoke-pre
+    command: "echo 'Pre-check: Container noch nicht vorhanden oder bereits laufend'"
+
+  - name: tofu-init
+    command: "cd iac/stacks/postgresql-fz/tofu && tofu init"
+
+  - name: tofu-plan
+    command: "cd iac/stacks/postgresql-fz/tofu && tofu plan -var-file=../env/functional.tfvars -out=plan.tfplan"
+
+  - name: tofu-apply
+    command: "cd iac/stacks/postgresql-fz/tofu && tofu apply plan.tfplan"
+
+  - name: ansible-deploy
+    command: "cd iac/ansible && ansible-playbook -i inventory/hosts.yml playbooks/deploy-postgresql.yml"
+
+  - name: smoke-post
+    command: "bash tests/postgresql/smoke.sh"

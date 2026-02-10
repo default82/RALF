@@ -1,0 +1,17 @@
+[Unit]
+Description=Gitea (Git with a cup of tea)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gitea
+Group=gitea
+WorkingDirectory=/var/lib/gitea
+Environment=GITEA_WORK_DIR=/var/lib/gitea
+ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,42 @@
+---
+# PostgreSQL Role – Installation und Grundkonfiguration
+
+- name: PostgreSQL APT-Key hinzufuegen
+  ansible.builtin.shell: |
+    install -d /usr/share/postgresql-common/pgdg
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+  args:
+    creates: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+
+- name: PostgreSQL APT-Repository hinzufuegen
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    filename: pgdg
+    state: present
+
+- name: PostgreSQL installieren
+  ansible.builtin.apt:
+    name: "postgresql-{{ pg_version | default(16) }}"
+    state: present
+    update_cache: yes
+
+- name: postgresql.conf – listen_addresses konfigurieren
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ pg_version | default(16) }}/main/postgresql.conf"
+    regexp: "^#?listen_addresses"
+    line: "listen_addresses = '*'"
+  notify: restart postgresql
+
+- name: pg_hba.conf – Homelab-Zugriff erlauben
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ pg_version | default(16) }}/main/pg_hba.conf"
+    line: "host    all    all    10.10.0.0/16    scram-sha-256"
+    insertafter: EOF
+  notify: restart postgresql
+
+- name: PostgreSQL aktivieren und starten
+  ansible.builtin.systemd:
+    name: postgresql
+    state: started
+    enabled: yes

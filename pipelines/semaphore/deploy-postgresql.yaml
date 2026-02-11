@@ -19,5 +19,8 @@ jobs:
   - name: ansible-deploy
     command: "cd iac/ansible && ansible-playbook -i inventory/hosts.yml playbooks/deploy-postgresql.yml"
 
+  - name: provision-databases
+    command: "cd iac/ansible && ansible-playbook -i inventory/hosts.yml playbooks/provision-databases.yml"
+
   - name: smoke-post
     command: "bash tests/postgresql/smoke.sh"

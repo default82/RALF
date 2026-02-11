@@ -1,0 +1,63 @@
+---
+# Datenbanken und Benutzer auf PostgreSQL provisionieren
+# Verwendung: ansible-playbook -i inventory/hosts.yml playbooks/provision-databases.yml \
+#   --extra-vars "semaphore_db_pass=GEHEIM gitea_db_pass=GEHEIM"
+# Voraussetzung: PostgreSQL laeuft (deploy-postgresql.yml erfolgreich)
+#
+# Erstellt fuer jeden P1-Dienst eine eigene Datenbank und einen eigenen Benutzer
+# mit minimalen Rechten (Principle of Least Privilege).
+
+- name: RALF Provision – PostgreSQL Datenbanken
+  hosts: databases
+  become: yes
+  become_user: postgres
+  vars:
+    pg_databases:
+      - name: semaphore
+        owner: semaphore
+        password: "{{ semaphore_db_pass }}"
+      - name: gitea
+        owner: gitea
+        password: "{{ gitea_db_pass }}"
+
+  tasks:
+    - name: Pruefe ob PostgreSQL laeuft
+      ansible.builtin.command: pg_isready
+      changed_when: false
+
+    - name: Datenbank-Benutzer erstellen
+      ansible.builtin.shell: |
+        psql -tc "SELECT 1 FROM pg_roles WHERE rolname='{{ item.owner }}'" | grep -q 1 \
+          || psql -c "CREATE ROLE {{ item.owner }} WITH LOGIN PASSWORD '{{ item.password }}';"
+      loop: "{{ pg_databases }}"
+      loop_control:
+        label: "{{ item.owner }}"
+      changed_when: false
+      no_log: true
+
+    - name: Datenbanken erstellen
+      ansible.builtin.shell: |
+        psql -tc "SELECT 1 FROM pg_database WHERE datname='{{ item.name }}'" | grep -q 1 \
+          || psql -c "CREATE DATABASE {{ item.name }} OWNER {{ item.owner }};"
+      loop: "{{ pg_databases }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: false
+
+    - name: Berechtigungen setzen (nur eigener DB-Zugriff)
+      ansible.builtin.shell: |
+        psql -c "REVOKE ALL ON DATABASE {{ item.name }} FROM PUBLIC;"
+        psql -c "GRANT ALL PRIVILEGES ON DATABASE {{ item.name }} TO {{ item.owner }};"
+      loop: "{{ pg_databases }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: false
+
+    - name: Ergebnis pruefen – Datenbanken auflisten
+      ansible.builtin.command: psql -c "\l"
+      register: db_list
+      changed_when: false
+
+    - name: Datenbank-Uebersicht anzeigen
+      ansible.builtin.debug:
+        var: db_list.stdout_lines

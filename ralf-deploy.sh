@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+
+# CRLF-Schutz: Falls dieses Script Windows-Zeilenenden hat,
+# repariert es sich selbst und startet neu.
+if grep -qP '\r$' "$0" 2>/dev/null; then
+  sed -i 's/\r$//' "$0"
+  exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 ### ============================================================
@@ -156,7 +164,30 @@ preflight() {
   log_phase "0" "Preflight Check"
   local errors=0
 
-  # Befehle pruefen
+  # Basis-Tools automatisch installieren falls fehlend
+  local -a INSTALL_PKGS=()
+  for cmd in jq curl git; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      log_warn "$cmd fehlt – wird installiert"
+      INSTALL_PKGS+=("$cmd")
+    fi
+  done
+  if ! command -v ssh-keygen >/dev/null 2>&1; then
+    log_warn "ssh-keygen fehlt – wird installiert"
+    INSTALL_PKGS+=("openssh-client")
+  fi
+  if [[ ${#INSTALL_PKGS[@]} -gt 0 ]]; then
+    log "Installiere fehlende Pakete: ${INSTALL_PKGS[*]}"
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update -qq && apt-get install -y -qq "${INSTALL_PKGS[@]}" >/dev/null 2>&1
+      log_ok "Pakete installiert: ${INSTALL_PKGS[*]}"
+    else
+      log_err "apt-get nicht verfuegbar – bitte manuell installieren: ${INSTALL_PKGS[*]}"
+      ((errors++))
+    fi
+  fi
+
+  # Befehle pruefen (inkl. Proxmox-spezifische)
   for cmd in pct pveam pvesm curl jq git bash ssh-keygen; do
     if need_cmd "$cmd"; then
       log_ok "$cmd verfuegbar"

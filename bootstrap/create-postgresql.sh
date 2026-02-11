@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Proxmox
 CTID="${CTID:-2010}"                        # CT-ID im 20er Bereich (Datenbanken)
-HOSTNAME="${HOSTNAME:-svc-postgres}"         # -fz implied (Functional Zone)
+CT_HOSTNAME="${CT_HOSTNAME:-svc-postgres}"    # -fz implied (Functional Zone)
 BRIDGE="${BRIDGE:-vmbr0}"
 
 # Netzwerk (Schema 10.10.0.0/16, Bereich 20)
@@ -69,9 +69,9 @@ fi
 if pct status "$CTID" >/dev/null 2>&1; then
   log "CT ${CTID} existiert bereits -> ueberspringe create"
 else
-  log "Erstelle LXC CT ${CTID} (${HOSTNAME}) mit IP ${IP_CIDR}"
+  log "Erstelle LXC CT ${CTID} (${CT_HOSTNAME}) mit IP ${IP_CIDR}"
   pct create "$CTID" "${TPL_STORAGE}:vztmpl/${TPL_NAME}" \
-    --hostname "$HOSTNAME" \
+    --hostname "$CT_HOSTNAME" \
     --memory "$MEMORY" \
     --cores "$CORES" \
     --net0 "name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}" \

@@ -26,7 +26,7 @@ TPL_STORAGE="${TPL_STORAGE:-local}"
 TPL_NAME="${TPL_NAME:-ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
 
 # Semaphore (Binary Install)
-SEMAPHORE_VERSION="${SEMAPHORE_VERSION:-2.10.36}"  # bei Bedarf ändern
+SEMAPHORE_VERSION="${SEMAPHORE_VERSION:-2.16.51}"  # bei Bedarf ändern
 # Die meisten Releases folgen diesem Muster; wenn dein Release anders heißt:
 # SEMAPHORE_TARBALL_URL überschreiben.
 SEMAPHORE_TARBALL_URL="${SEMAPHORE_TARBALL_URL:-https://github.com/semaphoreui/semaphore/releases/download/v${SEMAPHORE_VERSION}/semaphore_${SEMAPHORE_VERSION}_linux_amd64.tar.gz}"
@@ -104,7 +104,7 @@ else
 fi
 
 log "Starte CT ${CTID}"
-pct start "$CTID"
+pct start "$CTID" 2>/dev/null || true
 
 log "Warte kurz auf Boot..."
 sleep 3
@@ -121,7 +121,7 @@ pct_exec "printf '# --- RALF ---\nsearch ${SEARCHDOMAIN}\nnameserver ${DNS}\n# -
 ### =========================
 
 log "Erstelle Snapshot 'pre-install' (falls nicht vorhanden)"
-if pct listsnapshot "$CTID" 2>/dev/null | awk '{print $1}' | grep -qx "pre-install"; then
+if pct listsnapshot "$CTID" 2>/dev/null | grep -q "pre-install"; then
   log "Snapshot pre-install existiert bereits"
 else
   pct snapshot "$CTID" "pre-install"

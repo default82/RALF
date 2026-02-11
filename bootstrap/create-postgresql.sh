@@ -99,7 +99,7 @@ pct_exec "printf 'search ${SEARCHDOMAIN}\nnameserver ${DNS}\n' > /etc/resolv.con
 ### =========================
 
 log "Erstelle Snapshot 'pre-install' (falls nicht vorhanden)"
-if pct listsnapshot "$CTID" 2>/dev/null | awk '{print $1}' | grep -qx "pre-install"; then
+if pct listsnapshot "$CTID" 2>/dev/null | grep -q "pre-install"; then
   log "Snapshot pre-install existiert bereits"
 else
   pct snapshot "$CTID" "pre-install"
@@ -129,7 +129,7 @@ install -d /usr/share/postgresql-common/pgdg
 curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
   -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
 
-echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt \$(lsb_release -cs)-pgdg main' \
+echo \"deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt \$(lsb_release -cs)-pgdg main\" \
   > /etc/apt/sources.list.d/pgdg.list
 
 apt-get update -y;
@@ -164,7 +164,7 @@ systemctl enable postgresql;
 ### =========================
 
 log "Erstelle Snapshot 'post-install'"
-if pct listsnapshot "$CTID" 2>/dev/null | awk '{print $1}' | grep -qx "post-install"; then
+if pct listsnapshot "$CTID" 2>/dev/null | grep -q "post-install"; then
   log "Snapshot post-install existiert bereits"
 else
   pct snapshot "$CTID" "post-install"

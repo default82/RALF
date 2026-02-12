@@ -6,8 +6,8 @@ set -euo pipefail
 ### =========================
 
 # Proxmox
-CTID="${CTID:-2012}"                        # CT-ID im 20er Bereich (Datenbanken/DevTools)
-HOSTNAME="${HOSTNAME:-svc-gitea}"            # Functional Zone
+CTID="${CTID:-2012}"                        # CT-ID im 20er Bereich (Databases/Devtools)
+CT_HOSTNAME="${CT_HOSTNAME:-svc-gitea}"     # -fz implied (Functional Zone)
 BRIDGE="${BRIDGE:-vmbr0}"
 
 # Netzwerk (Schema 10.10.0.0/16, Bereich 20)
@@ -19,7 +19,7 @@ SEARCHDOMAIN="${SEARCHDOMAIN:-homelab.lan}"
 # Ressourcen
 MEMORY="${MEMORY:-2048}"     # MB
 CORES="${CORES:-2}"
-DISK_GB="${DISK_GB:-16}"
+DISK_GB="${DISK_GB:-32}"
 
 # Ubuntu Template
 TPL_STORAGE="${TPL_STORAGE:-local}"
@@ -28,10 +28,13 @@ TPL_NAME="${TPL_NAME:-ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
 # Gitea
 GITEA_VERSION="${GITEA_VERSION:-1.22.6}"
 GITEA_BINARY_URL="${GITEA_BINARY_URL:-https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-linux-amd64}"
+
+# Gitea Config
 GITEA_HTTP_PORT="${GITEA_HTTP_PORT:-3000}"
 GITEA_SSH_PORT="${GITEA_SSH_PORT:-2222}"
+GITEA_DOMAIN="${GITEA_DOMAIN:-gitea.homelab.lan}"
 
-# PostgreSQL Verbindung (Secrets via env vars setzen!)
+# PostgreSQL Connection (MUSS bereits existieren!)
 PG_HOST="${PG_HOST:-10.10.20.10}"
 PG_PORT="${PG_PORT:-5432}"
 PG_DB="${PG_DB:-gitea}"
@@ -60,13 +63,23 @@ pct_exec() {
 need_cmd pct
 need_cmd pveam
 need_cmd pvesm
+need_cmd curl
 
 if [[ "$PG_PASS" == "CHANGE_ME_NOW" ]]; then
   echo "ERROR: PG_PASS ist noch CHANGE_ME_NOW."
-  echo "Setze es vor dem Start, z.B.:"
-  echo "  export PG_PASS='sicheres-passwort'"
+  echo "Setze PostgreSQL-Passwort fuer Gitea-DB:"
+  echo "  export PG_PASS='gitea-db-passwort'"
   exit 1
 fi
+
+log "Pruefe PostgreSQL-Erreichbarkeit (${PG_HOST}:${PG_PORT})"
+if ! nc -zv "$PG_HOST" "$PG_PORT" 2>&1 | grep -q succeeded; then
+  echo "ERROR: PostgreSQL unter ${PG_HOST}:${PG_PORT} nicht erreichbar!"
+  echo "Bitte ZUERST PostgreSQL deployen:"
+  echo "  bash bootstrap/create-postgresql.sh"
+  exit 1
+fi
+log "PostgreSQL erreichbar ✓"
 
 ### =========================
 ### 1) Ensure template exists
@@ -86,9 +99,9 @@ fi
 if pct status "$CTID" >/dev/null 2>&1; then
   log "CT ${CTID} existiert bereits -> ueberspringe create"
 else
-  log "Erstelle LXC CT ${CTID} (${HOSTNAME}) mit IP ${IP_CIDR}"
+  log "Erstelle LXC CT ${CTID} (${CT_HOSTNAME}) mit IP ${IP_CIDR}"
   pct create "$CTID" "${TPL_STORAGE}:vztmpl/${TPL_NAME}" \
-    --hostname "$HOSTNAME" \
+    --hostname "$CT_HOSTNAME" \
     --memory "$MEMORY" \
     --cores "$CORES" \
     --net0 "name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}" \
@@ -116,7 +129,7 @@ pct_exec "printf 'search ${SEARCHDOMAIN}\nnameserver ${DNS}\n' > /etc/resolv.con
 ### =========================
 
 log "Erstelle Snapshot 'pre-install' (falls nicht vorhanden)"
-if pct listsnapshot "$CTID" 2>/dev/null | awk '{print $1}' | grep -qx "pre-install"; then
+if pct listsnapshot "$CTID" 2>/dev/null | grep -q "pre-install"; then
   log "Snapshot pre-install existiert bereits"
 else
   pct snapshot "$CTID" "pre-install"
@@ -130,20 +143,17 @@ log "Installiere Basis-Tools im Container"
 pct_exec "export DEBIAN_FRONTEND=noninteractive;
 apt-get update -y;
 apt-get install -y --no-install-recommends \
-  ca-certificates curl git openssh-server;
+  ca-certificates curl git openssh-server postgresql-client;
 "
 
 ### =========================
-### 6) Create gitea system user
+### 6) Create git user
 ### =========================
 
-log "Erstelle Gitea System-User"
-pct_exec "set -euo pipefail;
-if id gitea &>/dev/null; then
-  echo 'User gitea existiert bereits'
-else
-  adduser --system --shell /bin/bash --gecos 'Gitea' \
-    --group --disabled-password --home /home/gitea gitea
+log "Erstelle git-User"
+pct_exec "
+if ! id -u git >/dev/null 2>&1; then
+  useradd -m -s /bin/bash git
 fi
 "
 
@@ -151,38 +161,56 @@ fi
 ### 7) Install Gitea binary
 ### =========================
 
-log "Installiere Gitea v${GITEA_VERSION}"
+log "Installiere Gitea ${GITEA_VERSION} -> /usr/local/bin/gitea"
 pct_exec "set -euo pipefail;
-mkdir -p /var/lib/gitea/{custom,data,log} /etc/gitea;
+if [[ -f /usr/local/bin/gitea ]]; then
+  CURRENT_VERSION=\$(/usr/local/bin/gitea --version | awk '{print \$3}' || echo 'unknown')
+  if [[ \"\$CURRENT_VERSION\" == \"${GITEA_VERSION}\" ]]; then
+    echo 'Gitea ${GITEA_VERSION} bereits installiert'
+    exit 0
+  fi
+fi
 
-curl -fsSL -o /usr/local/bin/gitea '${GITEA_BINARY_URL}';
-chmod +x /usr/local/bin/gitea;
+echo 'Downloading: ${GITEA_BINARY_URL}'
+curl -fsSL -o /tmp/gitea '${GITEA_BINARY_URL}'
+chmod +x /tmp/gitea
+mv /tmp/gitea /usr/local/bin/gitea
 
-chown -R gitea:gitea /var/lib/gitea /etc/gitea;
-chmod 750 /etc/gitea;
-
-/usr/local/bin/gitea --version || true;
+/usr/local/bin/gitea --version
 "
 
 ### =========================
-### 8) Configure Gitea (app.ini)
+### 8) Configure Gitea directories
 ### =========================
 
-log "Erzeuge Gitea app.ini + systemd service"
+log "Erstelle Gitea-Verzeichnisse"
+pct_exec "
+mkdir -p /var/lib/gitea/{custom,data,log}
+mkdir -p /etc/gitea
+chown -R git:git /var/lib/gitea
+chown root:git /etc/gitea
+chmod 770 /etc/gitea
+"
+
+### =========================
+### 9) Create Gitea config (app.ini)
+### =========================
+
+log "Erstelle Gitea config (/etc/gitea/app.ini)"
 pct_exec "set -euo pipefail;
 
-cat > /etc/gitea/app.ini << 'APPINI'
+cat >/etc/gitea/app.ini <<EOF
 APP_NAME = RALF Gitea
-RUN_USER = gitea
+RUN_USER = git
 RUN_MODE = prod
-WORK_PATH = /var/lib/gitea
 
 [server]
-SSH_DOMAIN       = ${HOSTNAME}.${SEARCHDOMAIN}
-DOMAIN           = ${HOSTNAME}.${SEARCHDOMAIN}
+DOMAIN           = ${GITEA_DOMAIN}
 HTTP_PORT        = ${GITEA_HTTP_PORT}
-ROOT_URL         = http://${HOSTNAME}.${SEARCHDOMAIN}:${GITEA_HTTP_PORT}/
+ROOT_URL         = http://${GITEA_DOMAIN}:${GITEA_HTTP_PORT}/
+DISABLE_SSH      = false
 SSH_PORT         = ${GITEA_SSH_PORT}
+SSH_LISTEN_PORT  = ${GITEA_SSH_PORT}
 START_SSH_SERVER = true
 LFS_START_SERVER = true
 
@@ -193,67 +221,91 @@ NAME     = ${PG_DB}
 USER     = ${PG_USER}
 PASSWD   = ${PG_PASS}
 SSL_MODE = disable
+LOG_SQL  = false
 
 [repository]
 ROOT = /var/lib/gitea/data/gitea-repositories
 
+[service]
+DISABLE_REGISTRATION = true
+REQUIRE_SIGNIN_VIEW  = false
+
+[security]
+INSTALL_LOCK = false
+SECRET_KEY   = \$(openssl rand -base64 32)
+
 [log]
-MODE      = console
-LEVEL     = info
+MODE      = console,file
+LEVEL     = Info
 ROOT_PATH = /var/lib/gitea/log
-APPINI
 
-chown gitea:gitea /etc/gitea/app.ini;
-chmod 640 /etc/gitea/app.ini;
+[session]
+PROVIDER = file
+EOF
 
-cat > /etc/systemd/system/gitea.service << 'SVC'
-[Unit]
-Description=Gitea (Git with a cup of tea)
-After=network-online.target postgresql.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=gitea
-Group=gitea
-WorkingDirectory=/var/lib/gitea
-Environment=GITEA_WORK_DIR=/var/lib/gitea
-ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-SVC
-
-systemctl daemon-reload;
-systemctl enable --now gitea;
+chown root:git /etc/gitea/app.ini
+chmod 640 /etc/gitea/app.ini
 "
 
 ### =========================
-### 9) Snapshot post-install
+### 10) Create systemd service
+### =========================
+
+log "Erstelle Gitea systemd service"
+pct_exec "
+cat >/etc/systemd/system/gitea.service <<'EOF'
+[Unit]
+Description=Gitea (Git with a cup of tea)
+After=network.target postgresql.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=git
+Group=git
+WorkingDirectory=/var/lib/gitea
+ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
+Restart=on-failure
+RestartSec=3
+Environment=USER=git HOME=/home/git GITEA_WORK_DIR=/var/lib/gitea
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable gitea
+systemctl start gitea
+"
+
+### =========================
+### 11) Snapshot post-install
 ### =========================
 
 log "Erstelle Snapshot 'post-install'"
-if pct listsnapshot "$CTID" 2>/dev/null | awk '{print $1}' | grep -qx "post-install"; then
+if pct listsnapshot "$CTID" 2>/dev/null | grep -q "post-install"; then
   log "Snapshot post-install existiert bereits"
 else
   pct snapshot "$CTID" "post-install"
 fi
 
 ### =========================
-### 10) Final checks
+### 12) Final checks
 ### =========================
 
 log "Checks: Service status + Port listening"
 pct_exec "systemctl is-active gitea; ss -lntp | grep -E ':(${GITEA_HTTP_PORT}|${GITEA_SSH_PORT})\\b' || true"
 
 log "FERTIG"
-echo "Gitea v${GITEA_VERSION} sollte jetzt erreichbar sein:"
+echo "Gitea ${GITEA_VERSION} sollte jetzt erreichbar sein:"
 echo "  HTTP: http://${IP_CIDR%/*}:${GITEA_HTTP_PORT}"
 echo "  SSH:  ssh://git@${IP_CIDR%/*}:${GITEA_SSH_PORT}"
 echo ""
-echo "Ersteinrichtung ueber Web-UI (erster User = Admin)."
+echo "Naechste Schritte:"
+echo "  1. Web-UI aufrufen und Initial Setup durchfuehren"
+echo "  2. Admin-Accounts anlegen (kolja, ralf)"
+echo "  3. SSH-Keys hinterlegen"
+echo "  4. Repository von GitHub migrieren"
 echo ""
 echo "Rollback:"
 echo "  pct stop ${CTID} && pct rollback ${CTID} pre-install && pct start ${CTID}"

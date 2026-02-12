@@ -26,8 +26,8 @@ TPL_STORAGE="${TPL_STORAGE:-local}"
 TPL_NAME="${TPL_NAME:-ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
 
 # Maddy
-MADDY_VERSION="${MADDY_VERSION:-0.8.0}"
-MADDY_BINARY_URL="${MADDY_BINARY_URL:-https://github.com/foxcpp/maddy/releases/download/v${MADDY_VERSION}/maddy-${MADDY_VERSION}-x86_64-linux-musl}"
+MADDY_VERSION="${MADDY_VERSION:-0.8.2}"
+MADDY_BINARY_URL="${MADDY_BINARY_URL:-https://github.com/foxcpp/maddy/releases/download/v${MADDY_VERSION}/maddy-${MADDY_VERSION}-x86_64-linux-musl.tar.zst}"
 
 # Maddy Config
 MADDY_DOMAIN="${MADDY_DOMAIN:-homelab.lan}"
@@ -142,7 +142,7 @@ log "Installiere Basis-Tools im Container"
 pct_exec "export DEBIAN_FRONTEND=noninteractive;
 apt-get update -y;
 apt-get install -y --no-install-recommends \
-  ca-certificates curl wget locales openssl;
+  ca-certificates curl wget locales openssl zstd;
 "
 
 ### =========================
@@ -183,8 +183,14 @@ if [[ -f /usr/local/bin/maddy ]]; then
 fi
 
 echo 'Downloading: ${MADDY_BINARY_URL}'
-curl -fsSL -o /usr/local/bin/maddy '${MADDY_BINARY_URL}'
-chmod +x /usr/local/bin/maddy
+cd /tmp
+curl -fsSL -o maddy.tar.zst '${MADDY_BINARY_URL}'
+
+echo 'Entpacke Maddy Binary...'
+tar --use-compress-program=unzstd -xf maddy.tar.zst
+chmod +x maddy-${MADDY_VERSION}-x86_64-linux-musl/maddy
+mv maddy-${MADDY_VERSION}-x86_64-linux-musl/maddy /usr/local/bin/maddy
+rm -rf maddy.tar.zst maddy-${MADDY_VERSION}-x86_64-linux-musl
 
 /usr/local/bin/maddy --version
 "
@@ -230,8 +236,8 @@ log "Erstelle Maddy config (/etc/maddy/maddy.conf)"
 pct_exec "set -euo pipefail;
 
 cat >/etc/maddy/maddy.conf <<'EOFMADDY'
-## Maddy Mail Server Configuration
-## RALF Homelab - ${MADDY_HOSTNAME}
+## Maddy Mail Server - Minimal Working Configuration
+## Compatible with Maddy 0.8.x
 
 \$(hostname) = ${MADDY_HOSTNAME}
 \$(primary_domain) = ${MADDY_DOMAIN}
@@ -242,37 +248,8 @@ tls file /etc/maddy/tls_cert.pem /etc/maddy/tls_key.pem
 # State directory
 state_dir /var/lib/maddy
 
-# --- SMTP (Port 25) ---
-# Receives mail from external sources
-smtp tcp://0.0.0.0:25 {
-    hostname \$(hostname)
-
-    default_destination {
-        deliver_to &local_routing
-    }
-}
-
-# --- Submission (Port 587) ---
-# Authenticated mail submission from mail clients
-submission tcp://0.0.0.0:587 {
-    hostname \$(hostname)
-
-    auth &local_authdb
-
-    default_destination {
-        deliver_to &local_routing
-    }
-}
-
-# --- IMAP (Port 993) ---
-# Mail retrieval for clients
-imap tcp://0.0.0.0:993 {
-    auth &local_authdb
-    storage &local_mailboxes
-}
-
-# --- Authentication Database ---
-local_authdb pass_table {
+# --- Authentication Database (SQLite) ---
+auth.pass_table local_authdb {
     table sql_table {
         driver sqlite3
         dsn credentials.db
@@ -280,23 +257,32 @@ local_authdb pass_table {
     }
 }
 
-# --- Local Mailboxes ---
-local_mailboxes imapsql {
+# --- Local Mailboxes (SQLite) ---
+storage.imapsql local_mailboxes {
     driver sqlite3
     dsn mail.db
 }
 
-# --- Local Routing ---
-local_routing {
-    # Deliver to local mailboxes
-    destination \$(primary_domain) {
-        deliver_to &local_mailboxes
-    }
+# --- SMTP (Port 25) - Receive incoming mail ---
+smtp tcp://0.0.0.0:25 {
+    hostname \$(hostname)
 
-    # Default: reject unknown recipients
-    default_destination {
-        reject
-    }
+    deliver_to &local_mailboxes
+}
+
+# --- Submission (Port 587) - Authenticated sending ---
+submission tcp://0.0.0.0:587 {
+    hostname \$(hostname)
+
+    auth &local_authdb
+
+    deliver_to &local_mailboxes
+}
+
+# --- IMAP (Port 993) - Mail retrieval ---
+imap tls://0.0.0.0:993 {
+    auth &local_authdb
+    storage &local_mailboxes
 }
 EOFMADDY
 
@@ -326,12 +312,14 @@ ExecReload=/bin/kill -USR1 \$MAINPID
 Restart=on-failure
 RestartSec=3
 
-# Security
+# Runtime directory
+RuntimeDirectory=maddy
+RuntimeDirectoryMode=0750
+
+# Security (reduced restrictions for LXC compatibility)
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/maddy
+ReadWritePaths=/var/lib/maddy /run/maddy
 
 # Capabilities (needed for binding to ports < 1024)
 AmbientCapabilities=CAP_NET_BIND_SERVICE

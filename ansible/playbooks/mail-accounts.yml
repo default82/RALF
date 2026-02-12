@@ -1,0 +1,95 @@
+---
+- name: Maddy Mail Account Management
+  hosts: svc-mail
+  become: true
+  vars:
+    mail_domain: "homelab.lan"
+    mail_accounts:
+      - username: "kolja"
+        email: "kolja@{{ mail_domain }}"
+      - username: "ralf"
+        email: "ralf@{{ mail_domain }}"
+
+  tasks:
+    - name: Check Maddy service status
+      ansible.builtin.systemd:
+        name: maddy
+      register: maddy_service
+
+    - name: Ensure Maddy is running
+      ansible.builtin.systemd:
+        name: maddy
+        state: started
+        enabled: true
+
+    - name: Generate password for kolja
+      ansible.builtin.command:
+        cmd: openssl rand -base64 24
+      register: kolja_password
+      changed_when: false
+
+    - name: Generate password for ralf
+      ansible.builtin.command:
+        cmd: openssl rand -base64 24
+      register: ralf_password
+      changed_when: false
+
+    - name: Create mail account for kolja
+      ansible.builtin.shell:
+        cmd: |
+          maddyctl --config /etc/maddy/maddy.conf creds create kolja@{{ mail_domain }} <<EOF
+          {{ kolja_password.stdout }}
+          {{ kolja_password.stdout }}
+          EOF
+      register: kolja_account
+      failed_when:
+        - kolja_account.rc != 0
+        - "'already exists' not in kolja_account.stderr"
+      changed_when: kolja_account.rc == 0
+
+    - name: Create mail account for ralf
+      ansible.builtin.shell:
+        cmd: |
+          maddyctl --config /etc/maddy/maddy.conf creds create ralf@{{ mail_domain }} <<EOF
+          {{ ralf_password.stdout }}
+          {{ ralf_password.stdout }}
+          EOF
+      register: ralf_account
+      failed_when:
+        - ralf_account.rc != 0
+        - "'already exists' not in ralf_account.stderr"
+      changed_when: ralf_account.rc == 0
+
+    - name: Save credentials to file
+      ansible.builtin.copy:
+        dest: "/tmp/mail-accounts-creds.env"
+        content: |
+          # Maddy Mail Accounts
+          # Generated: {{ ansible_date_time.iso8601 }}
+
+          MAIL_KOLJA_EMAIL=kolja@{{ mail_domain }}
+          MAIL_KOLJA_PASS={{ kolja_password.stdout }}
+
+          MAIL_RALF_EMAIL=ralf@{{ mail_domain }}
+          MAIL_RALF_PASS={{ ralf_password.stdout }}
+        mode: '0600'
+      delegate_to: localhost
+
+    - name: Display account information
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Maddy Mail Accounts Created
+          ============================================================
+
+          kolja@{{ mail_domain }}
+          Password: {{ kolja_password.stdout }}
+
+          ralf@{{ mail_domain }}
+          Password: {{ ralf_password.stdout }}
+
+          Credentials saved to: /tmp/mail-accounts-creds.env
+
+          SMTP Server: 10.10.40.10:25
+          IMAP Server: 10.10.40.10:143
+          ============================================================

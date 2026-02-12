@@ -1,0 +1,78 @@
+---
+- name: Vaultwarden Account Management
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vaultwarden_url: "http://10.10.30.10:8080"
+    vaultwarden_accounts:
+      - email: "kolja@homelab.lan"
+        name: "Kolja"
+      - email: "ralf@homelab.lan"
+        name: "Ralf"
+
+  tasks:
+    - name: Ensure bitwarden-cli is installed
+      ansible.builtin.command:
+        cmd: bw --version
+      register: bw_version
+      changed_when: false
+
+    - name: Display bitwarden-cli version
+      ansible.builtin.debug:
+        msg: "Using bitwarden-cli {{ bw_version.stdout }}"
+
+    - name: Configure Bitwarden server URL
+      ansible.builtin.command:
+        cmd: "bw config server {{ vaultwarden_url }}"
+      changed_when: true
+
+    - name: Check if signups are enabled
+      ansible.builtin.uri:
+        url: "{{ vaultwarden_url }}/"
+        method: GET
+        status_code: 200
+      register: vaultwarden_status
+
+    - name: Display account creation instructions
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Vaultwarden Account Creation
+          ============================================================
+
+          Accounts to create:
+          {% for account in vaultwarden_accounts %}
+          - {{ account.email }} ({{ account.name }})
+          {% endfor %}
+
+          Manual Steps Required:
+          1. Open browser: {{ vaultwarden_url }}
+          2. Click "Create Account"
+          3. Register each account with a strong master password
+
+          Note: Master passwords are only stored client-side!
+
+          After account creation:
+          - Disable signups in Vaultwarden config
+          - Use Admin Panel: {{ vaultwarden_url }}/admin
+          ============================================================
+
+    - name: Create accounts note file
+      ansible.builtin.copy:
+        dest: "/tmp/vaultwarden-accounts-todo.txt"
+        content: |
+          Vaultwarden Account Creation TODO
+          ==================================
+
+          URL: {{ vaultwarden_url }}
+
+          Accounts to create:
+          {% for account in vaultwarden_accounts %}
+          [ ] {{ account.email }} ({{ account.name }})
+          {% endfor %}
+
+          Post-creation:
+          [ ] Disable signups in /etc/vaultwarden/config.env
+          [ ] Restart vaultwarden service
+          [ ] Verify admin panel access
+        mode: '0644'

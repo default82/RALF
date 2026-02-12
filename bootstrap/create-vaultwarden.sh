@@ -25,9 +25,8 @@ DISK_GB="${DISK_GB:-8}"
 TPL_STORAGE="${TPL_STORAGE:-local}"
 TPL_NAME="${TPL_NAME:-ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
 
-# Vaultwarden
+# Vaultwarden (using Docker for binary extraction)
 VAULTWARDEN_VERSION="${VAULTWARDEN_VERSION:-1.32.5}"
-VAULTWARDEN_BINARY_URL="${VAULTWARDEN_BINARY_URL:-https://github.com/dani-garcia/vaultwarden/releases/download/${VAULTWARDEN_VERSION}/vaultwarden-${VAULTWARDEN_VERSION}-linux-x86_64.tar.gz}"
 VAULTWARDEN_WEB_VERSION="${VAULTWARDEN_WEB_VERSION:-2024.12.2}"
 VAULTWARDEN_WEB_URL="${VAULTWARDEN_WEB_URL:-https://github.com/dani-garcia/bw_web_builds/releases/download/v${VAULTWARDEN_WEB_VERSION}/bw_web_v${VAULTWARDEN_WEB_VERSION}.tar.gz}"
 
@@ -210,14 +209,25 @@ if [[ -f /usr/local/bin/vaultwarden ]]; then
   fi
 fi
 
-echo 'Downloading: ${VAULTWARDEN_BINARY_URL}'
-cd /tmp
-curl -fsSL -o vaultwarden.tar.gz '${VAULTWARDEN_BINARY_URL}'
-tar -xzf vaultwarden.tar.gz
-chmod +x vaultwarden
-mv vaultwarden /usr/local/bin/vaultwarden
-rm vaultwarden.tar.gz
+echo 'Installiere Docker fuer Binary-Extraktion...'
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y docker.io
 
+echo 'Pulling Vaultwarden Docker Image: vaultwarden/server:${VAULTWARDEN_VERSION}'
+docker pull vaultwarden/server:${VAULTWARDEN_VERSION}
+
+echo 'Extrahiere Binary aus Docker Image...'
+CONTAINER_ID=\$(docker create vaultwarden/server:${VAULTWARDEN_VERSION})
+docker cp \${CONTAINER_ID}:/vaultwarden /usr/local/bin/vaultwarden
+docker rm \${CONTAINER_ID}
+
+echo 'Cleanup Docker...'
+docker rmi vaultwarden/server:${VAULTWARDEN_VERSION}
+apt-get purge -y docker.io
+apt-get autoremove -y
+
+chmod +x /usr/local/bin/vaultwarden
 /usr/local/bin/vaultwarden --version
 "
 

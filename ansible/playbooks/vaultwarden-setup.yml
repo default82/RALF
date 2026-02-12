@@ -1,0 +1,62 @@
+---
+- name: Vaultwarden Post-Installation Setup
+  hosts: svc-vaultwarden
+  become: true
+  vars:
+    vaultwarden_container: "3010"
+    enable_signups: false
+    enable_invitations: true
+
+  tasks:
+    - name: Check Vaultwarden service status
+      ansible.builtin.systemd:
+        name: vaultwarden
+      register: vaultwarden_service
+
+    - name: Ensure Vaultwarden is running
+      ansible.builtin.systemd:
+        name: vaultwarden
+        state: started
+        enabled: true
+
+    - name: Configure signups setting
+      ansible.builtin.lineinfile:
+        path: /etc/vaultwarden/config.env
+        regexp: '^SIGNUPS_ALLOWED='
+        line: "SIGNUPS_ALLOWED={{ enable_signups | lower }}"
+        state: present
+      notify: restart vaultwarden
+
+    - name: Configure invitations setting
+      ansible.builtin.lineinfile:
+        path: /etc/vaultwarden/config.env
+        regexp: '^INVITATIONS_ALLOWED='
+        line: "INVITATIONS_ALLOWED={{ enable_invitations | lower }}"
+        state: present
+      notify: restart vaultwarden
+
+    - name: Get admin token
+      ansible.builtin.shell:
+        cmd: grep '^ADMIN_TOKEN=' /etc/vaultwarden/config.env | cut -d'=' -f2
+      register: admin_token
+      changed_when: false
+
+    - name: Display admin access information
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Vaultwarden Configuration
+          ============================================================
+          URL: http://10.10.30.10:8080
+          Admin Panel: http://10.10.30.10:8080/admin
+          Admin Token: {{ admin_token.stdout }}
+
+          Signups Enabled: {{ enable_signups }}
+          Invitations Enabled: {{ enable_invitations }}
+          ============================================================
+
+  handlers:
+    - name: restart vaultwarden
+      ansible.builtin.systemd:
+        name: vaultwarden
+        state: restarted

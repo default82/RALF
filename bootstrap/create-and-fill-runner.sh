@@ -33,7 +33,7 @@ SEMAPHORE_TARBALL_URL="${SEMAPHORE_TARBALL_URL:-https://github.com/semaphoreui/s
 
 # Semaphore initial (PostgreSQL Backend)
 SEMAPHORE_USER="${SEMAPHORE_USER:-admin}"
-SEMAPHORE_EMAIL="${SEMAPHORE_EMAIL:-admin@otta.zone}"
+SEMAPHORE_EMAIL="${SEMAPHORE_EMAIL:-kolja@homelab.lan}"
 SEMAPHORE_NAME="${SEMAPHORE_NAME:-RALF Admin}"
 # Passwort NICHT hart im Repo lassen. Für einmaligen Bootstrap: env var setzen.
 SEMAPHORE_PASS="${SEMAPHORE_PASS:-CHANGE_ME_NOW}"

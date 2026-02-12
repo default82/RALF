@@ -157,11 +157,56 @@ fi
 log "Installiere Basis-Tools im Container"
 pct_exec "export DEBIAN_FRONTEND=noninteractive;
 apt-get update -y;
-apt-get install -y --no-install-recommends ca-certificates curl jq git unzip gnupg lsb-release postgresql-client openssh-client;
+apt-get install -y --no-install-recommends ca-certificates curl jq git unzip gnupg lsb-release postgresql-client openssh-client locales software-properties-common;
 "
 
 ### =========================
-### 6) Install Semaphore binary
+### 6) Configure Locale (for Ansible)
+### =========================
+
+log "Konfiguriere UTF-8 Locale"
+pct_exec "
+locale-gen en_US.UTF-8
+update-locale LANG=en_US.UTF-8
+echo 'LANG=en_US.UTF-8' >> /etc/environment
+echo 'LC_ALL=en_US.UTF-8' >> /etc/environment
+"
+
+### =========================
+### 7) Install IaC Toolchain (Ansible, OpenTofu, Terragrunt)
+### =========================
+
+log "Installiere Ansible"
+pct_exec "export DEBIAN_FRONTEND=noninteractive;
+add-apt-repository --yes --update ppa:ansible/ansible;
+apt-get install -y ansible;
+"
+
+log "Installiere OpenTofu"
+pct_exec "set -euo pipefail;
+curl -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh;
+chmod +x /tmp/install-opentofu.sh;
+/tmp/install-opentofu.sh --install-method deb;
+rm /tmp/install-opentofu.sh;
+"
+
+log "Installiere Terragrunt"
+pct_exec "set -euo pipefail;
+TERRAGRUNT_VERSION=\$(curl -s https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest | grep '\"tag_name\":' | sed -E 's/.*\"v([^\"]+)\".*/\1/');
+echo \"Installing Terragrunt \${TERRAGRUNT_VERSION}\";
+curl -fsSL -o /usr/local/bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v\${TERRAGRUNT_VERSION}/terragrunt_linux_amd64;
+chmod +x /usr/local/bin/terragrunt;
+"
+
+log "Pruefe IaC Toolchain"
+pct_exec "export LANG=en_US.UTF-8;
+echo 'Ansible:' \$(ansible --version | head -1);
+echo 'OpenTofu:' \$(tofu version | head -1);
+echo 'Terragrunt:' \$(terragrunt --version);
+"
+
+### =========================
+### 8) Install Semaphore binary
 ### =========================
 
 log "Installiere Semaphore v${SEMAPHORE_VERSION} (Binary) -> /usr/local/bin/semaphore"
@@ -190,7 +235,7 @@ fi
 "
 
 ### =========================
-### 7) Configure Semaphore (SQLite)
+### 9) Configure Semaphore (PostgreSQL)
 ### =========================
 
 log "Erzeuge Semaphore config (PostgreSQL) + systemd service"
@@ -247,7 +292,7 @@ systemctl enable --now semaphore
 "
 
 ### =========================
-### 8) Create admin user (first-run)
+### 10) Create admin user (first-run)
 ### =========================
 
 log "Lege Admin-User an (wenn noch nicht vorhanden)"
@@ -268,7 +313,7 @@ fi
 "
 
 ### =========================
-### 9) Final checks
+### 11) Final checks
 ### =========================
 
 log "Checks: Service status + Port listening"

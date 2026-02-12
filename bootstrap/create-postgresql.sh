@@ -113,11 +113,23 @@ log "Installiere Basis-Tools im Container"
 pct_exec "export DEBIAN_FRONTEND=noninteractive;
 apt-get update -y;
 apt-get install -y --no-install-recommends \
-  ca-certificates curl gnupg lsb-release;
+  ca-certificates curl gnupg lsb-release locales;
 "
 
 ### =========================
-### 6) Install PostgreSQL
+### 6) Configure Locale
+### =========================
+
+log "Konfiguriere UTF-8 Locale"
+pct_exec "
+locale-gen en_US.UTF-8
+update-locale LANG=en_US.UTF-8
+echo 'LANG=en_US.UTF-8' > /etc/default/locale
+echo 'LC_ALL=en_US.UTF-8' >> /etc/default/locale
+"
+
+### =========================
+### 7) Install PostgreSQL
 ### =========================
 
 log "Installiere PostgreSQL ${PG_VERSION}"
@@ -137,7 +149,7 @@ apt-get install -y --no-install-recommends postgresql-${PG_VERSION};
 "
 
 ### =========================
-### 7) Configure PostgreSQL
+### 8) Configure PostgreSQL
 ### =========================
 
 log "Konfiguriere PostgreSQL (listen auf alle Interfaces, pg_hba)"
@@ -160,7 +172,7 @@ systemctl enable postgresql;
 "
 
 ### =========================
-### 8) Snapshot post-install
+### 9) Snapshot post-install
 ### =========================
 
 log "Erstelle Snapshot 'post-install'"
@@ -171,7 +183,7 @@ else
 fi
 
 ### =========================
-### 9) Final checks
+### 10) Final checks
 ### =========================
 
 log "Checks: Service status + Port listening"

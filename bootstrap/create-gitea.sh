@@ -143,11 +143,23 @@ log "Installiere Basis-Tools im Container"
 pct_exec "export DEBIAN_FRONTEND=noninteractive;
 apt-get update -y;
 apt-get install -y --no-install-recommends \
-  ca-certificates curl git openssh-server postgresql-client;
+  ca-certificates curl git openssh-server postgresql-client locales;
 "
 
 ### =========================
-### 6) Create git user
+### 6) Configure Locale
+### =========================
+
+log "Konfiguriere UTF-8 Locale"
+pct_exec "
+locale-gen en_US.UTF-8
+update-locale LANG=en_US.UTF-8
+echo 'LANG=en_US.UTF-8' > /etc/default/locale
+echo 'LC_ALL=en_US.UTF-8' >> /etc/default/locale
+"
+
+### =========================
+### 7) Create git user
 ### =========================
 
 log "Erstelle git-User"
@@ -158,7 +170,7 @@ fi
 "
 
 ### =========================
-### 7) Install Gitea binary
+### 8) Install Gitea binary
 ### =========================
 
 log "Installiere Gitea ${GITEA_VERSION} -> /usr/local/bin/gitea"
@@ -180,7 +192,7 @@ mv /tmp/gitea /usr/local/bin/gitea
 "
 
 ### =========================
-### 8) Configure Gitea directories
+### 9) Configure Gitea directories
 ### =========================
 
 log "Erstelle Gitea-Verzeichnisse"
@@ -193,7 +205,7 @@ chmod 770 /etc/gitea
 "
 
 ### =========================
-### 9) Create Gitea config (app.ini)
+### 10) Create Gitea config (app.ini)
 ### =========================
 
 log "Erstelle Gitea config (/etc/gitea/app.ini)"
@@ -248,7 +260,7 @@ chmod 640 /etc/gitea/app.ini
 "
 
 ### =========================
-### 10) Create systemd service
+### 11) Create systemd service
 ### =========================
 
 log "Erstelle Gitea systemd service"
@@ -279,7 +291,7 @@ systemctl start gitea
 "
 
 ### =========================
-### 11) Snapshot post-install
+### 12) Snapshot post-install
 ### =========================
 
 log "Erstelle Snapshot 'post-install'"
@@ -290,7 +302,7 @@ else
 fi
 
 ### =========================
-### 12) Final checks
+### 13) Final checks
 ### =========================
 
 log "Checks: Service status + Port listening"

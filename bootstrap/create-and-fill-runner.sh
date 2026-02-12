@@ -198,16 +198,25 @@ pct_exec "set -euo pipefail;
 
 cat >/etc/semaphore/config.json <<EOF
 {
+  \"mysql\": {
+    \"host\": \"\",
+    \"user\": \"\",
+    \"pass\": \"\",
+    \"name\": \"\"
+  },
+  \"postgres\": {
+    \"host\": \"${PG_HOST}:${PG_PORT}\",
+    \"user\": \"${PG_USER}\",
+    \"pass\": \"${PG_PASS}\",
+    \"name\": \"${PG_DB}\",
+    \"options\": {
+      \"sslmode\": \"disable\"
+    }
+  },
   \"dialect\": \"postgres\",
-  \"database\": \"${PG_DB}\",
-  \"host\": \"${PG_HOST}\",
-  \"port\": \"${PG_PORT}\",
-  \"user\": \"${PG_USER}\",
-  \"pass\": \"${PG_PASS}\",
-  \"name\": \"\",
-  \"sslmode\": \"disable\",
-  \"web_host\": \"${SEMAPHORE_BIND_ADDR}\",
-  \"web_port\": \"${SEMAPHORE_PORT}\",
+  \"port\": \"\",
+  \"interface\": \"${SEMAPHORE_BIND_ADDR}\",
+  \"port_http\": \"${SEMAPHORE_PORT}\",
   \"email_alert\": false,
   \"telegram_alert\": false,
   \"slack_alert\": false

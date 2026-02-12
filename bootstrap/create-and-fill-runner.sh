@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Proxmox
 CTID="${CTID:-10015}"                       # CT-ID im 100er Bereich (Automation)
-CT_HOSTNAME="${CT_HOSTNAME:-semaphore-pg}"    # -pg = Playground
+CT_HOSTNAME="${CT_HOSTNAME:-ops-semaphore}"    # Playground zone (100er Bereich)
 BRIDGE="${BRIDGE:-vmbr0}"
 
 # Netzwerk (dein Schema 10.10.0.0/16, Bereich 100)
@@ -31,7 +31,7 @@ SEMAPHORE_VERSION="${SEMAPHORE_VERSION:-2.16.51}"  # bei Bedarf ändern
 # SEMAPHORE_TARBALL_URL überschreiben.
 SEMAPHORE_TARBALL_URL="${SEMAPHORE_TARBALL_URL:-https://github.com/semaphoreui/semaphore/releases/download/v${SEMAPHORE_VERSION}/semaphore_${SEMAPHORE_VERSION}_linux_amd64.tar.gz}"
 
-# Semaphore initial (SQLite)
+# Semaphore initial (PostgreSQL Backend)
 SEMAPHORE_USER="${SEMAPHORE_USER:-admin}"
 SEMAPHORE_EMAIL="${SEMAPHORE_EMAIL:-admin@otta.zone}"
 SEMAPHORE_NAME="${SEMAPHORE_NAME:-RALF Admin}"
@@ -40,6 +40,13 @@ SEMAPHORE_PASS="${SEMAPHORE_PASS:-CHANGE_ME_NOW}"
 
 SEMAPHORE_BIND_ADDR="${SEMAPHORE_BIND_ADDR:-0.0.0.0}"
 SEMAPHORE_PORT="${SEMAPHORE_PORT:-3000}"
+
+# PostgreSQL Connection (MUSS bereits existieren!)
+PG_HOST="${PG_HOST:-10.10.20.10}"
+PG_PORT="${PG_PORT:-5432}"
+PG_DB="${PG_DB:-semaphore}"
+PG_USER="${PG_USER:-semaphore}"
+PG_PASS="${PG_PASS:-CHANGE_ME_NOW}"
 
 ### =========================
 ### Helpers
@@ -71,6 +78,22 @@ if [[ "$SEMAPHORE_PASS" == "CHANGE_ME_NOW" ]]; then
   echo "  export SEMAPHORE_PASS='ein-lang-es-passwort'"
   exit 1
 fi
+
+if [[ "$PG_PASS" == "CHANGE_ME_NOW" ]]; then
+  echo "ERROR: PG_PASS ist noch CHANGE_ME_NOW."
+  echo "Setze PostgreSQL-Passwort fuer Semaphore-DB:"
+  echo "  export PG_PASS='semaphore-db-passwort'"
+  exit 1
+fi
+
+log "Pruefe PostgreSQL-Erreichbarkeit (${PG_HOST}:${PG_PORT})"
+if ! nc -zv "$PG_HOST" "$PG_PORT" 2>&1 | grep -q succeeded; then
+  echo "ERROR: PostgreSQL unter ${PG_HOST}:${PG_PORT} nicht erreichbar!"
+  echo "Bitte ZUERST PostgreSQL deployen:"
+  echo "  bash bootstrap/create-postgresql.sh"
+  exit 1
+fi
+log "PostgreSQL erreichbar ✓"
 
 ### =========================
 ### 1) Ensure template exists
@@ -134,7 +157,7 @@ fi
 log "Installiere Basis-Tools im Container"
 pct_exec "export DEBIAN_FRONTEND=noninteractive;
 apt-get update -y;
-apt-get install -y --no-install-recommends ca-certificates curl jq git unzip gnupg lsb-release sqlite3 openssh-client;
+apt-get install -y --no-install-recommends ca-certificates curl jq git unzip gnupg lsb-release postgresql-client openssh-client;
 "
 
 ### =========================
@@ -170,17 +193,17 @@ fi
 ### 7) Configure Semaphore (SQLite)
 ### =========================
 
-log "Erzeuge Semaphore config (SQLite) + systemd service"
+log "Erzeuge Semaphore config (PostgreSQL) + systemd service"
 pct_exec "set -euo pipefail;
 
-cat >/etc/semaphore/config.json <<'EOF'
+cat >/etc/semaphore/config.json <<EOF
 {
-  \"dialect\": \"sqlite\",
-  \"database\": \"/var/lib/semaphore/semaphore.sqlite\",
-  \"host\": \"\",
-  \"port\": \"\",
-  \"user\": \"\",
-  \"pass\": \"\",
+  \"dialect\": \"postgres\",
+  \"database\": \"${PG_DB}\",
+  \"host\": \"${PG_HOST}\",
+  \"port\": \"${PG_PORT}\",
+  \"user\": \"${PG_USER}\",
+  \"pass\": \"${PG_PASS}\",
   \"name\": \"\",
   \"sslmode\": \"disable\",
   \"web_host\": \"${SEMAPHORE_BIND_ADDR}\",

@@ -1,95 +1,28 @@
 # Phase 1 – Core Bootstrap
 
-Ziel: Die drei Kern-Dienste (Semaphore, PostgreSQL, Gitea) laufen stabil
+Ziel: Die drei Kern-Dienste (PostgreSQL, Semaphore, Gitea) laufen stabil
 und das RALF-Repository ist self-hosted auf Gitea.
+
+**Bootstrap-Reihenfolge:** PostgreSQL → Semaphore → Gitea
+
+PostgreSQL muss ZUERST deployed werden, da Semaphore und Gitea
+darauf aufbauen (PostgreSQL als zentrales Backend).
 
 ---
 
-## 1.1 Semaphore deployen
+## 1.1 PostgreSQL deployen
 
-**Hostname:** ops-semaphore | **IP:** 10.10.100.15 | **CT-ID:** 10015
+**Hostname:** svc-postgres | **IP:** 10.10.20.10 | **CT-ID:** 2010
 
 ### Voraussetzungen
 - [ ] Proxmox-Host erreichbar (10.10.10.10)
 - [ ] Ubuntu 24.04 LXC-Template verfuegbar
-- [ ] SSH-Key fuer Ansible auf Proxmox hinterlegt
 
 ### Aufgaben
-- [ ] Umgebungsvariablen setzen:
-  - `SEMAPHORE_PASS` (Admin-Passwort fuer Kolja)
-  - `PVE_HOST` (10.10.10.10)
-- [ ] Bootstrap-Script ausfuehren:
-  ```bash
-  SEMAPHORE_PASS="<passwort>" bash bootstrap/create-and-fill-runner.sh
-  ```
-- [ ] Smoke-Test ausfuehren:
-  ```bash
-  bash tests/bootstrap/smoke.sh
-  ```
-- [ ] Web-UI pruefen: http://10.10.100.15:3000
-- [ ] Zweiten Admin-Account anlegen:
-  - Benutzer: `ralf`
-  - E-Mail: ralf@homelab.lan
-  - Passwort: in Vaultwarden speichern (sobald verfuegbar)
-
-### Semaphore konfigurieren
-- [ ] SSH-Key hinterlegen (fuer Ansible-Zugriff auf alle LXC-Container)
-- [ ] Git-Repository hinzufuegen:
-  - URL: https://github.com/default82/RALF.git (spaeter: Gitea)
-  - Branch: main
-- [ ] Inventar hinzufuegen: `iac/ansible/inventory/hosts.yml`
-- [ ] Umgebungsvariablen in Semaphore anlegen:
-  - `PROXMOX_API_URL`
-  - `PROXMOX_API_TOKEN_ID`
-  - `PROXMOX_API_TOKEN_SECRET`
-  - `SEMAPHORE_DB_PASS`
-  - `GITEA_DB_PASS`
-  - `PG_SUPERUSER_PASS`
-
-### Benoetigte Credentials
-- [ ] **Proxmox API Token:** Unter Proxmox Datacenter > Permissions > API Tokens erstellen
-  - User: root@pam oder eigener API-User
-  - Token-ID: z.B. `ralf-tofu`
-  - Token-Secret: wird bei Erstellung angezeigt (einmal kopieren!)
-- [ ] **SSH-Keypair:** Fuer Ansible-Zugriff auf Container
-  ```bash
-  ssh-keygen -t ed25519 -C "ralf-ansible" -f ~/.ssh/ralf-ansible
-  ```
-- [ ] **Semaphore Admin-Passwort** (Kolja)
-- [ ] **Semaphore Admin-Passwort** (Ralf)
-
-### Abnahmekriterien
-- [ ] Semaphore Web-UI erreichbar auf Port 3000
-- [ ] Beide Admin-Accounts funktionieren
-- [ ] SSH-Key in Semaphore hinterlegt
-- [ ] Test-Job (Smoke) laeuft erfolgreich
-
----
-
-## 1.2 PostgreSQL deployen
-
-**Hostname:** svc-postgres | **IP:** 10.10.20.10 | **CT-ID:** 2010
-
-### Variante A: Via Semaphore (empfohlen)
-- [ ] Pipeline `deploy-postgresql` in Semaphore anlegen
-- [ ] Secrets in Semaphore hinterlegen:
-  - `PROXMOX_API_TOKEN_SECRET`
-  - `SEMAPHORE_DB_PASS`
-  - `GITEA_DB_PASS`
-- [ ] Pipeline starten
-
-### Variante B: Manuell
 - [ ] Bootstrap-Script ausfuehren:
   ```bash
   bash bootstrap/create-postgresql.sh
   ```
-- [ ] Ansible-Playbook ausfuehren:
-  ```bash
-  cd iac/ansible
-  ansible-playbook -i inventory/hosts.yml playbooks/deploy-postgresql.yml
-  ```
-
-### Aufgaben nach Deploy
 - [ ] Smoke-Test:
   ```bash
   bash tests/postgresql/smoke.sh
@@ -129,6 +62,69 @@ und das RALF-Repository ist self-hosted auf Gitea.
 - [ ] Datenbanken semaphore + gitea existieren
 - [ ] Remote-Login mit semaphore/gitea-User funktioniert
 - [ ] Snapshot `pre-install` existiert
+
+---
+
+## 1.2 Semaphore deployen
+
+**Hostname:** ops-semaphore | **IP:** 10.10.100.15 | **CT-ID:** 10015
+
+### Voraussetzungen
+- [ ] PostgreSQL laeuft und ist erreichbar (10.10.20.10:5432)
+- [ ] Datenbank `semaphore` + User `semaphore` existieren
+- [ ] SSH-Key fuer Ansible auf Proxmox hinterlegt
+
+### Aufgaben
+- [ ] Umgebungsvariablen setzen:
+  - `SEMAPHORE_PASS` (Admin-Passwort fuer Kolja)
+  - `PG_PASS` (PostgreSQL-Passwort fuer semaphore-User)
+- [ ] Bootstrap-Script ausfuehren:
+  ```bash
+  SEMAPHORE_PASS="<admin-passwort>" PG_PASS="<db-passwort>" \
+    bash bootstrap/create-and-fill-runner.sh
+  ```
+- [ ] Smoke-Test ausfuehren:
+  ```bash
+  bash tests/bootstrap/smoke.sh
+  ```
+- [ ] Web-UI pruefen: http://10.10.100.15:3000
+- [ ] Zweiten Admin-Account anlegen:
+  - Benutzer: `ralf`
+  - E-Mail: ralf@homelab.lan
+  - Passwort: in Vaultwarden speichern (sobald verfuegbar)
+
+### Semaphore konfigurieren
+- [ ] SSH-Key hinterlegen (fuer Ansible-Zugriff auf alle LXC-Container)
+- [ ] Git-Repository hinzufuegen:
+  - URL: https://github.com/default82/RALF.git (spaeter: Gitea)
+  - Branch: main
+- [ ] Inventar hinzufuegen: `iac/ansible/inventory/hosts.yml`
+- [ ] Umgebungsvariablen in Semaphore anlegen:
+  - `PROXMOX_API_URL`
+  - `PROXMOX_API_TOKEN_ID`
+  - `PROXMOX_API_TOKEN_SECRET`
+  - `GITEA_DB_PASS`
+  - `PG_SUPERUSER_PASS`
+
+### Benoetigte Credentials
+- [ ] **Proxmox API Token:** Unter Proxmox Datacenter > Permissions > API Tokens erstellen
+  - User: root@pam oder eigener API-User
+  - Token-ID: z.B. `ralf-tofu`
+  - Token-Secret: wird bei Erstellung angezeigt (einmal kopieren!)
+- [ ] **SSH-Keypair:** Fuer Ansible-Zugriff auf Container
+  ```bash
+  ssh-keygen -t ed25519 -C "ralf-ansible" -f ~/.ssh/ralf-ansible
+  ```
+- [ ] **Semaphore Admin-Passwort** (Kolja)
+- [ ] **Semaphore Admin-Passwort** (Ralf)
+- [ ] **Semaphore DB-Passwort** (aus 1.1)
+
+### Abnahmekriterien
+- [ ] Semaphore Web-UI erreichbar auf Port 3000
+- [ ] Beide Admin-Accounts funktionieren
+- [ ] SSH-Key in Semaphore hinterlegt
+- [ ] Test-Job (Smoke) laeuft erfolgreich
+- [ ] PostgreSQL-Backend aktiv (nicht SQLite!)
 
 ---
 

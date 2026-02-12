@@ -262,20 +262,10 @@ preflight() {
 ### ============================================================
 
 phase_1() {
-  log_phase "1" "Core Bootstrap (Semaphore, PostgreSQL, Gitea)"
+  log_phase "1" "Core Bootstrap (PostgreSQL, Semaphore, Gitea)"
 
-  # --- 1a: Semaphore ---
-  log "--- 1a: Semaphore deployen ---"
-  if pct_running 10015; then
-    log_ok "Semaphore CT 10015 laeuft bereits"
-  else
-    run_or_dry bash "${SCRIPT_DIR}/bootstrap/create-and-fill-runner.sh"
-  fi
-  run_or_dry wait_for_port 10.10.100.15 3000 60
-  log_ok "Semaphore bereit"
-
-  # --- 1b: PostgreSQL ---
-  log "--- 1b: PostgreSQL deployen ---"
+  # --- 1a: PostgreSQL ---
+  log "--- 1a: PostgreSQL deployen ---"
   if pct_running 2010; then
     log_ok "PostgreSQL CT 2010 laeuft bereits"
   else
@@ -284,8 +274,8 @@ phase_1() {
   run_or_dry wait_for_port 10.10.20.10 5432 60
   log_ok "PostgreSQL bereit"
 
-  # --- 1c: Datenbank-Provisioning ---
-  log "--- 1c: Datenbanken + User anlegen ---"
+  # --- 1b: Datenbank-Provisioning ---
+  log "--- 1b: Datenbanken + User anlegen ---"
   if command -v ansible-playbook >/dev/null 2>&1; then
     run_or_dry ansible-playbook \
       -i "${SCRIPT_DIR}/iac/ansible/inventory/hosts.yml" \
@@ -301,6 +291,16 @@ phase_1() {
   fi
   log_ok "Datenbank-Provisioning abgeschlossen"
 
+  # --- 1c: Semaphore ---
+  log "--- 1c: Semaphore deployen ---"
+  if pct_running 10015; then
+    log_ok "Semaphore CT 10015 laeuft bereits"
+  else
+    run_or_dry bash "${SCRIPT_DIR}/bootstrap/create-and-fill-runner.sh"
+  fi
+  run_or_dry wait_for_port 10.10.100.15 3000 60
+  log_ok "Semaphore bereit"
+
   # --- 1d: Gitea ---
   log "--- 1d: Gitea deployen ---"
   if pct_running 2012; then
@@ -313,8 +313,8 @@ phase_1() {
 
   # --- 1e: Smoke Tests ---
   log "--- 1e: Smoke Tests Phase 1 ---"
-  run_or_dry bash "${SCRIPT_DIR}/tests/bootstrap/smoke.sh" || log_warn "Bootstrap Smoke Test fehlgeschlagen"
   run_or_dry bash "${SCRIPT_DIR}/tests/postgresql/smoke.sh" || log_warn "PostgreSQL Smoke Test fehlgeschlagen"
+  run_or_dry bash "${SCRIPT_DIR}/tests/bootstrap/smoke.sh" || log_warn "Semaphore Smoke Test fehlgeschlagen"
   run_or_dry bash "${SCRIPT_DIR}/tests/gitea/smoke.sh" || log_warn "Gitea Smoke Test fehlgeschlagen"
 
   save_state "1"

@@ -34,6 +34,15 @@ GITEA_HTTP_PORT="${GITEA_HTTP_PORT:-3000}"
 GITEA_SSH_PORT="${GITEA_SSH_PORT:-2222}"
 GITEA_DOMAIN="${GITEA_DOMAIN:-gitea.homelab.lan}"
 
+# Gitea Admin Accounts (werden automatisch angelegt)
+GITEA_ADMIN1_USER="${GITEA_ADMIN1_USER:-kolja}"
+GITEA_ADMIN1_EMAIL="${GITEA_ADMIN1_EMAIL:-kolja@homelab.lan}"
+GITEA_ADMIN1_PASS="${GITEA_ADMIN1_PASS:-CHANGE_ME_NOW}"
+
+GITEA_ADMIN2_USER="${GITEA_ADMIN2_USER:-ralf}"
+GITEA_ADMIN2_EMAIL="${GITEA_ADMIN2_EMAIL:-ralf@homelab.lan}"
+GITEA_ADMIN2_PASS="${GITEA_ADMIN2_PASS:-CHANGE_ME_NOW}"
+
 # PostgreSQL Connection (MUSS bereits existieren!)
 PG_HOST="${PG_HOST:-10.10.20.10}"
 PG_PORT="${PG_PORT:-5432}"
@@ -69,6 +78,20 @@ if [[ "$PG_PASS" == "CHANGE_ME_NOW" ]]; then
   echo "ERROR: PG_PASS ist noch CHANGE_ME_NOW."
   echo "Setze PostgreSQL-Passwort fuer Gitea-DB:"
   echo "  export PG_PASS='gitea-db-passwort'"
+  exit 1
+fi
+
+if [[ "$GITEA_ADMIN1_PASS" == "CHANGE_ME_NOW" ]]; then
+  echo "ERROR: GITEA_ADMIN1_PASS ist noch CHANGE_ME_NOW."
+  echo "Setze Admin-Passwort fuer ${GITEA_ADMIN1_USER}:"
+  echo "  export GITEA_ADMIN1_PASS='sicheres-passwort'"
+  exit 1
+fi
+
+if [[ "$GITEA_ADMIN2_PASS" == "CHANGE_ME_NOW" ]]; then
+  echo "ERROR: GITEA_ADMIN2_PASS ist noch CHANGE_ME_NOW."
+  echo "Setze Admin-Passwort fuer ${GITEA_ADMIN2_USER}:"
+  echo "  export GITEA_ADMIN2_PASS='sicheres-passwort'"
   exit 1
 fi
 
@@ -243,8 +266,9 @@ DISABLE_REGISTRATION = true
 REQUIRE_SIGNIN_VIEW  = false
 
 [security]
-INSTALL_LOCK = false
+INSTALL_LOCK = true
 SECRET_KEY   = \$(openssl rand -base64 32)
+INTERNAL_TOKEN = \$(openssl rand -base64 64)
 
 [log]
 MODE      = console,file
@@ -291,7 +315,78 @@ systemctl start gitea
 "
 
 ### =========================
-### 12) Snapshot post-install
+### 12) Create Admin Users + Organization
+### =========================
+
+log "Warte auf Gitea Startup..."
+sleep 5
+
+log "Erstelle Admin-User: ${GITEA_ADMIN1_USER}"
+pct_exec "set -euo pipefail;
+export USER=git
+export HOME=/home/git
+export GITEA_WORK_DIR=/var/lib/gitea
+
+# Prüfe ob User bereits existiert
+if sudo -u git /usr/local/bin/gitea admin user list --config /etc/gitea/app.ini 2>/dev/null | grep -qi '${GITEA_ADMIN1_USER}'; then
+  echo 'User ${GITEA_ADMIN1_USER} existiert bereits'
+else
+  sudo -u git /usr/local/bin/gitea admin user create \
+    --admin \
+    --username '${GITEA_ADMIN1_USER}' \
+    --email '${GITEA_ADMIN1_EMAIL}' \
+    --password '${GITEA_ADMIN1_PASS}' \
+    --config /etc/gitea/app.ini
+  echo 'Admin-User ${GITEA_ADMIN1_USER} erstellt'
+fi
+"
+
+log "Erstelle Admin-User: ${GITEA_ADMIN2_USER}"
+pct_exec "set -euo pipefail;
+export USER=git
+export HOME=/home/git
+export GITEA_WORK_DIR=/var/lib/gitea
+
+# Prüfe ob User bereits existiert
+if sudo -u git /usr/local/bin/gitea admin user list --config /etc/gitea/app.ini 2>/dev/null | grep -qi '${GITEA_ADMIN2_USER}'; then
+  echo 'User ${GITEA_ADMIN2_USER} existiert bereits'
+else
+  sudo -u git /usr/local/bin/gitea admin user create \
+    --admin \
+    --username '${GITEA_ADMIN2_USER}' \
+    --email '${GITEA_ADMIN2_EMAIL}' \
+    --password '${GITEA_ADMIN2_PASS}' \
+    --config /etc/gitea/app.ini
+  echo 'Admin-User ${GITEA_ADMIN2_USER} erstellt'
+fi
+"
+
+log "Erstelle Organisation RALF-Homelab"
+pct_exec "set -euo pipefail;
+export USER=git
+export HOME=/home/git
+export GITEA_WORK_DIR=/var/lib/gitea
+
+# Prüfe ob Organisation bereits existiert via API
+if curl -s http://localhost:${GITEA_HTTP_PORT}/api/v1/orgs/RALF-Homelab 2>&1 | grep -q '\"username\":\"RALF-Homelab\"'; then
+  echo 'Organisation RALF-Homelab existiert bereits'
+else
+  # Erstelle Organisation via API (als Admin-User)
+  curl -X POST http://localhost:${GITEA_HTTP_PORT}/api/v1/orgs \
+    -u '${GITEA_ADMIN1_USER}:${GITEA_ADMIN1_PASS}' \
+    -H 'Content-Type: application/json' \
+    -d '{
+      \"username\": \"RALF-Homelab\",
+      \"full_name\": \"RALF Homelab Infrastructure\",
+      \"description\": \"Self-orchestrating homelab infrastructure platform\",
+      \"visibility\": \"private\"
+    }' >/dev/null 2>&1
+  echo 'Organisation RALF-Homelab erstellt'
+fi
+"
+
+### =========================
+### 13) Snapshot post-install
 ### =========================
 
 log "Erstelle Snapshot 'post-install'"
@@ -302,7 +397,7 @@ else
 fi
 
 ### =========================
-### 13) Final checks
+### 14) Final checks
 ### =========================
 
 log "Checks: Service status + Port listening"

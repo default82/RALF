@@ -1,113 +1,304 @@
-# RALF Homelab (Bootstrap Repo)
+# 🏠 RALF Homelab
 
-Dieses Repository ist die **Source of Truth** für den Aufbau eines Homelab-Systems,
-in dem ein zukünftiges System („RALF“) Dienste **planbar, genehmigungsfähig, reproduzierbar**
-und **selbstheilend** ausrollen kann.
+> **Self-orchestrating homelab infrastructure platform**
+> _Erst Fundament, dann Hände, dann Plan, dann Logik._
 
-Aktueller Bootstrap-Stand:
-- Remote: GitHub (temporär)
-- Runner: Semaphore (wird zuerst installiert)
-- Danach: PostgreSQL (Functional) → Gitea (extern via otta.zone) → Repo-Remote umstellen
-- Alles läuft in **LXC** unter Proxmox, keine Docker-Deployments.
+RALF ist eine selbstorchestrierende Homelab-Infrastruktur auf Basis von Proxmox LXC Containern. Alle Änderungen folgen einem kontrollierten Workflow: **Intent → Plan → Approval → Change**.
 
-## Grundprinzipien (nicht verhandelbar)
-- Netzwerk ist die Basis: ohne „Network Health“ keine Deployments
-- Änderungen passieren kontrolliert: **Intent → Plan → Freigabe → Change**
-- Jede Änderung ist rollback-fähig (Snapshots)
-- Secrets gehören nicht ins Repo (Semaphore Variablen/Secrets)
+[![Gitea](https://img.shields.io/badge/Gitea-1.22.6-609926?logo=gitea)](http://10.10.20.12:3000)
+[![Semaphore](https://img.shields.io/badge/Semaphore-2.16.51-orange)](http://10.10.100.15:3000)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql)](http://10.10.20.10:5432)
+[![Dashboard](https://img.shields.io/badge/Dashy-Dashboard-00af87)](http://10.10.40.11:4000)
 
-## Struktur
-- `docs/` – Grundgesetze (z.B. Netzwerk-Baseline)
-- `healthchecks/` – bindende Checklisten (Gatekeeper)
-- `plans/` – Intents & Pläne (Templates + konkrete Artefakte)
-- `changes/` – Changes (Templates + konkrete Artefakte)
-- `incidents/` – Störungen, Ursachen, Lessons Learned
-- `services/` – Service-Steckbriefe
-- `iac/` – Infrastructure as Code (OpenTofu + ggf. Ansible)
-- `pipelines/` – Runner-Pipelines (Semaphore)
-- `tests/` – Smoke/Acceptance-Tests (Teil der Definition of Done)
+---
 
-## Bootstrap-Reihenfolge (RALF v1)
+## 🚀 Quick Start
 
-Der initiale Aufbau von RALF folgt einer festen und bewusst einfachen Reihenfolge.
-Ziel ist es, zuerst eine stabile technische Basis zu schaffen, bevor Automatisierung
-und logische Steuerung greifen.
+```bash
+# 1. Dashboard öffnen
+http://10.10.40.11:4000
 
-### 1. PostgreSQL – Persistente Basis
-PostgreSQL wird als erstes System bereitgestellt.
+# 2. Services aufrufen
+Gitea:     http://10.10.20.12:3000      (kolja / ralf)
+Semaphore: http://10.10.100.15:3000     (kolja / ralf)
+Proxmox:   https://10.10.10.10:8006     (root)
 
-- Zentrale Datenbank für RALF-nahe Dienste (z. B. Semaphore)
-- Statische IP
-- Zugriff nur aus dem Homelab
-- Separate Rollen und Datenbanken pro Dienst
+# 3. Credentials
+cat /var/lib/ralf/credentials.env
+```
 
-Begründung:  
-Automatisierung ohne stabile Persistenz führt zu impliziten Abhängigkeiten und
-nicht reproduzierbaren Zuständen. PostgreSQL ist der erste feste Anker.
+---
 
-### 2. Semaphore – Ausführende Instanz („RALF-Hände“)
-Semaphore wird auf die bestehende PostgreSQL-Instanz aufgesetzt.
+## 📊 Status
 
-- Führt Ansible-Playbooks aus
-- Verwaltet SSH-Keys, Repositories und Inventare
-- Enthält selbst keine fachliche Logik
+### ✅ P1 - Core Services (Production)
 
-Begründung:  
-Semaphore ist kein Steuerzentrum, sondern ein ausführendes Werkzeug.
-Es wird erst sinnvoll, wenn eine stabile Datenbasis existiert.
+| Service | CT-ID | IP | Port | Status |
+|---------|-------|-----|------|--------|
+| **PostgreSQL** | 2010 | 10.10.20.10 | 5432 | ✅ Running |
+| **Semaphore** | 10015 | 10.10.100.15 | 3000 | ✅ Running |
+| **Gitea** | 2012 | 10.10.20.12 | 3000, 2222 | ✅ Running |
+| **Dashy** | 4001 | 10.10.40.11 | 4000 | ✅ Running |
 
-### 3. Repository & Inventar – Source of Truth
-Nach funktionierender Ausführungsebene wird das Repository angebunden.
+**Admin Users:** `kolja` + `ralf` (für alle Services)
 
-- Inventare (Hosts, Gruppen, Variablen)
-- Bootstrap-Playbooks
-- Rollen-Struktur
+### 📋 Geplant
 
-RALF beschreibt den gewünschten Zustand im Repository,
-Semaphore setzt ihn um.
+- **P2:** Vaultwarden, NetBox, Snipe-IT
+- **P3:** n8n, Matrix, Mail, Media-Server
+- **P4:** Ollama AI, Monitoring (Prometheus, Grafana, Loki)
 
-### 4. Bootstrap-Playbooks – Minimalstandard
-Initiale Playbooks bringen Systeme in einen definierten Grundzustand:
+---
 
-- Paketbasis
-- Zeitsynchronisation
-- Benutzer / SSH-Zugriff
-- Markierung als „RALF-bootstrapped“
+## 🏗️ Architektur
 
-Noch keine Fachlogik, keine Dienste.
+### Technologie-Stack
 
-### 5. Service-Module – Schrittweise Erweiterung
-Erst danach folgen eigentliche Dienste (z. B. Gitea, Vaultwarden, Monitoring)
-als eigenständige Rollen.
+| Layer | Tool | Purpose |
+|-------|------|---------|
+| **Virtualisierung** | Proxmox VE | LXC Container Host |
+| **Provisioning** | OpenTofu 1.6+ | Declarative Infrastructure |
+| **Config Management** | Ansible | Service Setup & Config |
+| **Orchestration** | Semaphore | CI/CD Pipeline Execution |
+| **Database** | PostgreSQL 16 | Persistent Backend |
+| **Source Control** | Gitea 1.22.6 | Self-hosted Git |
+| **Dashboard** | Dashy | Service Overview |
 
-Prinzip:  
-**Erst Fundament, dann Hände, dann Plan, dann Logik.**
+### Netzwerk-Schema
 
-## Aktueller Bootstrap-Stand
+**Subnet:** `10.10.0.0/16` (alle Services mit statischen IPs)
 
-- PostgreSQL als LXC bereitgestellt (persistente Basis)
-- Semaphore in Vorbereitung / angebunden an PostgreSQL
-- Repository dient aktuell der Planung und Strukturierung
-- Automatisierung wird schrittweise aktiviert
-- GitHub wird temporär als Remote für Planung und Ideensammlung genutzt
+| 3rd Octet | Category | CT-ID Range | Beispiel |
+|-----------|----------|-------------|----------|
+| **0** | Core / OPNsense | — | 10.10.0.1 (Gateway) |
+| **10** | Network Infra | 1000-1099 | 10.10.10.10 (Proxmox) |
+| **20** | Databases / DevTools | 2000-2099 | 10.10.20.10 (PostgreSQL) |
+| **30** | Backup & Security | 3000-3099 | 10.10.30.10 (Vaultwarden) |
+| **40** | Web & Admin | 4000-4099 | 10.10.40.11 (Dashy) |
+| **80** | Monitoring & Logging | 8000-8099 | 10.10.80.10 (Prometheus) |
+| **100** | Automation | 10000-10099 | 10.10.100.15 (Semaphore) |
 
-Hinweis:  
-Das Repository ist bewusst strukturorientiert. Nicht alle enthaltenen Konzepte
-sind bereits produktiv umgesetzt.
+**Zonen** (Flags, keine separaten Netze):
+- **Functional (`-fz`):** Produktiv, muss stabil sein
+- **Playground (`-pg`):** Experimente, darf brechen
 
-## Netzwerk-Hinweis
+---
 
-Die aktuelle IP-Zuordnung (z. B. PostgreSQL im 10.10.20.0/16-Netz)
-entspricht dem aktuellen Bootstrap-Stand.
-Eine spätere Konsolidierung oder Segmentierung wird durch RALF vorbereitet
-und ist bewusst nicht Teil der initialen Phase.
+## 🔧 Repository-Struktur
 
+```
+RALF/
+├── docs/              Governance-Dokumente (Netzwerk, Konventionen)
+├── catalog/           Machine-readable Service-Katalog (60 Services)
+├── services/          Human-readable Service-Specs (Runbooks)
+├── plans/             Intent → Plan Workflow-Artefakte
+├── changes/           Change Records (Audit Trail)
+├── incidents/         Incident Reports & Lessons Learned
+├── healthchecks/      Network Health Gatekeeper
+├── inventory/         Host Inventory & Runtime Config
+├── iac/               Infrastructure as Code
+│   ├── stacks/        OpenTofu Stacks (per Service)
+│   └── ansible/       Playbooks, Roles, Inventory
+├── bootstrap/         LXC Provisioning Scripts (Bash)
+├── pipelines/         Semaphore Pipeline Definitions
+└── tests/             Smoke & Acceptance Tests
+```
 
+---
 
+## 📖 Nicht-verhandelbare Prinzipien
 
-## Zonen
-Zonen sind Flags (keine eigenen Netze):
-- Playground: Lernen/Experimente, darf „brechen“
-- Functional: muss stabil laufen
+1. **Network First:** Keine Deployments ohne gesundes Netzwerk
+2. **Controlled Change:** Intent → Plan → Approval → Change
+3. **Rollback-fähig:** LXC Snapshots (`pre-install`)
+4. **No Secrets in Repo:** Secrets in Semaphore Variables
+5. **LXC First:** Keine Docker/Kubernetes
+6. **Explicit over Implicit:** Statische IPs, feste CT-IDs
 
-Siehe: `docs/network-baseline.md`
+---
+
+## 🛠️ Bootstrap-Reihenfolge
+
+### Phase 1: Foundation (✅ Abgeschlossen)
+
+```
+1. Credentials generieren
+   → /var/lib/ralf/credentials.env
+
+2. PostgreSQL deployen (CT 2010)
+   → bash bootstrap/create-postgresql.sh
+
+3. Semaphore deployen (CT 10015)
+   → bash bootstrap/create-and-fill-runner.sh
+
+4. Gitea deployen (CT 2012)
+   → bash bootstrap/create-gitea.sh
+
+5. Repository nach Gitea pushen
+   → git remote add gitea ssh://git@10.10.20.12:2222/kolja/ralf.git
+   → git push gitea main
+
+6. Dashy Dashboard deployen (CT 4001)
+   → Automatisches Service-Discovery
+```
+
+### Phase 2: Platform Services (Geplant)
+
+- Vaultwarden (Password Management)
+- NetBox (IPAM & DCIM)
+- Snipe-IT (Asset Management)
+
+### Phase 3: Application Services (Geplant)
+
+- n8n (Workflow Automation)
+- Matrix/Synapse (Chat)
+- Maddy (Mail Server)
+- Media Server (*arr Stack)
+
+### Phase 4: Observability (Geplant)
+
+- Prometheus (Metrics)
+- Grafana (Dashboards)
+- Loki (Logs)
+
+---
+
+## 🧪 Testing
+
+Alle Services haben Smoke Tests:
+
+```bash
+# PostgreSQL
+bash tests/postgresql/smoke.sh
+
+# Gitea
+bash tests/gitea/smoke.sh
+
+# Semaphore
+curl -s http://10.10.100.15:3000 | grep -q "Semaphore"
+```
+
+**Conventions:**
+- `set -euo pipefail` in allen Bash-Scripts
+- Environment Variables mit `${VAR:-default}` Pattern
+- Tests sind kumulativ (alle laufen durch)
+
+---
+
+## 📚 Wichtige Dokumente
+
+| Dokument | Beschreibung |
+|----------|--------------|
+| [`CLAUDE.md`](CLAUDE.md) | AI Assistant Guide |
+| [`docs/conventions.md`](docs/conventions.md) | Naming & Structural Rules |
+| [`docs/network-baseline.md`](docs/network-baseline.md) | Network Architecture |
+| [`inventory/hosts.yaml`](inventory/hosts.yaml) | Host Inventory |
+| [`inventory/runtime.env`](inventory/runtime.env) | IPs, Ports, Endpoints |
+
+---
+
+## 🔐 Credentials & Security
+
+**Credentials:** `/var/lib/ralf/credentials.env`
+- 148 Zeilen, 62 Environment Variables
+- Nicht im Git Repository
+- Alle Services verwenden Two-Admin-Pattern (kolja + ralf)
+
+**Pattern:**
+```bash
+source /var/lib/ralf/credentials.env
+echo $GITEA_ADMIN1_USER      # kolja
+echo $GITEA_ADMIN1_PASS      # <generiert>
+```
+
+**Passwort-Generator:**
+- Vermeidet mehrdeutige Zeichen (0, O, 1, I, l)
+- Nutzt Sonderzeichen: `$?%!@#&*`
+- 24-40 Zeichen je nach Service
+
+---
+
+## 🚨 Change Governance
+
+```
+Intent (plans/INTENT-*.md)     "Was wollen wir?"
+    ↓
+Plan (plans/PLAN-*.md)         "Wie genau machen wir es?"
+    ↓
+Approval                        Human Gate
+    ↓
+Execution (pipelines/)          Semaphore führt aus
+    ↓
+Change Record (changes/)        "Was ist passiert?"
+    ↓
+Incident (bei Fehler)           "Was lief schief?"
+```
+
+---
+
+## 🩺 Health Checks
+
+Der Network Health Gatekeeper (`healthchecks/run-network-health.sh`) validiert 9 Kategorien:
+
+- **A:** Core Connectivity (Gateway, Internet)
+- **B:** DNS Resolution (Intern + Extern)
+- **C:** DHCP & Static IP Compliance
+- **D:** NTP Time Sync
+- **E:** Reverse Proxy (Caddy)
+- **F:** Network Infrastructure (TP-Link, Proxmox)
+- **G:** Observability (Logs)
+- **H:** IP Scheme Drift Detection
+- **I:** Recovery Readiness (OPNsense Backup)
+
+**Regel:** Jeder Fehler = keine Deploys, nur Analysis/Healing/Rollback.
+
+---
+
+## 🤝 Contributing
+
+RALF ist ein Lernprojekt. Die Dokumentation ist bewusst auf Deutsch.
+
+**Sprachen:**
+- **Deutsch:** Dokumentation, Kommentare, Pläne
+- **Englisch:** Code (Variable Names, Functions, YAML Keys)
+
+**Workflow:**
+1. Intent erstellen (`plans/INTENT-YYYYMMDD-XXX.md`)
+2. Plan erstellen (`plans/PLAN-YYYYMMDD-XXX.md`)
+3. Approval einholen
+4. Code schreiben (OpenTofu + Ansible)
+5. Tests schreiben
+6. Pipeline erstellen
+7. Change dokumentieren
+
+---
+
+## 📊 Dashboard
+
+**Dashy:** http://10.10.40.11:4000
+
+Features:
+- ✅ Alle Services mit Status-Checks
+- ✅ Nord Frost Theme
+- ✅ Auto-Update alle 5 Minuten
+- ✅ Responsive Layout
+- ✅ Service-Kategorien (P1-P4)
+
+**Config:** `/opt/dashy/user-data/conf.yml` (im Container CT 4001)
+
+---
+
+## 📞 Support
+
+- **Gitea:** http://10.10.20.12:3000/kolja/ralf/issues
+- **GitHub Mirror:** https://github.com/default82/RALF
+
+---
+
+## 📄 License
+
+MIT License - siehe [LICENSE](LICENSE)
+
+---
+
+**Built with ❤️ and lots of YAML**

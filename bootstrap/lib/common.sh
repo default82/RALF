@@ -302,5 +302,62 @@ create_user_idempotent() {
 }
 
 # ============================================================================
+# MySQL/MariaDB Functions
+# ============================================================================
+
+# Prüfe ob MySQL-Datenbank existiert
+mysql_database_exists() {
+  local db_name="$1"
+  local mysql_host="${2:-10.10.20.11}"
+  local mysql_port="${3:-3306}"
+  local mysql_root_pass="${4:-$MARIADB_ROOT_PASS}"
+
+  mysql -h "$mysql_host" -P "$mysql_port" -u root -p"$mysql_root_pass" \
+    -sse "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='$db_name'" 2>/dev/null \
+    | grep -q "$db_name"
+}
+
+# Prüfe ob MySQL-User existiert
+mysql_user_exists() {
+  local db_user="$1"
+  local mysql_host="${2:-10.10.20.11}"
+  local mysql_port="${3:-3306}"
+  local mysql_root_pass="${4:-$MARIADB_ROOT_PASS}"
+
+  mysql -h "$mysql_host" -P "$mysql_port" -u root -p"$mysql_root_pass" \
+    -sse "SELECT User FROM mysql.user WHERE User='$db_user'" 2>/dev/null \
+    | grep -q "$db_user"
+}
+
+# Erstelle MySQL-Datenbank idempotent (via MariaDB Container)
+create_mysql_database_idempotent() {
+  local db_name="$1"
+  local db_user="$2"
+  local db_pass="$3"
+  local mysql_host="${4:-10.10.20.11}"
+  local mysql_port="${5:-3306}"
+  local mysql_root_pass="${6:-$MARIADB_ROOT_PASS}"
+  local mysql_ctid="${7:-2011}"
+
+  # Check via MariaDB container
+  if pct exec "$mysql_ctid" -- mysql -u root -p"$mysql_root_pass" -sse "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='$db_name'" 2>/dev/null | grep -q "$db_name"; then
+    log "MySQL-Datenbank '$db_name' existiert bereits - überspringe"
+    return 0
+  fi
+
+  log "Erstelle MySQL-Datenbank '$db_name' mit User '$db_user'"
+
+  pct exec "$mysql_ctid" -- bash -c "mysql -u root -p'$mysql_root_pass' <<'EOFMYSQL'
+CREATE DATABASE ${db_name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '${db_user}'@'%' IDENTIFIED BY '${db_pass}';
+GRANT ALL PRIVILEGES ON ${db_name}.* TO '${db_user}'@'%';
+FLUSH PRIVILEGES;
+EOFMYSQL
+"
+
+  log "MySQL-Datenbank '$db_name' erstellt"
+}
+
+# ============================================================================
 # End of Common Library
 # ============================================================================

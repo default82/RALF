@@ -83,10 +83,9 @@ database_exists() {
   local db_name="$1"
   local pg_host="${2:-10.10.20.10}"
   local pg_port="${3:-5432}"
+  local pg_ctid="${4:-2010}"
 
-  PGPASSWORD="$POSTGRES_MASTER_PASS" psql \
-    -h "$pg_host" -p "$pg_port" -U postgres \
-    -tAc "SELECT 1 FROM pg_database WHERE datname='$db_name'" 2>/dev/null \
+  pct exec "$pg_ctid" -- bash -lc "sudo -u postgres psql -tAc \"SELECT 1 FROM pg_database WHERE datname='$db_name'\"" 2>/dev/null \
     | grep -q 1
 }
 
@@ -95,10 +94,9 @@ database_user_exists() {
   local db_user="$1"
   local pg_host="${2:-10.10.20.10}"
   local pg_port="${3:-5432}"
+  local pg_ctid="${4:-2010}"
 
-  PGPASSWORD="$POSTGRES_MASTER_PASS" psql \
-    -h "$pg_host" -p "$pg_port" -U postgres \
-    -tAc "SELECT 1 FROM pg_user WHERE usename='$db_user'" 2>/dev/null \
+  pct exec "$pg_ctid" -- bash -lc "sudo -u postgres psql -tAc \"SELECT 1 FROM pg_user WHERE usename='$db_user'\"" 2>/dev/null \
     | grep -q 1
 }
 
@@ -109,9 +107,10 @@ create_database_idempotent() {
   local db_pass="$3"
   local pg_host="${4:-10.10.20.10}"
   local pg_port="${5:-5432}"
+  local pg_ctid="${6:-2010}"
 
   # Prüfe ob Datenbank bereits existiert
-  if database_exists "$db_name" "$pg_host" "$pg_port"; then
+  if database_exists "$db_name" "$pg_host" "$pg_port" "$pg_ctid"; then
     log "Datenbank '$db_name' existiert bereits - überspringe Erstellung"
     return 0
   fi
@@ -119,22 +118,19 @@ create_database_idempotent() {
   log "Erstelle Datenbank '$db_name' mit User '$db_user'"
 
   # Erstelle User nur wenn er nicht existiert
-  if ! database_user_exists "$db_user" "$pg_host" "$pg_port"; then
-    PGPASSWORD="$POSTGRES_MASTER_PASS" psql \
-      -h "$pg_host" -p "$pg_port" -U postgres \
-      -c "CREATE USER ${db_user} WITH PASSWORD '${db_pass}';" 2>/dev/null || {
+  if ! database_user_exists "$db_user" "$pg_host" "$pg_port" "$pg_ctid"; then
+    pct exec "$pg_ctid" -- bash -lc "sudo -u postgres psql -c \"CREATE USER ${db_user} WITH PASSWORD '${db_pass}';\"" 2>/dev/null || {
         echo "WARNUNG: User-Erstellung fehlgeschlagen (User existiert möglicherweise bereits)"
       }
   fi
 
   # Erstelle Datenbank
-  PGPASSWORD="$POSTGRES_MASTER_PASS" psql \
-    -h "$pg_host" -p "$pg_port" -U postgres <<EOF
+  pct exec "$pg_ctid" -- bash -lc "sudo -u postgres psql <<EOF
 CREATE DATABASE ${db_name} OWNER ${db_user};
 GRANT ALL PRIVILEGES ON DATABASE ${db_name} TO ${db_user};
-EOF
+EOF"
 
-  if database_exists "$db_name" "$pg_host" "$pg_port"; then
+  if database_exists "$db_name" "$pg_host" "$pg_port" "$pg_ctid"; then
     log "Datenbank '$db_name' erfolgreich erstellt"
   else
     echo "FEHLER: Datenbank-Erstellung fehlgeschlagen!"

@@ -36,11 +36,12 @@ SEMAPHORE_VERSION="${SEMAPHORE_VERSION:-2.16.51}"  # bei Bedarf ändern
 SEMAPHORE_TARBALL_URL="${SEMAPHORE_TARBALL_URL:-https://github.com/semaphoreui/semaphore/releases/download/v${SEMAPHORE_VERSION}/semaphore_${SEMAPHORE_VERSION}_linux_amd64.tar.gz}"
 
 # Semaphore initial (PostgreSQL Backend)
-SEMAPHORE_USER="${SEMAPHORE_USER:-admin}"
-SEMAPHORE_EMAIL="${SEMAPHORE_EMAIL:-kolja@homelab.lan}"
+# Nutzt SEMAPHORE_ADMIN1_* aus credentials.env wenn vorhanden
+SEMAPHORE_USER="${SEMAPHORE_USER:-${SEMAPHORE_ADMIN1_USER:-admin}}"
+SEMAPHORE_EMAIL="${SEMAPHORE_EMAIL:-${SEMAPHORE_ADMIN1_EMAIL:-kolja@homelab.lan}}"
 SEMAPHORE_NAME="${SEMAPHORE_NAME:-RALF Admin}"
 # Passwort NICHT hart im Repo lassen. Für einmaligen Bootstrap: env var setzen.
-SEMAPHORE_PASS="${SEMAPHORE_PASS:-CHANGE_ME_NOW}"
+SEMAPHORE_PASS="${SEMAPHORE_PASS:-${SEMAPHORE_ADMIN1_PASS:-CHANGE_ME_NOW}}"
 
 SEMAPHORE_BIND_ADDR="${SEMAPHORE_BIND_ADDR:-0.0.0.0}"
 SEMAPHORE_PORT="${SEMAPHORE_PORT:-3000}"
@@ -50,7 +51,7 @@ PG_HOST="${PG_HOST:-10.10.20.10}"
 PG_PORT="${PG_PORT:-5432}"
 PG_DB="${PG_DB:-semaphore}"
 PG_USER="${PG_USER:-semaphore}"
-PG_PASS="${PG_PASS:-CHANGE_ME_NOW}"
+PG_PASS="${PG_PASS:-${SEMAPHORE_PG_PASS:-CHANGE_ME_NOW}}"
 
 ### =========================
 ### Preconditions

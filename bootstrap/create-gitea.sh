@@ -52,7 +52,7 @@ PG_HOST="${PG_HOST:-10.10.20.10}"
 PG_PORT="${PG_PORT:-5432}"
 PG_DB="${PG_DB:-gitea}"
 PG_USER="${PG_USER:-gitea}"
-PG_PASS="${PG_PASS:-CHANGE_ME_NOW}"
+PG_PASS="${PG_PASS:-${GITEA_PG_PASS:-CHANGE_ME_NOW}}"
 
 ### =========================
 ### Preconditions

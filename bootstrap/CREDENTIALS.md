@@ -6,6 +6,15 @@ Alle Passwörter, Tokens und Secrets werden zentral in `/var/lib/ralf/credential
 
 **Wichtig:** Diese Datei ist **NICHT** im Git-Repository und wird **NIE** committed!
 
+### Passwort-Format (seit 2026-02-14)
+
+Alle auto-generierten Passwörter folgen diesen Sicherheitsstandards:
+- **Länge:** 32 Zeichen
+- **Zeichensatz:** Großbuchstaben, Kleinbuchstaben, Ziffern, Sonderzeichen
+- **Ausgeschlossen (ähnliche Zeichen):** `1, I, i, L, l, 0, O, o`
+- **Ausgeschlossen (mehrdeutige Symbole):** `()[]{}|;:'",.<>/?~\``
+- **Erlaubte Sonderzeichen:** `$?%!@#&*`
+
 ## Erste Einrichtung
 
 ### 1. Credentials generieren

@@ -30,11 +30,34 @@ need_cmd() {
 
 generate_password() {
   local length="${1:-32}"
-  openssl rand -base64 "$length" | tr -d '\n'
+
+  # Zeichensätze gemäß Anforderungen
+  # Großbuchstaben: A-Z ohne I, L, O
+  local upper="ABCDEFGHJKMNPQRSTUVWXYZ"
+  # Kleinbuchstaben: a-z ohne i, l, o
+  local lower="abcdefghjkmnpqrstuvwxyz"
+  # Ziffern: 0-9 ohne 0, 1
+  local digits="23456789"
+  # Sonderzeichen: nur sichere, keine mehrdeutigen
+  local special='$?%!@#&*'
+
+  # Kombiniere alle Zeichensätze
+  local all_chars="${upper}${lower}${digits}${special}"
+
+  # Generiere Passwort
+  local password=""
+  for i in $(seq 1 "$length"); do
+    # Zufälliges Zeichen aus dem Pool
+    local rand_index=$(($(od -An -N2 -tu2 /dev/urandom) % ${#all_chars}))
+    password="${password}${all_chars:$rand_index:1}"
+  done
+
+  echo -n "$password"
 }
 
 generate_token() {
-  local length="${2:-64}"
+  local length="${1:-64}"
+  # Tokens bleiben base64 (für API-Keys etc.)
   openssl rand -base64 "$length" | tr -d '\n'
 }
 

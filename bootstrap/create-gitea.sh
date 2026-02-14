@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Lade gemeinsame Helper-Funktionen
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/lib/common.sh"
+
 ### =========================
 ### CONFIG (anpassen)
 ### =========================
@@ -51,21 +55,6 @@ PG_USER="${PG_USER:-gitea}"
 PG_PASS="${PG_PASS:-CHANGE_ME_NOW}"
 
 ### =========================
-### Helpers
-### =========================
-
-log() { echo -e "\n==> $*"; }
-
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1"; exit 1; }
-}
-
-pct_exec() {
-  local cmd="$1"
-  pct exec "$CTID" -- bash -lc "$cmd"
-}
-
-### =========================
 ### Preconditions
 ### =========================
 
@@ -103,6 +92,13 @@ if ! nc -zv "$PG_HOST" "$PG_PORT" 2>&1 | grep -q succeeded; then
   exit 1
 fi
 log "PostgreSQL erreichbar ✓"
+
+### =========================
+### 0) Create PostgreSQL Database (idempotent)
+### =========================
+
+log "Erstelle PostgreSQL-Datenbank für Gitea (idempotent)"
+create_database_idempotent "$PG_DB" "$PG_USER" "$PG_PASS" "$PG_HOST" "$PG_PORT"
 
 ### =========================
 ### 1) Ensure template exists
@@ -233,6 +229,13 @@ chmod 770 /etc/gitea
 
 log "Erstelle Gitea config (/etc/gitea/app.ini)"
 pct_exec "set -euo pipefail;
+
+# Erstelle Backup wenn Config bereits existiert
+if [[ -f /etc/gitea/app.ini ]]; then
+  BACKUP_FILE=\"/etc/gitea/app.ini.backup.\$(date +%Y%m%d_%H%M%S)\"
+  echo \"Config existiert bereits - erstelle Backup: \$BACKUP_FILE\"
+  cp /etc/gitea/app.ini \"\$BACKUP_FILE\"
+fi
 
 cat >/etc/gitea/app.ini <<EOF
 APP_NAME = RALF Gitea

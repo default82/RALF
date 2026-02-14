@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Lade gemeinsame Helper-Funktionen
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/lib/common.sh"
+
 ### =========================
 ### CONFIG (anpassen)
 ### =========================
@@ -45,21 +49,6 @@ N8N_ADMIN2_EMAIL="${N8N_ADMIN2_EMAIL:-ralf@homelab.lan}"
 N8N_ADMIN2_PASS="${N8N_ADMIN2_PASS:-CHANGE_ME_NOW}"
 
 ### =========================
-### Helpers
-### =========================
-
-log() { echo -e "\n==> $*"; }
-
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1"; exit 1; }
-}
-
-pct_exec() {
-  local cmd="$1"
-  pct exec "$CTID" -- bash -lc "$cmd"
-}
-
-### =========================
 ### Preconditions
 ### =========================
 
@@ -82,6 +71,13 @@ if ! nc -zv "$PG_HOST" "$PG_PORT" 2>&1 | grep -q succeeded; then
   exit 1
 fi
 log "PostgreSQL erreichbar ✓"
+
+### =========================
+### 0) Create PostgreSQL Database (idempotent)
+### =========================
+
+log "Erstelle PostgreSQL-Datenbank für n8n (idempotent)"
+create_database_idempotent "$PG_DB" "$PG_USER" "$PG_PASS" "$PG_HOST" "$PG_PORT"
 
 ### =========================
 ### 1) Ensure template exists
@@ -233,6 +229,13 @@ chmod 640 /etc/n8n/config.env
 
 log "Erstelle n8n systemd service"
 pct_exec "
+# Erstelle Backup wenn Service bereits existiert
+if [[ -f /etc/systemd/system/n8n.service ]]; then
+  BACKUP_FILE=\"/etc/systemd/system/n8n.service.backup.\$(date +%Y%m%d_%H%M%S)\"
+  echo \"Service existiert bereits - erstelle Backup: \$BACKUP_FILE\"
+  cp /etc/systemd/system/n8n.service \"\$BACKUP_FILE\"
+fi
+
 cat > /etc/systemd/system/n8n.service <<'EOF'
 [Unit]
 Description=n8n - Workflow Automation

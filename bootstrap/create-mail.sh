@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Lade gemeinsame Helper-Funktionen
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/lib/common.sh"
+
 ### =========================
 ### CONFIG (anpassen)
 ### =========================
@@ -41,21 +45,6 @@ MAIL_ACCOUNT1_PASS="${MAIL_ACCOUNT1_PASS:-CHANGE_ME_NOW}"
 MAIL_ACCOUNT2_USER="${MAIL_ACCOUNT2_USER:-ralf}"
 MAIL_ACCOUNT2_EMAIL="${MAIL_ACCOUNT2_EMAIL:-ralf@homelab.lan}"
 MAIL_ACCOUNT2_PASS="${MAIL_ACCOUNT2_PASS:-CHANGE_ME_NOW}"
-
-### =========================
-### Helpers
-### =========================
-
-log() { echo -e "\n==> $*"; }
-
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1"; exit 1; }
-}
-
-pct_exec() {
-  local cmd="$1"
-  pct exec "$CTID" -- bash -lc "$cmd"
-}
 
 ### =========================
 ### Preconditions

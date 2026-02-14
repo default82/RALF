@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Lade gemeinsame Helper-Funktionen
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/lib/common.sh"
+
 ### =========================
 ### CONFIG (anpassen)
 ### =========================
@@ -44,21 +48,6 @@ PG_USER="${PG_USER:-vaultwarden}"
 PG_PASS="${PG_PASS:-CHANGE_ME_NOW}"
 
 ### =========================
-### Helpers
-### =========================
-
-log() { echo -e "\n==> $*"; }
-
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1"; exit 1; }
-}
-
-pct_exec() {
-  local cmd="$1"
-  pct exec "$CTID" -- bash -lc "$cmd"
-}
-
-### =========================
 ### Preconditions
 ### =========================
 
@@ -90,6 +79,13 @@ if ! nc -zv "$PG_HOST" "$PG_PORT" 2>&1 | grep -q succeeded; then
   exit 1
 fi
 log "PostgreSQL erreichbar ✓"
+
+### =========================
+### 0) Create PostgreSQL Database (idempotent)
+### =========================
+
+log "Erstelle PostgreSQL-Datenbank für Vaultwarden (idempotent)"
+create_database_idempotent "$PG_DB" "$PG_USER" "$PG_PASS" "$PG_HOST" "$PG_PORT"
 
 ### =========================
 ### 1) Ensure template exists
@@ -180,20 +176,10 @@ fi
 "
 
 ### =========================
-### 8) Create PostgreSQL Database
+### 8) Database already created in Step 0
 ### =========================
 
-log "Erstelle PostgreSQL-Datenbank '${PG_DB}'"
-pct_exec "export PGPASSWORD='postgres_superuser_pass';
-psql -h ${PG_HOST} -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname = '${PG_DB}'\" | grep -q 1 || \
-psql -h ${PG_HOST} -U postgres <<EOSQL
-CREATE DATABASE ${PG_DB} ENCODING 'UTF8' LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8';
-CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';
-GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};
-\\c ${PG_DB}
-GRANT ALL ON SCHEMA public TO ${PG_USER};
-EOSQL
-" 2>/dev/null || log "Datenbank existiert bereits oder manuelle Anlage notwendig"
+# Datenbank wurde bereits in Step 0 erstellt (idempotent)
 
 ### =========================
 ### 9) Install Vaultwarden binary
@@ -262,6 +248,13 @@ pct_exec "set -euo pipefail;
 
 mkdir -p /etc/vaultwarden
 mkdir -p /var/lib/vaultwarden/data
+
+# Erstelle Backup wenn Config bereits existiert
+if [[ -f /etc/vaultwarden/config.env ]]; then
+  BACKUP_FILE=\"/etc/vaultwarden/config.env.backup.\$(date +%Y%m%d_%H%M%S)\"
+  echo \"Config existiert bereits - erstelle Backup: \$BACKUP_FILE\"
+  cp /etc/vaultwarden/config.env \"\$BACKUP_FILE\"
+fi
 
 cat >/etc/vaultwarden/config.env <<EOF
 ## Vaultwarden Configuration

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Lade gemeinsame Helper-Funktionen
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/lib/common.sh"
+
 ### =========================
 ### CONFIG (anpassen)
 ### =========================
@@ -47,21 +51,6 @@ PG_PORT="${PG_PORT:-5432}"
 PG_DB="${PG_DB:-semaphore}"
 PG_USER="${PG_USER:-semaphore}"
 PG_PASS="${PG_PASS:-CHANGE_ME_NOW}"
-
-### =========================
-### Helpers
-### =========================
-
-log() { echo -e "\n==> $*"; }
-
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1"; exit 1; }
-}
-
-pct_exec() {
-  local cmd="$1"
-  pct exec "$CTID" -- bash -lc "$cmd"
-}
 
 ### =========================
 ### Preconditions

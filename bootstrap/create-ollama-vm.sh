@@ -51,14 +51,24 @@ if [ ! -f "$CLOUD_IMAGE" ]; then
 fi
 
 ### =========================
-### 2) Create VM
+### 2) Create VM (with FORCE_RECREATE check)
 ### =========================
 
+# WARNUNG: VM-Neuanlage ist destruktiv!
+# Setze FORCE_RECREATE=true um existierende VM zu löschen
+FORCE_RECREATE="${FORCE_RECREATE:-false}"
+
 if qm status "$VMID" >/dev/null 2>&1; then
-  log "VM ${VMID} existiert bereits, lösche..."
-  qm stop "$VMID" 2>/dev/null || true
-  sleep 2
-  qm destroy "$VMID"
+  if [[ "$FORCE_RECREATE" == "true" ]]; then
+    log "VM ${VMID} existiert -> loesche sie (FORCE_RECREATE=true)"
+    qm stop "$VMID" 2>/dev/null || true
+    sleep 2
+    qm destroy "$VMID"
+  else
+    log "VM ${VMID} existiert bereits - überspringe Neuanlage"
+    log "Verwende FORCE_RECREATE=true zum Neuerstellen"
+    exit 0
+  fi
 fi
 
 log "Erstelle VM ${VMID}"

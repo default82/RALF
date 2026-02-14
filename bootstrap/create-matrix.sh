@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Lade gemeinsame Helper-Funktionen
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/lib/common.sh"
+
 ### =========================
 ### CONFIG
 ### =========================
@@ -49,21 +53,6 @@ MATRIX_ADMIN2_USER="${MATRIX_ADMIN2_USER:-ralf}"
 MATRIX_ADMIN2_PASS="${MATRIX_ADMIN2_PASS:-CHANGE_ME_NOW}"
 
 ### =========================
-### Helpers
-### =========================
-
-log() { echo -e "\n==> $*"; }
-
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1"; exit 1; }
-}
-
-pct_exec() {
-  local cmd="$1"
-  pct exec "$CTID" -- bash -lc "$cmd"
-}
-
-### =========================
 ### Preconditions
 ### =========================
 
@@ -81,6 +70,13 @@ if ! nc -zv "$PG_HOST" "$PG_PORT" 2>&1 | grep -q succeeded; then
   exit 1
 fi
 log "PostgreSQL erreichbar ✓"
+
+### =========================
+### 0) Create PostgreSQL Database (idempotent)
+### =========================
+
+log "Erstelle PostgreSQL-Datenbank für Matrix/Synapse (idempotent)"
+create_database_idempotent "$PG_DB" "$PG_USER" "$PG_PASS" "$PG_HOST" "$PG_PORT"
 
 ### =========================
 ### 1) Template
@@ -167,8 +163,17 @@ apt-get install -y matrix-synapse-py3
 
 log "Konfiguriere Synapse"
 pct_exec "
-# Backup original config
-cp /etc/matrix-synapse/homeserver.yaml /etc/matrix-synapse/homeserver.yaml.orig
+# Erstelle Backup wenn Config bereits modifiziert wurde
+if [[ -f /etc/matrix-synapse/homeserver.yaml ]] && [[ ! -f /etc/matrix-synapse/homeserver.yaml.orig ]]; then
+  BACKUP_FILE=\"/etc/matrix-synapse/homeserver.yaml.backup.\$(date +%Y%m%d_%H%M%S)\"
+  echo \"Config existiert bereits - erstelle Backup: \$BACKUP_FILE\"
+  cp /etc/matrix-synapse/homeserver.yaml \"\$BACKUP_FILE\"
+fi
+
+# Backup original config wenn noch nicht vorhanden
+if [[ -f /etc/matrix-synapse/homeserver.yaml ]] && [[ ! -f /etc/matrix-synapse/homeserver.yaml.orig ]]; then
+  cp /etc/matrix-synapse/homeserver.yaml /etc/matrix-synapse/homeserver.yaml.orig
+fi
 
 # Create new config
 cat > /etc/matrix-synapse/homeserver.yaml <<'EOFSYNAPSE'

@@ -146,10 +146,14 @@ export GITEA_ADMIN2_USER="ralf"
 export GITEA_ADMIN2_EMAIL="ralf@homelab.lan"
 export GITEA_ADMIN2_PASS="$(generate_password 24)"
 
-# Semaphore Admin
-export SEMAPHORE_ADMIN_USER="admin"
-export SEMAPHORE_ADMIN_EMAIL="admin@homelab.lan"
-export SEMAPHORE_ADMIN_PASS="$(generate_password 24)"
+# Semaphore Admin Accounts
+export SEMAPHORE_ADMIN1_USER="kolja"
+export SEMAPHORE_ADMIN1_EMAIL="kolja@homelab.lan"
+export SEMAPHORE_ADMIN1_PASS="$(generate_password 24)"
+
+export SEMAPHORE_ADMIN2_USER="ralf"
+export SEMAPHORE_ADMIN2_EMAIL="ralf@homelab.lan"
+export SEMAPHORE_ADMIN2_PASS="$(generate_password 24)"
 
 # Vaultwarden Admin Token
 export VAULTWARDEN_ADMIN_TOKEN="$(generate_token 64)"

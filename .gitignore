@@ -5,3 +5,6 @@ ralf-deploy.log
 /var/lib/ralf/credentials.env
 credentials.env
 *.env.backup.*
+
+# Worktrees
+.worktrees/

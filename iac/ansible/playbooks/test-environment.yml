@@ -1,0 +1,59 @@
+---
+# Test Playbook: Environment Variables
+# Testet ob alle benötigten Environment Variables gesetzt sind
+
+- name: Test Environment Variables
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - name: Check Required Variables
+      ansible.builtin.debug:
+        msg: "{{ item.name }}: {{ 'SET ✅' if lookup('env', item.var) else 'MISSING ❌' }}"
+      loop:
+        # PostgreSQL
+        - { name: "PostgreSQL Master Password", var: "POSTGRES_MASTER_PASS" }
+
+        # MariaDB
+        - { name: "MariaDB Root Password", var: "MARIADB_ROOT_PASS" }
+
+        # Gitea
+        - { name: "Gitea DB Password", var: "GITEA_PG_PASS" }
+        - { name: "Gitea Admin User", var: "GITEA_ADMIN1_USER" }
+        - { name: "Gitea Admin Password", var: "GITEA_ADMIN1_PASS" }
+
+        # NetBox
+        - { name: "NetBox DB Password", var: "NETBOX_PG_PASS" }
+        - { name: "NetBox Secret Key", var: "NETBOX_SECRET_KEY" }
+        - { name: "NetBox Superuser Password", var: "NETBOX_SUPERUSER_PASS" }
+
+        # Snipe-IT
+        - { name: "Snipe-IT MySQL Password", var: "SNIPEIT_MYSQL_PASS" }
+        - { name: "Snipe-IT App Key", var: "SNIPEIT_APP_KEY" }
+        - { name: "Snipe-IT Admin User", var: "SNIPEIT_ADMIN_USER" }
+        - { name: "Snipe-IT Admin Password", var: "SNIPEIT_ADMIN_PASS" }
+
+        # Vaultwarden
+        - { name: "Vaultwarden Admin Token", var: "VAULTWARDEN_ADMIN_TOKEN" }
+        - { name: "Vaultwarden DB Password", var: "VAULTWARDEN_PG_PASS" }
+
+        # Semaphore
+        - { name: "Semaphore DB Password", var: "SEMAPHORE_PG_PASS" }
+        - { name: "Semaphore Admin 1 Password", var: "SEMAPHORE_ADMIN1_PASS" }
+        - { name: "Semaphore Admin 2 Password", var: "SEMAPHORE_ADMIN2_PASS" }
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          Environment Variables Test Complete
+          ==========================================
+
+          Check output above for any MISSING ❌ variables.
+          All variables should show SET ✅.
+
+          If variables are missing:
+          1. Check Semaphore Project Environment
+          2. Verify variables are configured correctly
+          3. Re-run this test

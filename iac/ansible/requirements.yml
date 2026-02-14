@@ -1,0 +1,25 @@
+---
+# Ansible Collections Requirements
+# Install with: ansible-galaxy install -r requirements.yml
+
+collections:
+  # Community General Collection (für Composer, etc.)
+  - name: community.general
+    version: ">=8.0.0"
+
+  # Community PostgreSQL Collection
+  - name: community.postgresql
+    version: ">=3.0.0"
+
+  # Community MySQL Collection
+  - name: community.mysql
+    version: ">=3.0.0"
+
+  # Ansible Posix Collection (für Mount, Firewall, etc.)
+  - name: ansible.posix
+    version: ">=1.5.0"
+
+# Optional: External Roles from Ansible Galaxy
+# roles:
+#   - name: geerlingguy.nginx
+#     version: 3.1.4

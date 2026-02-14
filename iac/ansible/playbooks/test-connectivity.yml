@@ -1,0 +1,33 @@
+---
+# Test Playbook: Connectivity Check
+# Testet SSH-Verbindung zu allen Hosts im Inventory
+
+- name: Test SSH Connectivity
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Ping Host
+      ansible.builtin.ping:
+      register: ping_result
+
+    - name: Show Hostname
+      ansible.builtin.command: hostname
+      register: hostname_result
+      changed_when: false
+
+    - name: Display Results
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host }}
+          Hostname: {{ hostname_result.stdout }}
+          Status: ✅ Reachable
+
+    - name: Check Python
+      ansible.builtin.command: python3 --version
+      register: python_version
+      changed_when: false
+
+    - name: Display Python Version
+      ansible.builtin.debug:
+        msg: "Python: {{ python_version.stdout }}"

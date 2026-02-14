@@ -1,0 +1,47 @@
+---
+# Snipe-IT Role – Default Variables
+
+# Version
+snipeit_version: "v8.3.7"
+
+# Verzeichnisse
+snipeit_install_dir: "/var/www/snipe-it"
+snipeit_user: "www-data"
+snipeit_group: "www-data"
+
+# Datenbank (MariaDB)
+snipeit_db_host: "10.10.20.11"
+snipeit_db_port: 3306
+snipeit_db_name: "snipeit"
+snipeit_db_user: "snipeit_user"
+# snipeit_db_pass: aus Vault/Environment
+
+# Application
+snipeit_app_url: "http://10.10.40.40:8080"
+snipeit_app_env: "production"
+snipeit_app_debug: "false"
+snipeit_app_timezone: "Europe/Berlin"
+snipeit_app_locale: "de_DE"
+# snipeit_app_key: aus Vault/Environment
+
+# Admin Account
+snipeit_admin_username: "admin"
+snipeit_admin_email: "admin@homelab.lan"
+snipeit_admin_firstname: "Admin"
+snipeit_admin_lastname: "User"
+# snipeit_admin_password: aus Vault/Environment
+
+# Webserver
+snipeit_port: 8080
+snipeit_nginx_worker_connections: 1024
+
+# PHP-FPM
+snipeit_php_version: "8.3"
+snipeit_php_memory_limit: "512M"
+snipeit_php_upload_max_filesize: "100M"
+snipeit_php_post_max_size: "100M"
+
+# Cache & Session
+snipeit_cache_driver: "file"
+snipeit_session_driver: "file"
+snipeit_queue_driver: "sync"

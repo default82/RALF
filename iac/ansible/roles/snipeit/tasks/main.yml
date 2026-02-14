@@ -1,0 +1,152 @@
+---
+# Snipe-IT Role – Installation und Konfiguration
+
+- name: System-Pakete installieren
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - php{{ snipeit_php_version }}
+      - php{{ snipeit_php_version }}-fpm
+      - php{{ snipeit_php_version }}-mysql
+      - php{{ snipeit_php_version }}-curl
+      - php{{ snipeit_php_version }}-gd
+      - php{{ snipeit_php_version }}-ldap
+      - php{{ snipeit_php_version }}-zip
+      - php{{ snipeit_php_version }}-mbstring
+      - php{{ snipeit_php_version }}-xml
+      - php{{ snipeit_php_version }}-bcmath
+      - php{{ snipeit_php_version }}-redis
+      - mariadb-client
+      - git
+      - curl
+      - wget
+      - unzip
+      - sudo
+    state: present
+    update_cache: yes
+
+- name: Prüfe ob Composer installiert ist
+  ansible.builtin.stat:
+    path: /usr/local/bin/composer
+  register: composer_binary
+
+- name: Composer installieren
+  ansible.builtin.shell: |
+    curl -sS https://getcomposer.org/installer | php
+    mv composer.phar /usr/local/bin/composer
+    chmod +x /usr/local/bin/composer
+  args:
+    creates: /usr/local/bin/composer
+  when: not composer_binary.stat.exists
+
+- name: Prüfe ob Snipe-IT bereits gecloned ist
+  ansible.builtin.stat:
+    path: "{{ snipeit_install_dir }}/.git"
+  register: snipeit_repo
+
+- name: Snipe-IT Repository clonen
+  ansible.builtin.git:
+    repo: 'https://github.com/snipe/snipe-it.git'
+    dest: "{{ snipeit_install_dir }}"
+    version: "{{ snipeit_version }}"
+    depth: 1
+  when: not snipeit_repo.stat.exists
+  become_user: "{{ snipeit_user }}"
+
+- name: Composer Dependencies installieren
+  community.general.composer:
+    command: install
+    arguments: "--no-dev --prefer-source --no-interaction"
+    working_dir: "{{ snipeit_install_dir }}"
+  become_user: "{{ snipeit_user }}"
+
+- name: Snipe-IT .env Konfiguration deployen
+  ansible.builtin.template:
+    src: snipeit.env.j2
+    dest: "{{ snipeit_install_dir }}/.env"
+    owner: "{{ snipeit_user }}"
+    group: "{{ snipeit_group }}"
+    mode: '0640'
+  notify: restart php-fpm
+
+- name: Storage-Verzeichnisse Berechtigungen setzen
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ snipeit_user }}"
+    group: "{{ snipeit_group }}"
+    mode: '0755'
+    state: directory
+    recurse: yes
+  loop:
+    - "{{ snipeit_install_dir }}/storage"
+    - "{{ snipeit_install_dir }}/public/uploads"
+
+- name: Storage Link erstellen
+  ansible.builtin.command:
+    cmd: php artisan storage:link
+    chdir: "{{ snipeit_install_dir }}"
+  args:
+    creates: "{{ snipeit_install_dir }}/public/storage"
+  become_user: "{{ snipeit_user }}"
+
+- name: Datenbank-Migrationen durchführen
+  ansible.builtin.command:
+    cmd: php artisan migrate --force
+    chdir: "{{ snipeit_install_dir }}"
+  become_user: "{{ snipeit_user }}"
+  register: migration_result
+  changed_when: "'Nothing to migrate' not in migration_result.stdout"
+
+- name: Prüfe ob Admin-User existiert
+  ansible.builtin.command:
+    cmd: php artisan tinker --execute="echo \Illuminate\Support\Facades\DB::table('users')->where('username', '{{ snipeit_admin_username }}')->count();"
+    chdir: "{{ snipeit_install_dir }}"
+  become_user: "{{ snipeit_user }}"
+  register: admin_exists
+  changed_when: false
+  failed_when: false
+
+- name: Admin-User erstellen
+  ansible.builtin.command:
+    cmd: >
+      php artisan snipeit:create-admin
+      --username='{{ snipeit_admin_username }}'
+      --email='{{ snipeit_admin_email }}'
+      --password='{{ snipeit_admin_password }}'
+      --first_name='{{ snipeit_admin_firstname }}'
+      --last_name='{{ snipeit_admin_lastname }}'
+    chdir: "{{ snipeit_install_dir }}"
+  become_user: "{{ snipeit_user }}"
+  when: admin_exists.stdout | trim == "0"
+
+- name: Nginx Konfiguration deployen
+  ansible.builtin.template:
+    src: snipeit-nginx.conf.j2
+    dest: /etc/nginx/sites-available/snipeit
+    mode: '0644'
+  notify: restart nginx
+
+- name: Nginx Site aktivieren
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/snipeit
+    dest: /etc/nginx/sites-enabled/snipeit
+    state: link
+  notify: restart nginx
+
+- name: Default Nginx Site deaktivieren
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+
+- name: Nginx aktivieren und starten
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: PHP-FPM aktivieren und starten
+  ansible.builtin.systemd:
+    name: "php{{ snipeit_php_version }}-fpm"
+    state: started
+    enabled: yes

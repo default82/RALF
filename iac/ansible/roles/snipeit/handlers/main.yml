@@ -1,0 +1,17 @@
+---
+# Snipe-IT Role – Handlers
+
+- name: restart nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted
+
+- name: restart php-fpm
+  ansible.builtin.systemd:
+    name: "php{{ snipeit_php_version }}-fpm"
+    state: restarted
+
+- name: reload nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded

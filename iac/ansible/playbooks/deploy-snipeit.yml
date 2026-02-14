@@ -1,0 +1,77 @@
+---
+# Snipe-IT Deployment Playbook
+# Deployt Snipe-IT Asset Management in LXC Container
+
+- name: Deploy Snipe-IT
+  hosts: snipeit
+  become: yes
+
+  vars:
+    # Version
+    snipeit_version: "v8.3.7"
+
+    # Datenbank (aus Inventory oder Vault)
+    snipeit_db_host: "{{ lookup('env', 'SNIPEIT_DB_HOST') | default('10.10.20.11') }}"
+    snipeit_db_port: "{{ lookup('env', 'SNIPEIT_DB_PORT') | default('3306') }}"
+    snipeit_db_name: "{{ lookup('env', 'SNIPEIT_DB_NAME') | default('snipeit') }}"
+    snipeit_db_user: "{{ lookup('env', 'SNIPEIT_DB_USER') | default('snipeit_user') }}"
+    snipeit_db_pass: "{{ lookup('env', 'SNIPEIT_MYSQL_PASS') }}"
+
+    # Application Keys (aus Environment/Vault)
+    snipeit_app_key: "{{ lookup('env', 'SNIPEIT_APP_KEY') }}"
+    snipeit_app_url: "{{ lookup('env', 'SNIPEIT_APP_URL') | default('http://10.10.40.40:8080') }}"
+
+    # Admin Account (aus Environment/Vault)
+    snipeit_admin_username: "{{ lookup('env', 'SNIPEIT_ADMIN_USER') | default('admin') }}"
+    snipeit_admin_email: "{{ lookup('env', 'SNIPEIT_ADMIN_EMAIL') | default('admin@homelab.lan') }}"
+    snipeit_admin_password: "{{ lookup('env', 'SNIPEIT_ADMIN_PASS') }}"
+    snipeit_admin_firstname: "Admin"
+    snipeit_admin_lastname: "User"
+
+  pre_tasks:
+    - name: Validiere erforderliche Secrets
+      ansible.builtin.assert:
+        that:
+          - snipeit_db_pass is defined and snipeit_db_pass != ""
+          - snipeit_app_key is defined and snipeit_app_key != ""
+          - snipeit_admin_password is defined and snipeit_admin_password != ""
+        fail_msg: "FEHLER: Erforderliche Secrets fehlen! Bitte credentials.env sourcen."
+
+    - name: System Update
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+  roles:
+    - base
+    - snipeit
+
+  post_tasks:
+    - name: Warte auf Snipe-IT (max 30s)
+      ansible.builtin.uri:
+        url: "{{ snipeit_app_url }}"
+        status_code: 200
+        timeout: 5
+      register: result
+      until: result.status == 200
+      retries: 6
+      delay: 5
+      ignore_errors: yes
+
+    - name: Deployment Status
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Snipe-IT Deployment abgeschlossen!
+          ========================================
+
+          URL: {{ snipeit_app_url }}
+          Admin User: {{ snipeit_admin_username }}
+          Admin Email: {{ snipeit_admin_email }}
+
+          Nächste Schritte:
+          1. Login mit Admin-Credentials
+          2. Grundeinstellungen überprüfen
+          3. Kategorien und Locations anlegen
+
+          ========================================

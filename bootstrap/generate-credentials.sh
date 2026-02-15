@@ -29,7 +29,7 @@ need_cmd() {
 }
 
 generate_password() {
-  local length="${1:-32}"
+  local length="${1:-32}"  # Default: 32 characters for all passwords
 
   # Zeichensätze gemäß Anforderungen
   # Großbuchstaben: A-Z ohne I, L, O
@@ -39,7 +39,7 @@ generate_password() {
   # Ziffern: 0-9 ohne 0, 1
   local digits="23456789"
   # Sonderzeichen: nur sichere, keine mehrdeutigen ($ entfernt wegen bash expansion)
-  local special='?%!@#&*+'
+  local special='-_'
 
   # Kombiniere alle Zeichensätze
   local all_chars="${upper}${lower}${digits}${special}"

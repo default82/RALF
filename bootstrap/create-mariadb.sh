@@ -18,9 +18,9 @@ source "${SCRIPT_DIR}/lib/common.sh"
 CTID="${CTID:-2011}"
 HOSTNAME="${HOSTNAME:-svc-mariadb}"
 TEMPLATE="${TEMPLATE:-local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
-MEMORY="${MEMORY:-1024}"
+MEMORY="${MEMORY:-1024}"     # MB - Database braucht CPU (optimiert für 500GB/16GB node)
 CORES="${CORES:-2}"
-DISK_GB="${DISK_GB:-16}"
+DISK_GB="${DISK_GB:-8}"
 
 # Netzwerk
 IP_ADDRESS="${IP_ADDRESS:-10.10.20.11}"

@@ -134,6 +134,14 @@ export N8N_PG_PASS="$(generate_password 32)"
 export MATRIX_PG_PASS="$(generate_password 32)"
 
 # ============================================================================
+# MinIO Object Storage
+# ============================================================================
+
+# MinIO Root Credentials
+export MINIO_ROOT_USER="admin"
+export MINIO_ROOT_PASSWORD="$(generate_password 32)"
+
+# ============================================================================
 # Service Admin Accounts
 # ============================================================================
 
@@ -241,6 +249,11 @@ export MAIL_IMAP_PORT="143"
 # Ollama Server
 export OLLAMA_HOST="10.10.40.13"
 export OLLAMA_PORT="11434"
+
+# MinIO Object Storage
+export MINIO_HOST="10.10.20.13"
+export MINIO_HTTP_PORT="9000"
+export MINIO_CONSOLE_PORT="9001"
 
 # ============================================================================
 # Metadata

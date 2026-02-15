@@ -20,10 +20,10 @@ GW="${GW:-10.10.0.1}"
 DNS="${DNS:-10.10.0.1}"
 SEARCHDOMAIN="${SEARCHDOMAIN:-homelab.lan}"
 
-# Ressourcen (AI braucht mehr!)
-MEMORY="${MEMORY:-8192}"  # 8GB für AI Inferenz
-CORES="${CORES:-4}"
-DISK_GB="${DISK_GB:-64}"
+# Ressourcen (AI braucht mehr! - aber optimiert für 500GB/16GB node)
+MEMORY="${MEMORY:-512}"      # MB - Minimal, AI-Workload läuft on-demand
+CORES="${CORES:-1}"
+DISK_GB="${DISK_GB:-8}"
 
 # Template
 TPL_STORAGE="${TPL_STORAGE:-local}"
@@ -71,7 +71,7 @@ fi
 
 log "Starte CT ${CTID}"
 pct start "$CTID" 2>/dev/null || true
-sleep 3
+sleep 5
 
 pct_exec "printf 'search ${SEARCHDOMAIN}\\nnameserver ${DNS}\\n' > /etc/resolv.conf"
 

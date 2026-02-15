@@ -20,10 +20,10 @@ GW="${GW:-10.10.0.1}"
 DNS="${DNS:-10.10.0.1}"
 SEARCHDOMAIN="${SEARCHDOMAIN:-homelab.lan}"
 
-# Ressourcen
-MEMORY="${MEMORY:-2048}"
-CORES="${CORES:-2}"
-DISK_GB="${DISK_GB:-16}"
+# Ressourcen (optimiert für 500GB/16GB node)
+MEMORY="${MEMORY:-512}"      # MB - Node.js, effizient
+CORES="${CORES:-1}"
+DISK_GB="${DISK_GB:-8}"
 
 # Ubuntu Template
 TPL_STORAGE="${TPL_STORAGE:-local}"
@@ -111,7 +111,7 @@ fi
 
 log "Starte CT ${CTID}"
 pct start "$CTID" 2>/dev/null || true
-sleep 3
+sleep 5
 
 ### =========================
 ### 3) Set DNS

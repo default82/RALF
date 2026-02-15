@@ -16,9 +16,9 @@ IP_CIDR="${IP_CIDR:-10.10.30.10/16}"
 GW="${GW:-10.10.0.1}"
 DNS="${DNS:-10.10.0.1}"
 SEARCHDOMAIN="${SEARCHDOMAIN:-homelab.lan}"
-MEMORY="${MEMORY:-2048}"
-CORES="${CORES:-4}"
-DISK_GB="${DISK_GB:-16}"
+MEMORY="${MEMORY:-512}"      # MB - Rust Binary, sehr effizient (optimiert für 500GB/16GB node)
+CORES="${CORES:-1}"
+DISK_GB="${DISK_GB:-8}"
 TPL_STORAGE="${TPL_STORAGE:-local}"
 TPL_NAME="${TPL_NAME:-ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
 VAULTWARDEN_PORT="${VAULTWARDEN_PORT:-8080}"
@@ -57,7 +57,7 @@ else
 fi
 
 pct start "$CTID" 2>/dev/null || true
-sleep 3
+sleep 5
 
 log "Setze resolv.conf"
 pct_exec "$CTID" "printf 'search ${SEARCHDOMAIN}\nnameserver ${DNS}\n' > /etc/resolv.conf"
@@ -164,8 +164,8 @@ systemctl daemon-reload
 systemctl enable --now vaultwarden
 "
 
-log "Warte auf Startup (15s)"
-sleep 15
+log "Warte auf Startup (20s)"
+sleep 20
 
 log "Final Checks"
 pct_exec "$CTID" "systemctl is-active vaultwarden && ss -lntp | grep ':${VAULTWARDEN_PORT}' || true"

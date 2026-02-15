@@ -20,10 +20,10 @@ GW="${GW:-10.10.0.1}"
 DNS="${DNS:-10.10.0.1}"
 SEARCHDOMAIN="${SEARCHDOMAIN:-homelab.lan}"
 
-# Ressourcen
-MEMORY="${MEMORY:-4096}"  # Matrix braucht mehr RAM
-CORES="${CORES:-2}"
-DISK_GB="${DISK_GB:-32}"
+# Ressourcen (optimiert für 500GB/16GB node)
+MEMORY="${MEMORY:-1024}"     # MB - Python, moderat
+CORES="${CORES:-1}"
+DISK_GB="${DISK_GB:-8}"
 
 # Template
 TPL_STORAGE="${TPL_STORAGE:-local}"

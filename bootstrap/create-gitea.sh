@@ -342,16 +342,17 @@ export HOME=/home/git
 export GITEA_WORK_DIR=/var/lib/gitea
 
 # Prüfe ob User bereits existiert
-if sudo -u git /usr/local/bin/gitea admin user list --config /etc/gitea/app.ini 2>/dev/null | grep -qi '${GITEA_ADMIN1_USER}'; then
-  echo 'User ${GITEA_ADMIN1_USER} existiert bereits'
+if sudo -u git /usr/local/bin/gitea admin user list --config /etc/gitea/app.ini 2>/dev/null | grep -qi ${GITEA_ADMIN1_USER}; then
+  echo User ${GITEA_ADMIN1_USER} existiert bereits
 else
   sudo -u git /usr/local/bin/gitea admin user create \
     --admin \
-    --username '${GITEA_ADMIN1_USER}' \
-    --email '${GITEA_ADMIN1_EMAIL}' \
-    --password '${GITEA_ADMIN1_PASS}' \
+    --username ${GITEA_ADMIN1_USER} \
+    --email ${GITEA_ADMIN1_EMAIL} \
+    --password ${GITEA_ADMIN1_PASS} \
+    --must-change-password false \
     --config /etc/gitea/app.ini
-  echo 'Admin-User ${GITEA_ADMIN1_USER} erstellt'
+  echo Admin-User ${GITEA_ADMIN1_USER} erstellt
 fi
 "
 
@@ -362,16 +363,17 @@ export HOME=/home/git
 export GITEA_WORK_DIR=/var/lib/gitea
 
 # Prüfe ob User bereits existiert
-if sudo -u git /usr/local/bin/gitea admin user list --config /etc/gitea/app.ini 2>/dev/null | grep -qi '${GITEA_ADMIN2_USER}'; then
-  echo 'User ${GITEA_ADMIN2_USER} existiert bereits'
+if sudo -u git /usr/local/bin/gitea admin user list --config /etc/gitea/app.ini 2>/dev/null | grep -qi ${GITEA_ADMIN2_USER}; then
+  echo User ${GITEA_ADMIN2_USER} existiert bereits
 else
   sudo -u git /usr/local/bin/gitea admin user create \
     --admin \
-    --username '${GITEA_ADMIN2_USER}' \
-    --email '${GITEA_ADMIN2_EMAIL}' \
-    --password '${GITEA_ADMIN2_PASS}' \
+    --username ${GITEA_ADMIN2_USER} \
+    --email ${GITEA_ADMIN2_EMAIL} \
+    --password ${GITEA_ADMIN2_PASS} \
+    --must-change-password false \
     --config /etc/gitea/app.ini
-  echo 'Admin-User ${GITEA_ADMIN2_USER} erstellt'
+  echo Admin-User ${GITEA_ADMIN2_USER} erstellt
 fi
 "
 
@@ -386,11 +388,11 @@ export GITEA_WORK_DIR=/var/lib/gitea
 
 # Prüfe ob Organisation bereits existiert via API
 if curl -s http://localhost:${GITEA_HTTP_PORT}/api/v1/orgs/RALF-Homelab 2>&1 | grep -q '\"username\":\"RALF-Homelab\"'; then
-  echo 'Organisation RALF-Homelab existiert bereits'
+  echo Organisation RALF-Homelab existiert bereits
 else
   # Erstelle Organisation via API (als Admin-User)
   curl -X POST http://localhost:${GITEA_HTTP_PORT}/api/v1/orgs \
-    -u '${GITEA_ADMIN1_USER}:${GITEA_ADMIN1_PASS}' \
+    -u ${GITEA_ADMIN1_USER}:${GITEA_ADMIN1_PASS} \
     -H 'Content-Type: application/json' \
     -d '{
       \"username\": \"RALF-Homelab\",
@@ -398,7 +400,7 @@ else
       \"description\": \"Self-orchestrating homelab infrastructure platform\",
       \"visibility\": \"private\"
     }' >/dev/null 2>&1
-  echo 'Organisation RALF-Homelab erstellt'
+  echo Organisation RALF-Homelab erstellt
 fi
 "
 
@@ -425,12 +427,12 @@ done
 
 # Prüfe ob Repository bereits existiert (via API)
 if curl -sf http://localhost:${GITEA_HTTP_PORT}/api/v1/repos/RALF-Homelab/ralf 2>/dev/null | grep -q '\"name\":\"ralf\"'; then
-  echo 'Repository RALF-Homelab/ralf existiert bereits'
+  echo Repository RALF-Homelab/ralf existiert bereits
 else
   # Erstelle Repository via API
   RESPONSE=\$(curl -s -w \"\\n%{http_code}\" \
     -X POST http://localhost:${GITEA_HTTP_PORT}/api/v1/orgs/RALF-Homelab/repos \
-    -u '${GITEA_ADMIN1_USER}:${GITEA_ADMIN1_PASS}' \
+    -u ${GITEA_ADMIN1_USER}:${GITEA_ADMIN1_PASS} \
     -H 'Content-Type: application/json' \
     -d '{
       \"name\": \"ralf\",
@@ -447,12 +449,12 @@ else
   BODY=\$(echo \"\$RESPONSE\" | head -n-1)
 
   if [[ \"\$HTTP_CODE\" == \"201\" ]]; then
-    echo 'Repository RALF-Homelab/ralf erfolgreich erstellt'
+    echo Repository RALF-Homelab/ralf erfolgreich erstellt
   elif [[ \"\$HTTP_CODE\" == \"409\" ]]; then
-    echo 'Repository existiert bereits (409 Conflict) - OK'
+    echo Repository existiert bereits (409 Conflict) - OK
   elif [[ \"\$HTTP_CODE\" == \"401\" ]]; then
-    echo 'ERROR: Authentifizierung fehlgeschlagen (401)'
-    echo 'Prüfe GITEA_ADMIN1_USER und GITEA_ADMIN1_PASS in credentials.env'
+    echo ERROR: Authentifizierung fehlgeschlagen (401)
+    echo Prüfe GITEA_ADMIN1_USER und GITEA_ADMIN1_PASS in credentials.env
     exit 1
   else
     echo \"ERROR: Unerwarteter HTTP Code: \$HTTP_CODE\"

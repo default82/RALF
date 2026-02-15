@@ -22,9 +22,10 @@ n8n ist deployed und läuft auf **http://10.10.40.12:5678**
 - **Status:** ✅ Deployed und läuft
 
 ### Ollama VM
-- **Status:** ✅ VM läuft, Ollama installiert
-- **Problem:** Port 11434 ist "closed" - Ollama lauscht nur auf localhost
-- **Lösung erforderlich:** Ollama-Konfiguration für externe Verbindungen
+- **Status:** ✅ VM läuft, Ollama installiert und konfiguriert
+- **Externe Erreichbarkeit:** ✅ Port 11434 offen, lauscht auf 0.0.0.0
+- **Installiertes Modell:** ✅ phi3:mini (2.2 GB, Q4_0 quantization)
+- **Verified:** ✅ API-Tests erfolgreich, n8n kann Ollama erreichen
 
 ## Ollama für externe Verbindungen konfigurieren
 
@@ -200,13 +201,23 @@ Mit 16GB RAM kann Ollama 1-2 Modelle gleichzeitig im Speicher halten.
 - Keine externe Exposition nötig - nur internes Netzwerk (10.10.x.x)
 - n8n-Container kann direkt auf 10.10.40.13:11434 zugreifen
 
-## Nächste Schritte
+## Status (Completed ✅)
 
-1. ✅ n8n deployed und getestet
-2. ✅ Ollama VM erstellt und gestartet
-3. ⏳ Ollama für externe Connections konfigurieren
-4. ⏳ Mindestens ein LLM-Modell installieren (phi3:mini empfohlen)
-5. ⏳ n8n Beispiel-Workflow erstellen und testen
+1. ✅ n8n deployed und getestet (CT 4012 @ 10.10.40.12:5678)
+2. ✅ Ollama VM erstellt und gestartet (VM 4013 @ 10.10.40.13)
+3. ✅ Ollama für externe Connections konfiguriert (systemd override)
+4. ✅ phi3:mini LLM-Modell installiert (2.2 GB, 3.8B parameters)
+5. ✅ n8n Beispiel-Workflow erstellt (siehe `n8n-ollama-workflow-example.json`)
+6. ✅ API-Verbindung von n8n zu Ollama verifiziert
+
+## Workflow importieren
+
+Das Beispiel-Workflow JSON kann direkt in n8n importiert werden:
+
+1. n8n öffnen: http://10.10.40.12:5678
+2. Workflows → "Import from File" → `n8n-ollama-workflow-example.json`
+3. Workflow aktivieren
+4. Testen: `curl "http://10.10.40.12:5678/webhook/llm-test?prompt=Hello"`
 
 ## Referenzen
 

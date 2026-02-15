@@ -1,0 +1,88 @@
+{
+  "name": "Ollama LLM Test Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "llm-test",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "llm-test"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.10.40.13:11434/api/generate",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"phi3:mini\",\n  \"prompt\": $json.query.prompt || \"Hello, what is n8n?\",\n  \"stream\": false\n} }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ollama-request",
+      "name": "Ollama HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"model\": $json.model,\n  \"response\": $json.response,\n  \"eval_count\": $json.eval_count,\n  \"eval_duration_ms\": ($json.eval_duration / 1000000).toFixed(2),\n  \"total_duration_ms\": ($json.total_duration / 1000000).toFixed(2)\n} }}"
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [690, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Ollama HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "ollama",
+      "id": "ollama-tag"
+    },
+    {
+      "name": "llm",
+      "id": "llm-tag"
+    }
+  ],
+  "meta": {
+    "templateId": "ollama-test"
+  }
+}

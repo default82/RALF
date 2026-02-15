@@ -1,0 +1,33 @@
+---
+# Dashy Ansible Role - Default Variables
+
+# Installation
+dashy_repo_url: "https://github.com/Lissy93/dashy.git"
+dashy_version: "3.1.1"  # Git tag or branch
+dashy_install_dir: "/opt/dashy"
+dashy_user: "root"  # Run as root in LXC (isolated)
+dashy_group: "root"
+
+# Node.js
+dashy_nodejs_version: "20"  # Node.js 20 LTS
+dashy_npm_install_timeout: 600  # 10 minutes for npm install
+
+# Service
+dashy_listen_host: "0.0.0.0"
+dashy_listen_port: 4000
+dashy_node_env: "development"  # Use dev mode for hot-reload
+
+# Config
+dashy_config_dir: "{{ dashy_install_dir }}/user-data"
+dashy_config_file: "{{ dashy_config_dir }}/conf.yml"
+dashy_config_template: "conf.yml.j2"  # Optional template
+
+# CORS Proxy (nginx)
+dashy_cors_proxy_enabled: true
+dashy_cors_proxy_port: 8080
+dashy_cors_proxy_config: "/etc/nginx/sites-available/cors-proxy"
+
+# Systemd
+dashy_service_name: "dashy"
+dashy_service_restart: "on-failure"
+dashy_service_restart_sec: 10

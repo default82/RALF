@@ -1,0 +1,13 @@
+---
+# Dashy Ansible Role - Handlers
+
+- name: restart dashy
+  ansible.builtin.systemd:
+    name: "{{ dashy_service_name }}"
+    state: restarted
+    daemon_reload: yes
+
+- name: restart nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted

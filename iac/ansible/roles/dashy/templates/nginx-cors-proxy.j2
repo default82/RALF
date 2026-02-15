@@ -1,0 +1,66 @@
+server {
+    listen {{ dashy_cors_proxy_port }};
+    server_name localhost;
+
+    # CORS headers for all responses
+    add_header 'Access-Control-Allow-Origin' '*' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, HEAD, OPTIONS' always;
+    add_header 'Access-Control-Allow-Headers' 'Origin, X-Requested-With, Content-Type, Accept' always;
+
+    # Handle preflight requests
+    if ($request_method = 'OPTIONS') {
+        return 204;
+    }
+
+    # Proxy to Gitea
+    location /gitea/ {
+        proxy_pass http://10.10.20.12:3000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Proxy to Semaphore
+    location /semaphore/ {
+        proxy_pass http://10.10.100.15:3000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Proxy to Vaultwarden
+    location /vault/ {
+        proxy_pass http://10.10.30.10:8080/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Proxy to PostgreSQL (health check only)
+    location /postgres/ {
+        return 200 'PostgreSQL endpoint';
+        add_header Content-Type text/plain;
+    }
+
+    # Proxy to MariaDB (health check only)
+    location /mariadb/ {
+        return 200 'MariaDB endpoint';
+        add_header Content-Type text/plain;
+    }
+
+    # Proxy to NetBox
+    location /netbox/ {
+        proxy_pass http://10.10.40.30:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Proxy to Snipe-IT
+    location /snipeit/ {
+        proxy_pass http://10.10.40.40/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}

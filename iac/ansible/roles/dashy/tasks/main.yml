@@ -1,0 +1,159 @@
+---
+# Dashy Ansible Role - Installation Tasks
+
+- name: Install prerequisites
+  ansible.builtin.apt:
+    name:
+      - git
+      - curl
+      - ca-certificates
+      - gnupg
+    state: present
+    update_cache: yes
+
+- name: Add NodeSource GPG key
+  ansible.builtin.apt_key:
+    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    state: present
+
+- name: Add NodeSource repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://deb.nodesource.com/node_{{ dashy_nodejs_version }}.x nodistro main"
+    state: present
+    filename: nodesource
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: yes
+
+- name: Check if Dashy repository exists
+  ansible.builtin.stat:
+    path: "{{ dashy_install_dir }}/.git"
+  register: dashy_repo
+
+- name: Clone Dashy repository
+  ansible.builtin.git:
+    repo: "{{ dashy_repo_url }}"
+    dest: "{{ dashy_install_dir }}"
+    version: "{{ dashy_version }}"
+    force: no
+  when: not dashy_repo.stat.exists
+
+- name: Update Dashy repository
+  ansible.builtin.git:
+    repo: "{{ dashy_repo_url }}"
+    dest: "{{ dashy_install_dir }}"
+    version: "{{ dashy_version }}"
+    update: yes
+  when: dashy_repo.stat.exists
+  notify: restart dashy
+
+- name: Create user-data directory
+  ansible.builtin.file:
+    path: "{{ dashy_config_dir }}"
+    state: directory
+    owner: "{{ dashy_user }}"
+    group: "{{ dashy_group }}"
+    mode: "0755"
+
+- name: Check if custom config template is provided
+  ansible.builtin.stat:
+    path: "{{ role_path }}/templates/{{ dashy_config_template }}"
+  register: custom_config_template
+  delegate_to: localhost
+  become: no
+
+- name: Deploy Dashy configuration from template
+  ansible.builtin.template:
+    src: "{{ dashy_config_template }}"
+    dest: "{{ dashy_config_file }}"
+    owner: "{{ dashy_user }}"
+    group: "{{ dashy_group }}"
+    mode: "0644"
+  when: custom_config_template.stat.exists
+  notify: restart dashy
+
+- name: Check if conf.yml exists
+  ansible.builtin.stat:
+    path: "{{ dashy_config_file }}"
+  register: dashy_config_exists
+
+- name: Copy default conf.yml if missing
+  ansible.builtin.copy:
+    src: "{{ dashy_install_dir }}/user-data/conf.yml.template"
+    dest: "{{ dashy_config_file }}"
+    owner: "{{ dashy_user }}"
+    group: "{{ dashy_group }}"
+    mode: "0644"
+    remote_src: yes
+  when:
+    - not dashy_config_exists.stat.exists
+    - not custom_config_template.stat.exists
+
+- name: Install npm dependencies
+  community.general.npm:
+    path: "{{ dashy_install_dir }}"
+    state: present
+    production: no
+  async: "{{ dashy_npm_install_timeout }}"
+  poll: 10
+  register: npm_install
+
+- name: Build Dashy (optional - dev mode doesn't need it)
+  community.general.npm:
+    path: "{{ dashy_install_dir }}"
+    state: present
+  when: dashy_node_env == "production"
+
+- name: Create Dashy systemd service
+  ansible.builtin.template:
+    src: dashy.service.j2
+    dest: /etc/systemd/system/{{ dashy_service_name }}.service
+    mode: "0644"
+  notify: restart dashy
+
+- name: Enable and start Dashy service
+  ansible.builtin.systemd:
+    name: "{{ dashy_service_name }}"
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+# CORS Proxy (nginx) - optional
+- name: Install nginx for CORS proxy
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+  when: dashy_cors_proxy_enabled
+
+- name: Deploy nginx CORS proxy config
+  ansible.builtin.template:
+    src: nginx-cors-proxy.j2
+    dest: "{{ dashy_cors_proxy_config }}"
+    mode: "0644"
+  when: dashy_cors_proxy_enabled
+  notify: restart nginx
+
+- name: Enable nginx CORS proxy site
+  ansible.builtin.file:
+    src: "{{ dashy_cors_proxy_config }}"
+    dest: /etc/nginx/sites-enabled/cors-proxy
+    state: link
+  when: dashy_cors_proxy_enabled
+  notify: restart nginx
+
+- name: Disable default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  when: dashy_cors_proxy_enabled
+  notify: restart nginx
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: yes
+    state: started
+  when: dashy_cors_proxy_enabled

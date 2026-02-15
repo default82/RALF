@@ -1,0 +1,92 @@
+---
+# Dashy Deployment Playbook
+# Deployt Dashy Dashboard auf web-dashy (CT 4001)
+
+- name: Deploy Dashy Dashboard
+  hosts: dashy_servers
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Check available memory
+      ansible.builtin.shell: |
+        free -m | awk 'NR==2{print $2}'
+      register: available_memory
+      changed_when: false
+
+    - name: Verify sufficient memory
+      ansible.builtin.assert:
+        that:
+          - available_memory.stdout | int >= 1500
+        fail_msg: "Insufficient memory ({{ available_memory.stdout }}MB). Need at least 1500MB for npm install."
+        success_msg: "Memory check passed: {{ available_memory.stdout }}MB available"
+
+  roles:
+    - role: dashy
+      dashy_version: "3.1.1"
+      dashy_listen_port: 4000
+      dashy_cors_proxy_enabled: true
+
+  post_tasks:
+    - name: Wait for Dashy to be ready
+      ansible.builtin.wait_for:
+        port: "{{ dashy_listen_port }}"
+        timeout: 120
+        msg: "Dashy not ready after 120 seconds"
+
+    - name: Test Dashy HTTP endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ dashy_listen_port }}"
+        method: GET
+        status_code: 200
+        timeout: 30
+      register: dashy_http
+      retries: 3
+      delay: 10
+
+    - name: Test CORS Proxy
+      ansible.builtin.uri:
+        url: "http://localhost:{{ dashy_cors_proxy_port }}/postgres/"
+        method: GET
+        status_code: 200
+      when: dashy_cors_proxy_enabled
+      register: cors_proxy_test
+
+    - name: Service status check
+      ansible.builtin.systemd:
+        name: dashy
+        state: started
+      check_mode: yes
+      register: dashy_service
+
+    - name: Display access information
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          Dashy Dashboard Deployment Successful
+          ==========================================
+
+          Dashboard URL: http://{{ ansible_host }}:{{ dashy_listen_port }}
+          CORS Proxy: http://{{ ansible_host }}:{{ dashy_cors_proxy_port }}
+
+          Config Location: /opt/dashy/user-data/conf.yml
+
+          Service Status: {{ dashy_service.status.ActiveState }}
+          Node.js Version: {{ ansible_local.nodejs.version | default('20.x') }}
+
+          Next Steps:
+          1. Access Dashboard and verify all services are visible
+          2. Customize config if needed: pct exec 4001 -- nano /opt/dashy/user-data/conf.yml
+          3. Restart service: pct exec 4001 -- systemctl restart dashy
+
+          CORS Endpoints:
+          - /gitea/ → Gitea (10.10.20.12:3000)
+          - /semaphore/ → Semaphore (10.10.100.15:3000)
+          - /vault/ → Vaultwarden (10.10.30.10:8080)
+          - /netbox/ → NetBox (10.10.40.30:8000)
+          - /snipeit/ → Snipe-IT (10.10.40.40)

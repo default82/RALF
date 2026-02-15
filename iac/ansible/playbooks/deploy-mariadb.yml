@@ -1,0 +1,56 @@
+---
+# MariaDB Deployment Playbook
+# Deployt MariaDB auf svc-mariadb (CT 2011)
+
+- name: Deploy MariaDB Database Server
+  hosts: mariadb_servers
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Verify required environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'MARIADB_ROOT_PASS') | length > 0
+        fail_msg: "MARIADB_ROOT_PASS environment variable must be set"
+        success_msg: "All required environment variables are present"
+
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+  roles:
+    - role: mariadb
+      mariadb_databases: []  # Wird pro Service definiert
+      mariadb_users: []      # Wird pro Service definiert
+
+  post_tasks:
+    - name: Wait for MariaDB to be ready
+      ansible.builtin.wait_for:
+        port: "{{ mariadb_port | default(3306) }}"
+        timeout: 60
+        msg: "MariaDB not ready after 60 seconds"
+
+    - name: Test MariaDB connection
+      ansible.builtin.command: >
+        mysql -u root -p'{{ lookup("env", "MARIADB_ROOT_PASS") }}'
+        -e "SELECT VERSION();"
+      register: mariadb_version
+      changed_when: false
+      no_log: true
+
+    - name: Display MariaDB version
+      ansible.builtin.debug:
+        msg: "MariaDB deployment successful: {{ mariadb_version.stdout_lines[1] }}"
+
+    - name: Service status check
+      ansible.builtin.systemd:
+        name: mariadb
+        state: started
+      check_mode: yes
+      register: mariadb_service
+
+    - name: Display service status
+      ansible.builtin.debug:
+        msg: "MariaDB service is {{ mariadb_service.status.ActiveState }}"

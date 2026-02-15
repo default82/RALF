@@ -1,0 +1,13 @@
+---
+# MariaDB Ansible Role - Handlers
+
+- name: restart mariadb
+  ansible.builtin.systemd:
+    name: mariadb
+    state: restarted
+    daemon_reload: yes
+
+- name: reload mariadb
+  ansible.builtin.systemd:
+    name: mariadb
+    state: reloaded

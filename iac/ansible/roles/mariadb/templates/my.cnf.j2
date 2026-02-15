@@ -1,0 +1,71 @@
+# MariaDB Server Configuration
+# Managed by Ansible - DO NOT EDIT MANUALLY
+
+[mysqld]
+
+#
+# Basic Settings
+#
+user            = mysql
+pid-file        = /run/mysqld/mysqld.pid
+basedir         = /usr
+datadir         = /var/lib/mysql
+tmpdir          = /tmp
+socket          = /run/mysqld/mysqld.sock
+port            = {{ mariadb_port }}
+bind-address    = {{ mariadb_bind_address }}
+
+#
+# Character Set
+#
+character-set-server  = {{ mariadb_character_set }}
+collation-server      = {{ mariadb_collation }}
+
+#
+# Performance Tuning
+#
+max_connections        = {{ mariadb_max_connections }}
+max_allowed_packet     = {{ mariadb_max_allowed_packet }}
+thread_cache_size      = {{ mariadb_thread_cache_size }}
+query_cache_size       = {{ mariadb_query_cache_size }}
+
+#
+# InnoDB Settings
+#
+innodb_buffer_pool_size = {{ mariadb_innodb_buffer_pool_size }}
+innodb_log_file_size    = 128M
+innodb_flush_method     = O_DIRECT
+innodb_file_per_table   = 1
+
+#
+# Logging
+#
+log_error              = {{ mariadb_log_error }}
+slow_query_log         = {{ mariadb_slow_query_log }}
+slow_query_log_file    = {{ mariadb_slow_query_log_file }}
+long_query_time        = {{ mariadb_long_query_time }}
+
+#
+# Binary Logging (for replication/backup)
+#
+# server-id            = 1
+# log_bin              = /var/log/mysql/mysql-bin.log
+# expire_logs_days     = 7
+# max_binlog_size      = 100M
+
+#
+# Security
+#
+# Disallow remote root login
+# skip-networking
+# local-infile = 0
+
+[client]
+port            = {{ mariadb_port }}
+socket          = /run/mysqld/mysqld.sock
+default-character-set = {{ mariadb_character_set }}
+
+[mysqldump]
+quick
+quote-names
+max_allowed_packet = {{ mariadb_max_allowed_packet }}

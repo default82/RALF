@@ -1,0 +1,49 @@
+---
+# MariaDB Ansible Role - Default Variables
+
+# MariaDB Version
+mariadb_version: "11.4"
+
+# Network Configuration
+mariadb_port: 3306
+mariadb_bind_address: "0.0.0.0"  # Allow remote connections
+
+# Performance Tuning
+mariadb_max_connections: 200
+mariadb_innodb_buffer_pool_size: "512M"
+mariadb_query_cache_size: "32M"
+mariadb_thread_cache_size: 8
+mariadb_max_allowed_packet: "64M"
+
+# Character Set
+mariadb_character_set: "utf8mb4"
+mariadb_collation: "utf8mb4_unicode_ci"
+
+# Root User
+mariadb_root_password: "{{ lookup('env', 'MARIADB_ROOT_PASS') }}"
+
+# Databases to create (list of dicts)
+mariadb_databases: []
+  # Example:
+  # - name: snipeit_db
+  #   encoding: utf8mb4
+  #   collation: utf8mb4_unicode_ci
+
+# Users to create (list of dicts)
+mariadb_users: []
+  # Example:
+  # - name: snipeit_user
+  #   password: "{{ lookup('env', 'SNIPEIT_MYSQL_PASS') }}"
+  #   priv: "snipeit_db.*:ALL"
+  #   host: "%"
+
+# Backup Configuration
+mariadb_backup_enabled: false
+mariadb_backup_dir: "/var/backups/mariadb"
+mariadb_backup_retention_days: 7
+
+# Logging
+mariadb_log_error: "/var/log/mysql/error.log"
+mariadb_slow_query_log: 1
+mariadb_slow_query_log_file: "/var/log/mysql/slow-query.log"
+mariadb_long_query_time: 2

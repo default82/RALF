@@ -1,0 +1,27 @@
+---
+# MariaDB Ansible Role - Metadata
+
+galaxy_info:
+  role_name: mariadb
+  author: RALF Homelab
+  description: Install and configure MariaDB for LXC containers
+  company: RALF
+  license: MIT
+  min_ansible_version: "2.15"
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+        - jammy
+
+  galaxy_tags:
+    - database
+    - mariadb
+    - mysql
+    - lxc
+    - homelab
+
+dependencies: []
+  # Add base role when available:
+  # - role: base

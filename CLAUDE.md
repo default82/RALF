@@ -52,15 +52,22 @@ RALF/
 
 **Subnet:** `10.10.0.0/16` — all services use static IPs.
 
-| 3rd Octet | Category              | CT-ID Range   | Example                        |
-|------------|-----------------------|---------------|--------------------------------|
-| 0          | Core / OPNsense       | —             | 10.10.0.1 (gateway)            |
-| 10         | Network infrastructure | 1000–1099     | 10.10.10.10 (Proxmox)          |
-| 20         | Databases / Devtools   | 2000–2099     | 10.10.20.10 (PostgreSQL)       |
-| 30         | Backup & Security      | 3000–3099     |                                |
-| 40         | Web & Admin            | 4000–4099     |                                |
-| 80         | Monitoring & Logging   | 8000–8099     |                                |
-| 100        | Automation             | 10000–10099   | 10.10.100.15 (Semaphore)       |
+| 3rd Octet | Category                              | CT-ID Range   | Example                        |
+|-----------|---------------------------------------|---------------|--------------------------------|
+| 0         | Netzwerk (Router, Switches)           | —             | 10.10.0.1 (OPNsense)           |
+| 10        | Hardware (PVE-NICs)                   | 1000–1099     | 10.10.10.10 (Proxmox)          |
+| 20        | Datenbanken                           | 2000–2099     | 10.10.20.10 (PostgreSQL)       |
+| 30        | Backup & Sicherheit                   | 3000–3099     | 10.10.30.10 (Vaultwarden)      |
+| 40        | Web & Verwaltungsoberflächen          | 4000–4099     | 10.10.40.30 (NetBox)           |
+| 50        | Verzeichnisdienste & Authentifizierung| 5000–5099     |                                |
+| 60        | Medienserver & Verwaltung             | 6000–6099     |                                |
+| 70        | Dokumenten- & Wissensmanagement       | 7000–7099     |                                |
+| 80        | Monitoring & Logging                  | 8000–8099     |                                |
+| 90        | KI & Datenverarbeitung                | 9000–9099     |                                |
+| 100       | Automatisierung                       | 10000–10099   | 10.10.100.15 (Semaphore)       |
+| 110       | Kommunikation und Steuerung           | 11000–11099   |                                |
+| 120       | Spiele                                | 12000–12099   |                                |
+| 200       | Funktionale VM                        | 20000–20099   |                                |
 
 **Zones** (flags, not separate networks):
 - **Functional (`-fz`)** — must be stable, production-grade
@@ -84,13 +91,19 @@ RALF/
 |----------------|---------------|-------|------------|----------------|---------------|
 | svc-postgres   | 10.10.20.10   | 2010  | Functional | PostgreSQL 16  | 5432          |
 | svc-gitea      | 10.10.20.12   | 2012  | Functional | Gitea 1.22.6   | 3000, SSH 2222|
-| ops-semaphore  | 10.10.100.15  | 10015 | Playground | Semaphore      | 3000          |
+| ops-semaphore  | 10.10.100.15  | 10015 | Functional | Semaphore      | 3000          |
 
 ## Naming Conventions
 
 - **Hostnames:** `<role>-<service>` (e.g., `svc-postgres`, `ops-semaphore`)
 - **Zone suffix in docs:** `-fz` (Functional), `-pg` (Playground)
-- **CT-IDs:** `XYAB` where X=zone (1=playground, 2=functional), Y=function, AB=instance
+- **CT-IDs:** `XXYYZ` where:
+  - `XX` = IP 3rd octet (functional area: 20=DB, 40=Web, 100=Automation)
+  - `YY` = Subgroup within function (00-99)
+  - `Z` = Instance number (0-9)
+  - Example: `2010` = Oktett 20 (DB), Subgroup 1 (Postgres), Instance 0
+  - Example: `10015` = Oktett 100 (Automation), Subgroup 0, Instance 15
+  - **Note:** Zone (`-fz`/`-pg`) is independent of CT-ID and indicates stability level
 - **Catalog IDs:** `lowercase_with_underscores` (e.g., `matrix_synapse`)
 - **Plans:** `PLAN-YYYYMMDD-XXX`
 - **Changes:** `CHANGE-YYYYMMDD-XXX`
@@ -119,6 +132,14 @@ Each stack contains:
 - All containers: Ubuntu 24.04, 2 CPU, 2GB RAM, 16GB disk (defaults)
 - Nesting and keyctl enabled on all containers
 
+**Current Stack Status:**
+- ✅ `postgresql-fz` - Fully implemented
+- ✅ `gitea-fz` - Fully implemented
+- ✅ `semaphore-pg` - Fully implemented
+- ⚠️ MariaDB, Vaultwarden, NetBox, Snipe-IT, Dashy - **Bootstrap scripts only** (OpenTofu stacks pending)
+
+**Migration Strategy:** Bootstrap scripts create containers initially; OpenTofu stacks will be added for declarative management and Terragrunt orchestration.
+
 ### Ansible (`iac/ansible/`)
 
 ```
@@ -135,6 +156,24 @@ ansible/
 ```
 
 **Role execution order:** `base` role always runs first, then service-specific role.
+
+## Inventory Management
+
+RALF maintains **two separate inventory files** with different purposes:
+
+1. **`inventory/hosts.yaml`** — Initial network scan inventory
+   - Purpose: Human-readable documentation of network discovery
+   - Format: Custom YAML with meta-information
+   - Source: Advanced IP Scanner or manual documentation
+   - **Not used by Ansible** - archival/reference only
+
+2. **`iac/ansible/inventory/hosts.yml`** — Ansible operational inventory
+   - Purpose: **Single Source of Truth for Ansible automation**
+   - Format: Ansible inventory format (YAML)
+   - Used by: Semaphore, Ansible playbooks, automation
+   - Contains: Host definitions, groups, variables
+
+**Important:** These are **not synced** - they serve different purposes. The Ansible inventory (`iac/ansible/inventory/hosts.yml`) is the authoritative source for automation.
 
 ## Deployment Pipeline Pattern
 
@@ -228,20 +267,35 @@ tags: [<tags>]
 
 Shell scripts in `bootstrap/` directly provision LXC containers via Proxmox CLI (`pct`):
 
-| Script                      | Creates                  | CT-ID | IP             |
-|-----------------------------|--------------------------|-------|----------------|
-| `create-postgresql.sh`     | PostgreSQL 16 container  | 2010  | 10.10.20.10    |
-| `create-gitea.sh`          | Gitea container          | 2012  | 10.10.20.12    |
-| `create-and-fill-runner.sh`| Semaphore container      | 10015 | 10.10.100.15   |
+| Script                      | Creates                   | CT-ID | IP             | Snapshots |
+|-----------------------------|---------------------------|-------|----------------|-----------|
+| `create-postgresql.sh`     | PostgreSQL 16 container   | 2010  | 10.10.20.10    | ✅        |
+| `create-mariadb.sh`        | MariaDB 11.4 container    | 2011  | 10.10.20.11    | ⚠️        |
+| `create-gitea.sh`          | Gitea container           | 2012  | 10.10.20.12    | ✅        |
+| `create-vaultwarden.sh`    | Vaultwarden container     | 3010  | 10.10.30.10    | ⚠️        |
+| `create-netbox.sh`         | NetBox container          | 4030  | 10.10.40.30    | ⚠️        |
+| `create-snipeit.sh`        | Snipe-IT container        | 4040  | 10.10.40.40    | ⚠️        |
+| `create-and-fill-runner.sh`| Semaphore container       | 10015 | 10.10.100.15   | ✅        |
 
 **Common patterns in all scripts:**
 - `set -euo pipefail` strict mode
 - Config at top with `${VAR:-default}` overrides
-- Helper functions: `log()`, `need_cmd()`, `pct_exec()`
+- Helper functions: `log()`, `need_cmd()`, `pct_exec()` (from `lib/common.sh`)
 - Precondition checks before execution
-- Pre/post-install snapshots
+- **Pre/post-install snapshots** (⚠️ = not consistently implemented, see issue #6)
 - Final health checks
 - Passwords must come from environment variables (rejects defaults)
+
+**Snapshot Best Practice:**
+```bash
+# Pre-install snapshot (before modifications)
+pct snapshot $CTID "pre-install" --vmstate 0
+
+# Post-install snapshot (after successful deployment)
+pct snapshot $CTID "post-install" --vmstate 0
+```
+
+**Note:** Snapshot implementation is being standardized via `lib/common.sh` helper functions.
 
 ## Guidelines for AI Assistants
 
@@ -277,7 +331,8 @@ Shell scripts in `bootstrap/` directly provision LXC containers via Proxmox CLI 
 ### Key Files to Check
 - `docs/conventions.md` — binding naming and structural rules
 - `docs/network-baseline.md` — network architecture
-- `inventory/hosts.yaml` — current host inventory
+- `iac/ansible/inventory/hosts.yml` — **Ansible inventory (Single Source of Truth for automation)**
+- `inventory/hosts.yaml` — initial network scan (archival/reference)
 - `inventory/runtime.env` — IPs, ports, endpoints (no secrets)
 - `services/catalog.md` — service priority tiers and IP schema
 - `healthchecks/network-health.yml` — gatekeeper rules

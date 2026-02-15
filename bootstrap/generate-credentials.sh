@@ -155,20 +155,20 @@ export MINIO_ROOT_PASSWORD="$(generate_password 32)"
 # Gitea Admin Accounts
 export GITEA_ADMIN1_USER="kolja"
 export GITEA_ADMIN1_EMAIL="kolja@homelab.lan"
-export GITEA_ADMIN1_PASS="$(generate_password 24)"
+export GITEA_ADMIN1_PASS="$(generate_password 32)"
 
 export GITEA_ADMIN2_USER="ralf"
 export GITEA_ADMIN2_EMAIL="ralf@homelab.lan"
-export GITEA_ADMIN2_PASS="$(generate_password 24)"
+export GITEA_ADMIN2_PASS="$(generate_password 32)"
 
 # Semaphore Admin Accounts
 export SEMAPHORE_ADMIN1_USER="kolja"
 export SEMAPHORE_ADMIN1_EMAIL="kolja@homelab.lan"
-export SEMAPHORE_ADMIN1_PASS="$(generate_password 24)"
+export SEMAPHORE_ADMIN1_PASS="$(generate_password 32)"
 
 export SEMAPHORE_ADMIN2_USER="ralf"
 export SEMAPHORE_ADMIN2_EMAIL="ralf@homelab.lan"
-export SEMAPHORE_ADMIN2_PASS="$(generate_password 24)"
+export SEMAPHORE_ADMIN2_PASS="$(generate_password 32)"
 
 # Vaultwarden Admin Token
 export VAULTWARDEN_ADMIN_TOKEN="$(generate_token 64)"
@@ -176,22 +176,22 @@ export VAULTWARDEN_ADMIN_TOKEN="$(generate_token 64)"
 # n8n Admin Accounts
 export N8N_ADMIN1_USER="kolja"
 export N8N_ADMIN1_EMAIL="kolja@homelab.lan"
-export N8N_ADMIN1_PASS="$(generate_password 24)"
+export N8N_ADMIN1_PASS="$(generate_password 32)"
 
 export N8N_ADMIN2_USER="ralf"
 export N8N_ADMIN2_EMAIL="ralf@homelab.lan"
-export N8N_ADMIN2_PASS="$(generate_password 24)"
+export N8N_ADMIN2_PASS="$(generate_password 32)"
 
 export N8N_ENCRYPTION_KEY="$(generate_password 40)"
 
 # Matrix/Synapse Admin Accounts
 export MATRIX_ADMIN1_USER="kolja"
 export MATRIX_ADMIN1_EMAIL="kolja@homelab.lan"
-export MATRIX_ADMIN1_PASS="$(generate_password 24)"
+export MATRIX_ADMIN1_PASS="$(generate_password 32)"
 
 export MATRIX_ADMIN2_USER="ralf"
 export MATRIX_ADMIN2_EMAIL="ralf@homelab.lan"
-export MATRIX_ADMIN2_PASS="$(generate_password 24)"
+export MATRIX_ADMIN2_PASS="$(generate_password 32)"
 
 export MATRIX_REGISTRATION_SECRET="$(generate_password 40)"
 export MATRIX_SERVER_NAME="homelab.lan"
@@ -203,11 +203,11 @@ export MATRIX_DOMAIN="matrix.homelab.lan"
 
 export MAIL_ACCOUNT1_USER="kolja"
 export MAIL_ACCOUNT1_EMAIL="kolja@homelab.lan"
-export MAIL_ACCOUNT1_PASS="$(generate_password 24)"
+export MAIL_ACCOUNT1_PASS="$(generate_password 32)"
 
 export MAIL_ACCOUNT2_USER="ralf"
 export MAIL_ACCOUNT2_EMAIL="ralf@homelab.lan"
-export MAIL_ACCOUNT2_PASS="$(generate_password 24)"
+export MAIL_ACCOUNT2_PASS="$(generate_password 32)"
 
 # ============================================================================
 # API Tokens & Secrets

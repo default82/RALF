@@ -1,0 +1,74 @@
+---
+# NetBox Ansible Role - Default Variables
+
+# Version
+netbox_version: "5.0.10"
+netbox_download_url: "https://github.com/netbox-community/netbox/archive/refs/tags/v{{ netbox_version }}.tar.gz"
+
+# Installation
+netbox_install_dir: "/opt/netbox"
+netbox_user: "netbox"
+netbox_group: "netbox"
+netbox_uid: 999
+netbox_gid: 990
+
+# Python
+netbox_python_version: "python3"
+netbox_venv_dir: "{{ netbox_install_dir }}/venv"
+
+# Database (PostgreSQL)
+netbox_db_host: "10.10.20.10"
+netbox_db_port: 5432
+netbox_db_name: "netbox"
+netbox_db_user: "netbox_user"
+netbox_db_password: "{{ lookup('env', 'NETBOX_PG_PASS') }}"
+netbox_db_conn_max_age: 300
+
+# Redis
+netbox_redis_host: "localhost"
+netbox_redis_port: 6379
+netbox_redis_password: ""
+netbox_redis_database_tasks: 0
+netbox_redis_database_caching: 1
+netbox_redis_ssl: false
+
+# Security
+netbox_secret_key: "{{ lookup('env', 'NETBOX_SECRET_KEY') }}"
+netbox_allowed_hosts: ['*']
+
+# Gunicorn
+netbox_gunicorn_bind: "0.0.0.0:8000"
+netbox_gunicorn_workers: 4
+netbox_gunicorn_timeout: 120
+netbox_gunicorn_max_requests: 5000
+netbox_gunicorn_max_requests_jitter: 500
+
+# nginx
+netbox_nginx_enabled: true
+netbox_nginx_listen_port: 80
+netbox_nginx_server_name: "_"
+
+# Locale
+netbox_timezone: "Europe/Berlin"
+netbox_date_format: "Y-m-d"
+netbox_time_format: "H:i:s"
+netbox_datetime_format: "Y-m-d H:i:s"
+
+# Logging
+netbox_log_level: "INFO"
+
+# Directories
+netbox_media_root: "{{ netbox_install_dir }}/netbox/media"
+netbox_reports_root: "{{ netbox_install_dir }}/netbox/reports"
+netbox_scripts_root: "{{ netbox_install_dir }}/netbox/scripts"
+
+# Superuser (optional)
+netbox_create_superuser: false
+netbox_superuser_username: "admin"
+netbox_superuser_email: "admin@homelab.lan"
+netbox_superuser_password: "{{ lookup('env', 'NETBOX_ADMIN_PASS') }}"
+
+# Service
+netbox_service_name: "netbox"
+netbox_service_restart: "on-failure"
+netbox_service_restart_sec: 30

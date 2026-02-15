@@ -1,0 +1,225 @@
+---
+# NetBox Ansible Role - Installation Tasks
+
+- name: Install system prerequisites
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-dev
+      - build-essential
+      - libxml2-dev
+      - libxslt1-dev
+      - libffi-dev
+      - libpq-dev
+      - libssl-dev
+      - zlib1g-dev
+      - postgresql-client
+      - redis-server
+      - nginx
+      - git
+      - curl
+      - wget
+    state: present
+    update_cache: yes
+
+- name: Create NetBox system group
+  ansible.builtin.group:
+    name: "{{ netbox_group }}"
+    gid: "{{ netbox_gid }}"
+    state: present
+    system: yes
+
+- name: Create NetBox system user
+  ansible.builtin.user:
+    name: "{{ netbox_user }}"
+    uid: "{{ netbox_uid }}"
+    group: "{{ netbox_group }}"
+    home: "{{ netbox_install_dir }}"
+    shell: /bin/bash
+    system: yes
+    create_home: no
+    state: present
+
+- name: Create NetBox installation directory
+  ansible.builtin.file:
+    path: "{{ netbox_install_dir }}"
+    state: directory
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0750"
+
+- name: Check if NetBox is already downloaded
+  ansible.builtin.stat:
+    path: "{{ netbox_install_dir }}/netbox/manage.py"
+  register: netbox_installed
+
+- name: Download NetBox tarball
+  ansible.builtin.get_url:
+    url: "{{ netbox_download_url }}"
+    dest: "/tmp/netbox-{{ netbox_version }}.tar.gz"
+    mode: "0644"
+  when: not netbox_installed.stat.exists
+
+- name: Extract NetBox tarball
+  ansible.builtin.unarchive:
+    src: "/tmp/netbox-{{ netbox_version }}.tar.gz"
+    dest: "{{ netbox_install_dir }}"
+    remote_src: yes
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    extra_opts:
+      - --strip-components=1
+  when: not netbox_installed.stat.exists
+
+- name: Remove NetBox tarball
+  ansible.builtin.file:
+    path: "/tmp/netbox-{{ netbox_version }}.tar.gz"
+    state: absent
+  when: not netbox_installed.stat.exists
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: "{{ netbox_python_version }} -m venv {{ netbox_venv_dir }}"
+    creates: "{{ netbox_venv_dir }}/bin/activate"
+  become_user: "{{ netbox_user }}"
+  become: yes
+
+- name: Upgrade pip in virtual environment
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ netbox_venv_dir }}"
+  become_user: "{{ netbox_user }}"
+  become: yes
+
+- name: Install NetBox Python requirements
+  ansible.builtin.pip:
+    requirements: "{{ netbox_install_dir }}/base_requirements.txt"
+    virtualenv: "{{ netbox_venv_dir }}"
+    state: present
+  become_user: "{{ netbox_user }}"
+  become: yes
+
+- name: Deploy NetBox configuration
+  ansible.builtin.template:
+    src: configuration.py.j2
+    dest: "{{ netbox_install_dir }}/netbox/netbox/configuration.py"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0640"
+  notify: restart netbox
+
+- name: Run database migrations
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv_dir }}/bin/python {{ netbox_install_dir }}/netbox/manage.py migrate --no-input"
+  become_user: "{{ netbox_user }}"
+  become: yes
+  register: netbox_migrate
+  changed_when: "'No migrations to apply' not in netbox_migrate.stdout"
+
+- name: Create media directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0755"
+  loop:
+    - "{{ netbox_media_root }}"
+    - "{{ netbox_reports_root }}"
+    - "{{ netbox_scripts_root }}"
+
+- name: Collect static files
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv_dir }}/bin/python {{ netbox_install_dir }}/netbox/manage.py collectstatic --no-input --clear"
+  become_user: "{{ netbox_user }}"
+  become: yes
+  register: netbox_collectstatic
+  changed_when: "'0 static files copied' not in netbox_collectstatic.stdout"
+
+- name: Check if superuser exists
+  ansible.builtin.command:
+    cmd: >
+      {{ netbox_venv_dir }}/bin/python {{ netbox_install_dir }}/netbox/manage.py shell -c
+      "from django.contrib.auth import get_user_model; User = get_user_model();
+      print('exists' if User.objects.filter(username='{{ netbox_superuser_username }}').exists() else 'missing')"
+  become_user: "{{ netbox_user }}"
+  become: yes
+  register: netbox_superuser_check
+  changed_when: false
+  when: netbox_create_superuser
+
+- name: Create NetBox superuser
+  ansible.builtin.command:
+    cmd: >
+      {{ netbox_venv_dir }}/bin/python {{ netbox_install_dir }}/netbox/manage.py shell -c
+      "from django.contrib.auth import get_user_model; User = get_user_model();
+      User.objects.create_superuser('{{ netbox_superuser_username }}',
+      '{{ netbox_superuser_email }}', '{{ netbox_superuser_password }}')"
+  become_user: "{{ netbox_user }}"
+  become: yes
+  when:
+    - netbox_create_superuser
+    - "'missing' in netbox_superuser_check.stdout"
+  no_log: true
+
+- name: Deploy NetBox systemd service
+  ansible.builtin.template:
+    src: netbox.service.j2
+    dest: /etc/systemd/system/{{ netbox_service_name }}.service
+    mode: "0644"
+  notify: restart netbox
+
+- name: Enable and start NetBox service
+  ansible.builtin.systemd:
+    name: "{{ netbox_service_name }}"
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Configure Redis to listen on localhost only
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^bind '
+    line: 'bind 127.0.0.1 -::1'
+    state: present
+  notify: restart redis
+
+- name: Enable and start Redis service
+  ansible.builtin.systemd:
+    name: redis-server
+    enabled: yes
+    state: started
+
+# nginx configuration (optional)
+- name: Deploy nginx site configuration
+  ansible.builtin.template:
+    src: nginx-netbox.j2
+    dest: /etc/nginx/sites-available/netbox
+    mode: "0644"
+  when: netbox_nginx_enabled
+  notify: restart nginx
+
+- name: Enable nginx NetBox site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/netbox
+    dest: /etc/nginx/sites-enabled/netbox
+    state: link
+  when: netbox_nginx_enabled
+  notify: restart nginx
+
+- name: Disable default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  when: netbox_nginx_enabled
+  notify: restart nginx
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: yes
+    state: started
+  when: netbox_nginx_enabled

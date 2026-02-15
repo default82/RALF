@@ -1,0 +1,18 @@
+---
+# NetBox Ansible Role - Handlers
+
+- name: restart netbox
+  ansible.builtin.systemd:
+    name: "{{ netbox_service_name }}"
+    state: restarted
+    daemon_reload: yes
+
+- name: restart redis
+  ansible.builtin.systemd:
+    name: redis-server
+    state: restarted
+
+- name: restart nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted

@@ -1,0 +1,28 @@
+---
+# NetBox Ansible Role - Metadata
+
+galaxy_info:
+  role_name: netbox
+  author: RALF Homelab
+  description: Install and configure NetBox IPAM/DCIM for LXC containers
+  company: RALF
+  license: MIT
+  min_ansible_version: "2.15"
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+        - jammy
+
+  galaxy_tags:
+    - netbox
+    - ipam
+    - dcim
+    - infrastructure
+    - networking
+    - lxc
+    - homelab
+
+dependencies: []
+  # PostgreSQL and Redis should be already running

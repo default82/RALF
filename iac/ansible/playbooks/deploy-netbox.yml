@@ -1,0 +1,130 @@
+---
+# NetBox Deployment Playbook
+# Deployt NetBox IPAM/DCIM auf web-netbox (CT 4030)
+
+- name: Deploy NetBox IPAM/DCIM
+  hosts: netbox_servers
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Verify required environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'NETBOX_PG_PASS') | length > 0
+          - lookup('env', 'NETBOX_SECRET_KEY') | length > 0
+        fail_msg: "NETBOX_PG_PASS and NETBOX_SECRET_KEY environment variables must be set"
+        success_msg: "All required environment variables are present"
+
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Verify PostgreSQL connectivity
+      ansible.builtin.wait_for:
+        host: 10.10.20.10
+        port: 5432
+        timeout: 10
+        msg: "PostgreSQL server not reachable"
+
+    - name: Test PostgreSQL database connection
+      ansible.builtin.command:
+        cmd: >
+          psql -h 10.10.20.10 -U netbox_user -d netbox -c "SELECT 1"
+      environment:
+        PGPASSWORD: "{{ lookup('env', 'NETBOX_PG_PASS') }}"
+      register: pg_test
+      changed_when: false
+      failed_when: false
+
+    - name: Display database connection status
+      ansible.builtin.debug:
+        msg: "PostgreSQL connection: {{ 'OK' if pg_test.rc == 0 else 'FAILED - Database may not exist' }}"
+
+  roles:
+    - role: netbox
+      netbox_version: "5.0.10"
+      netbox_create_superuser: false  # Create manually via Web UI
+
+  post_tasks:
+    - name: Wait for gunicorn to be ready
+      ansible.builtin.wait_for:
+        port: 8000
+        timeout: 60
+        msg: "Gunicorn not ready after 60 seconds"
+
+    - name: Test NetBox HTTP endpoint (gunicorn)
+      ansible.builtin.uri:
+        url: "http://localhost:8000"
+        method: GET
+        status_code: 200
+        timeout: 30
+      register: netbox_http_gunicorn
+      retries: 3
+      delay: 10
+
+    - name: Test NetBox HTTP endpoint (nginx)
+      ansible.builtin.uri:
+        url: "http://localhost:80"
+        method: GET
+        status_code: 200
+        timeout: 30
+      register: netbox_http_nginx
+      retries: 3
+      delay: 5
+
+    - name: Check NetBox version
+      ansible.builtin.command:
+        cmd: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py version
+      become_user: netbox
+      register: netbox_version_check
+      changed_when: false
+
+    - name: Service status checks
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+      check_mode: yes
+      loop:
+        - netbox
+        - redis-server
+        - nginx
+      register: services_status
+
+    - name: Display access information
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          NetBox IPAM/DCIM Deployment Successful
+          ==========================================
+
+          NetBox Version: {{ netbox_version_check.stdout }}
+
+          Access URLs:
+          - Web UI (nginx):    http://{{ ansible_host }}
+          - Web UI (gunicorn): http://{{ ansible_host }}:8000
+          - API:               http://{{ ansible_host }}/api/
+          - Admin Panel:       http://{{ ansible_host }}/admin/
+
+          Services Running:
+          - NetBox (gunicorn): {{ services_status.results[0].status.ActiveState }}
+          - Redis:             {{ services_status.results[1].status.ActiveState }}
+          - nginx:             {{ services_status.results[2].status.ActiveState }}
+
+          Database: netbox@10.10.20.10:5432
+          Cache: redis@localhost:6379 (DB 0=tasks, DB 1=caching)
+
+          Next Steps:
+          1. Create superuser: pct exec 4030 -- sudo -u netbox /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py createsuperuser
+          2. Access Web UI and configure:
+             - Sites
+             - Device Types
+             - IP Prefixes
+             - VLANs
+          3. Import existing RALF infrastructure data
+          4. Configure API tokens for automation
+
+          Documentation:
+          - NetBox Docs: https://docs.netbox.dev/
+          - RALF Role: iac/ansible/roles/netbox/README.md

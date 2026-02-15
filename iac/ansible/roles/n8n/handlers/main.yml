@@ -1,0 +1,8 @@
+---
+# n8n Ansible Role - Handlers
+
+- name: restart n8n
+  ansible.builtin.systemd:
+    name: "{{ n8n_service_name }}"
+    state: restarted
+    daemon_reload: yes

@@ -1,0 +1,36 @@
+[Unit]
+Description=n8n Workflow Automation
+Documentation=https://docs.n8n.io/
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User={{ n8n_user }}
+Group={{ n8n_group }}
+WorkingDirectory={{ n8n_data_dir }}
+EnvironmentFile={{ n8n_data_dir }}/.n8n/env
+
+# Use n8n from global npm installation
+ExecStart=/usr/bin/n8n start
+
+# Restart configuration
+Restart=on-failure
+RestartSec=10s
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=2G
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ n8n_data_dir }}
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

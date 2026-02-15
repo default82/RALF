@@ -1,0 +1,29 @@
+---
+# n8n Deployment Playbook
+# Deploys n8n workflow automation platform to designated container
+
+- name: Deploy n8n
+  hosts: n8n
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Verify PostgreSQL connectivity
+      ansible.builtin.wait_for:
+        host: "{{ n8n_db_host }}"
+        port: "{{ n8n_db_port }}"
+        timeout: 10
+      tags: [always]
+
+  roles:
+    - role: n8n
+      tags: [n8n]
+
+  post_tasks:
+    - name: Display n8n access information
+      ansible.builtin.debug:
+        msg:
+          - "n8n deployed successfully!"
+          - "URL: {{ n8n_protocol }}://{{ n8n_domain }}:{{ n8n_port }}"
+          - "Database: {{ n8n_db_type }} at {{ n8n_db_host }}:{{ n8n_db_port }}"
+      tags: [always]

@@ -1,0 +1,54 @@
+---
+# n8n Ansible Role - Default Variables
+
+# n8n Version
+n8n_version: "latest"
+n8n_install_method: "npm"
+
+# Network Configuration
+n8n_port: 5678
+n8n_host: "0.0.0.0"
+n8n_domain: "n8n.homelab.lan"
+n8n_protocol: "http"
+
+# Installation Paths
+n8n_install_dir: "/opt/n8n"
+n8n_data_dir: "/var/lib/n8n"
+n8n_user: "n8n"
+n8n_group: "n8n"
+
+# Node.js
+nodejs_version: "20"
+
+# Database Configuration (PostgreSQL)
+n8n_db_type: "postgresdb"
+n8n_db_host: "10.10.20.10"
+n8n_db_port: 5432
+n8n_db_name: "n8n"
+n8n_db_user: "n8n_user"
+n8n_db_password: "{{ lookup('env', 'N8N_PG_PASS') }}"
+
+# n8n Configuration
+n8n_encryption_key: "{{ lookup('env', 'N8N_ENCRYPTION_KEY') }}"
+n8n_timezone: "Europe/Berlin"
+n8n_log_level: "info"
+
+# Execution
+n8n_executions_process: "main"
+n8n_executions_timeout: 3600
+n8n_executions_timeout_max: 7200
+
+# Security
+n8n_secure_cookie: false  # Set to true with HTTPS
+n8n_basic_auth_active: false
+
+# External Connections (for LLM integration)
+n8n_enable_community_nodes: true
+n8n_nodes_include: []
+n8n_nodes_exclude: []
+
+# Webhooks
+n8n_webhook_url: "{{ n8n_protocol }}://{{ n8n_domain }}:{{ n8n_port }}/"
+
+# System Service
+n8n_service_name: "n8n"

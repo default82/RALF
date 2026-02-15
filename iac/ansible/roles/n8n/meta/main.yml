@@ -1,0 +1,22 @@
+---
+# n8n Ansible Role - Metadata
+
+galaxy_info:
+  role_name: n8n
+  author: RALF Homelab
+  description: Installs and configures n8n workflow automation platform
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble  # 24.04 LTS
+        - jammy  # 22.04 LTS
+  galaxy_tags:
+    - automation
+    - workflow
+    - n8n
+    - nodejs
+    - postgresql
+
+dependencies: []

@@ -252,7 +252,6 @@ SSH_LISTEN_PORT  = ${GITEA_SSH_PORT}
 START_SSH_SERVER = true
 LFS_START_SERVER = true
 APP_DATA_PATH    = /var/lib/gitea/data
-LFS_CONTENT_PATH = /var/lib/gitea/data/lfs
 
 [database]
 DB_TYPE  = postgres
@@ -266,6 +265,9 @@ LOG_SQL  = false
 [repository]
 ROOT = /var/lib/gitea/data/gitea-repositories
 
+[lfs]
+PATH = /var/lib/gitea/data/lfs
+
 [service]
 DISABLE_REGISTRATION = true
 REQUIRE_SIGNIN_VIEW  = false
@@ -274,6 +276,9 @@ REQUIRE_SIGNIN_VIEW  = false
 INSTALL_LOCK = true
 SECRET_KEY   = \$(openssl rand -base64 32)
 INTERNAL_TOKEN = \$(openssl rand -base64 64)
+
+[oauth2]
+JWT_SECRET = \$(openssl rand -base64 32)
 
 [log]
 MODE      = console,file

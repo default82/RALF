@@ -1,8 +1,11 @@
-# n8n LLM Integration mit Ollama
+# n8n LLM Integration - Hybrid Architecture
 
 ## Überblick
 
 n8n ist deployed und läuft auf **http://10.10.40.12:5678**
+
+**Architektur:** Hybrid-Setup mit n8n als Orchestrator und separaten GPU-VMs für Inference
+**Dokumentation:** Siehe `llm-hybrid-architecture.md` für vollständige Architektur-Details
 
 ## Ollama VM
 
@@ -224,3 +227,36 @@ Das Beispiel-Workflow JSON kann direkt in n8n importiert werden:
 - n8n Docs: https://docs.n8n.io/
 - Ollama API: https://github.com/ollama/ollama/blob/main/docs/api.md
 - n8n LangChain: https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain/
+
+## Hybrid-Architektur für GPU-Support
+
+Die aktuelle Implementierung nutzt eine **Hybrid-Architektur**:
+
+```
+n8n Orchestrator (CT 4012)
+    │
+    ├─ GPU Node 1 (VM, später)
+    ├─ GPU Node 2 (VM, später)
+    └─ CPU Node (optional)
+```
+
+**Vorteile:**
+- ✅ n8n als flexibler API Gateway & Load Balancer
+- ✅ GPU-VMs können inkrementell hinzugefügt werden
+- ✅ Unterstützt Ollama, vLLM, TGI, OpenAI-APIs
+- ✅ Visual Workflow Editor für komplexe Routing-Logik
+- ✅ Health Checks & Auto-Failover
+- ✅ Monitoring & Logging integriert
+
+**Nächste Schritte für GPU-Support:**
+1. GPU-Passthrough in Proxmox konfigurieren (siehe `llm-hybrid-architecture.md`)
+2. GPU-VM erstellen mit Ollama/vLLM
+3. n8n Load-Balancing Workflow erstellen
+4. Weitere GPU-Nodes nach Bedarf hinzufügen
+
+**Status:**
+- ✅ n8n Orchestrator läuft
+- ✅ Architektur dokumentiert
+- ⏳ GPU-VMs für später geplant
+
+Siehe `docs/llm-hybrid-architecture.md` für vollständige Implementierungs-Details.

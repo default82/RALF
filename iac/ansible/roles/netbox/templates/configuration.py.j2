@@ -26,14 +26,14 @@ REDIS = {
         'PORT': {{ netbox_redis_port }},
         'PASSWORD': '{{ netbox_redis_password }}',
         'DATABASE': {{ netbox_redis_database_tasks }},
-        'SSL': {{ netbox_redis_ssl | lower }},
+        'SSL': {{ 'True' if netbox_redis_ssl else 'False' }},
     },
     'caching': {
         'HOST': '{{ netbox_redis_host }}',
         'PORT': {{ netbox_redis_port }},
         'PASSWORD': '{{ netbox_redis_password }}',
         'DATABASE': {{ netbox_redis_database_caching }},
-        'SSL': {{ netbox_redis_ssl | lower }},
+        'SSL': {{ 'True' if netbox_redis_ssl else 'False' }},
     }
 }
 

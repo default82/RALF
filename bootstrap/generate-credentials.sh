@@ -38,8 +38,8 @@ generate_password() {
   local lower="abcdefghjkmnpqrstuvwxyz"
   # Ziffern: 0-9 ohne 0, 1
   local digits="23456789"
-  # Sonderzeichen: nur sichere, keine mehrdeutigen
-  local special='$?%!@#&*'
+  # Sonderzeichen: nur sichere, keine mehrdeutigen ($ entfernt wegen bash expansion)
+  local special='?%!@#&*+'
 
   # Kombiniere alle Zeichensätze
   local all_chars="${upper}${lower}${digits}${special}"
@@ -132,6 +132,13 @@ export N8N_PG_PASS="$(generate_password 32)"
 
 # Matrix/Synapse Database
 export MATRIX_PG_PASS="$(generate_password 32)"
+
+# ============================================================================
+# MariaDB Database Passwords
+# ============================================================================
+
+# MariaDB Root Password
+export MARIADB_ROOT_PASS="$(generate_password 32)"
 
 # ============================================================================
 # MinIO Object Storage

@@ -14,33 +14,77 @@ RALF ist eine selbstorchestrierende Homelab-Infrastruktur auf Basis von Proxmox 
 
 ## 🚀 Quick Start
 
-```bash
-# 1. Dashboard öffnen
-http://10.10.40.11:4000
+### Access Services
 
-# 2. Services aufrufen
+```bash
+# Services
 Gitea:     http://10.10.20.12:3000      (kolja / ralf)
 Semaphore: http://10.10.100.15:3000     (kolja / ralf)
-Proxmox:   https://10.10.10.10:8006     (root)
+PostgreSQL: 10.10.20.10:5432            (postgres)
+MariaDB:    10.10.20.11:3306            (root)
+MinIO:      http://10.10.20.13:9000    (admin)
+Proxmox:    https://10.10.10.10:8006    (root)
 
-# 3. Credentials
+# Credentials
 cat /var/lib/ralf/credentials.env
+```
+
+### Fresh Bootstrap
+
+```bash
+# 1. Generate Credentials
+bash bootstrap/generate-credentials.sh > /var/lib/ralf/credentials.env
+source /var/lib/ralf/credentials.env
+
+# 2. Wave 1: Core Infrastructure
+bash bootstrap/create-postgresql.sh   # CT 2010
+bash bootstrap/create-mariadb.sh      # CT 2011
+bash bootstrap/create-minio.sh        # CT 2013
+
+# 3. Wave 2: Automation Core
+bash bootstrap/create-gitea.sh        # CT 2012
+bash bootstrap/create-and-fill-runner.sh  # CT 10015
 ```
 
 ---
 
 ## 📊 Status
 
-### ✅ P1 - Core Services (Production)
+**Current State:** Wave 2 Complete (2026-02-15)
+
+### ✅ Wave 1: Core Infrastructure
 
 | Service | CT-ID | IP | Port | Status |
 |---------|-------|-----|------|--------|
-| **PostgreSQL** | 2010 | 10.10.20.10 | 5432 | ✅ Running |
-| **Semaphore** | 10015 | 10.10.100.15 | 3000 | ✅ Running |
-| **Gitea** | 2012 | 10.10.20.12 | 3000, 2222 | ✅ Running |
-| **Dashy** | 4001 | 10.10.40.11 | 4000 | ✅ Running |
+| **PostgreSQL 16** | 2010 | 10.10.20.10 | 5432 | ✅ Running |
+| **MariaDB 11.4** | 2011 | 10.10.20.11 | 3306 | ✅ Running |
+| **MinIO** | 2013 | 10.10.20.13 | 9000, 9001 | ✅ Running |
+
+### ✅ Wave 2: Automation Core
+
+| Service | CT-ID | IP | Port | Status |
+|---------|-------|-----|------|--------|
+| **Gitea 1.22.6** | 2012 | 10.10.20.12 | 3000, 2222 | ✅ Running |
+| **Semaphore 2.16.51** | 10015 | 10.10.100.15 | 3000 | ✅ Running |
+
+### ⏳ Pending Deployment
+
+| Service | CT-ID | IP | Priority | Wave |
+|---------|-------|-----|----------|------|
+| **Dashy** | 4001 | 10.10.40.11 | P1 | - |
+| **Vaultwarden** | 3010 | 10.10.30.10 | P2 | 3 |
+| **NetBox** | 4030 | 10.10.40.30 | P2 | 3 |
+| **Snipe-IT** | 4040 | 10.10.40.40 | P2 | 3 |
+| **n8n** | 4012 | 10.10.40.12 | P2 | 3 |
 
 **Admin Users:** `kolja` + `ralf` (für alle Services)
+
+### 📈 Resource Usage
+
+- **RAM:** 2.6GB / 16GB (16% used)
+- **Disk:** 7.9GB / 94GB (8% used)
+- **Containers:** 5 deployed (Wave 1+2)
+- **Headroom:** 84% RAM, 92% Disk available
 
 ### 📋 Geplant
 

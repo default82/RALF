@@ -125,10 +125,8 @@ create_database_idempotent() {
   fi
 
   # Erstelle Datenbank
-  pct exec "$pg_ctid" -- bash -lc "sudo -u postgres psql <<EOF
-CREATE DATABASE ${db_name} OWNER ${db_user};
-GRANT ALL PRIVILEGES ON DATABASE ${db_name} TO ${db_user};
-EOF"
+  pct exec "$pg_ctid" -- bash -lc "sudo -u postgres psql -c \"CREATE DATABASE ${db_name} OWNER ${db_user};\""
+  pct exec "$pg_ctid" -- bash -lc "sudo -u postgres psql -c \"GRANT ALL PRIVILEGES ON DATABASE ${db_name} TO ${db_user};\""
 
   if database_exists "$db_name" "$pg_host" "$pg_port" "$pg_ctid"; then
     log "Datenbank '$db_name' erfolgreich erstellt"

@@ -237,7 +237,7 @@ if [[ -f /etc/gitea/app.ini ]]; then
   cp /etc/gitea/app.ini \"\$BACKUP_FILE\"
 fi
 
-cat >/etc/gitea/app.ini <<EOF
+cat >/etc/gitea/app.ini <<'EOF'
 APP_NAME = RALF Gitea
 RUN_USER = git
 RUN_MODE = prod
@@ -324,6 +324,9 @@ systemctl start gitea
 log "Warte auf Gitea Startup..."
 sleep 5
 
+# Temporary: erlaube Gitea admin commands Schreibzugriff auf app.ini (für JWT Secrets)
+pct_exec "chmod 660 /etc/gitea/app.ini"
+
 log "Erstelle Admin-User: ${GITEA_ADMIN1_USER}"
 pct_exec "set -euo pipefail;
 export USER=git
@@ -363,6 +366,9 @@ else
   echo 'Admin-User ${GITEA_ADMIN2_USER} erstellt'
 fi
 "
+
+# Stelle ursprüngliche Permissions für app.ini wieder her
+pct_exec "chmod 640 /etc/gitea/app.ini"
 
 log "Erstelle Organisation RALF-Homelab"
 pct_exec "set -euo pipefail;

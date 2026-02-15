@@ -2,11 +2,11 @@
 # Vaultwarden Ansible Role - Default Variables
 
 # Installation Method
-vaultwarden_install_method: "binary"  # binary or docker (we use binary for LXC)
+vaultwarden_install_method: "docker"  # Docker-based installation (official method)
 
-# Version
-vaultwarden_version: "1.32.0"  # Latest stable as of 2026-02
-vaultwarden_download_url: "https://github.com/dani-garcia/vaultwarden/releases/download/{{ vaultwarden_version }}/vaultwarden-{{ vaultwarden_version }}-linux-x86_64-musl.tar.gz"
+# Docker Image Version
+vaultwarden_docker_image: "vaultwarden/server"
+vaultwarden_version: "1.32.7"  # Latest stable as of 2026-02
 
 # Installation Paths
 vaultwarden_install_dir: "/opt/vaultwarden"

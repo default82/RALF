@@ -237,7 +237,7 @@ if [[ -f /etc/gitea/app.ini ]]; then
   cp /etc/gitea/app.ini \"\$BACKUP_FILE\"
 fi
 
-cat >/etc/gitea/app.ini <<'EOF'
+cat >/etc/gitea/app.ini <<EOF
 APP_NAME = RALF Gitea
 RUN_USER = git
 RUN_MODE = prod
@@ -251,6 +251,8 @@ SSH_PORT         = ${GITEA_SSH_PORT}
 SSH_LISTEN_PORT  = ${GITEA_SSH_PORT}
 START_SSH_SERVER = true
 LFS_START_SERVER = true
+APP_DATA_PATH    = /var/lib/gitea/data
+LFS_CONTENT_PATH = /var/lib/gitea/data/lfs
 
 [database]
 DB_TYPE  = postgres
@@ -280,6 +282,7 @@ ROOT_PATH = /var/lib/gitea/log
 
 [session]
 PROVIDER = file
+PROVIDER_CONFIG = /var/lib/gitea/data/sessions
 EOF
 
 chown root:git /etc/gitea/app.ini

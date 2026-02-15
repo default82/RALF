@@ -1,0 +1,81 @@
+---
+# Vaultwarden Deployment Playbook
+# Deployt Vaultwarden auf sec-vaultwarden (CT 3010)
+
+- name: Deploy Vaultwarden Password Manager
+  hosts: vaultwarden_servers
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Verify required environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'VAULTWARDEN_PG_PASS') | length > 0
+          - lookup('env', 'VAULTWARDEN_ADMIN_TOKEN') | length > 0
+        fail_msg: "VAULTWARDEN_PG_PASS and VAULTWARDEN_ADMIN_TOKEN environment variables must be set"
+        success_msg: "All required environment variables are present"
+
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Verify PostgreSQL connectivity
+      ansible.builtin.wait_for:
+        host: 10.10.20.10
+        port: 5432
+        timeout: 10
+        msg: "PostgreSQL server not reachable"
+
+  roles:
+    - role: vaultwarden
+      vaultwarden_database_url: "postgresql://vaultwarden_user:{{ lookup('env', 'VAULTWARDEN_PG_PASS') }}@10.10.20.10:5432/vaultwarden"
+      vaultwarden_admin_token: "{{ lookup('env', 'VAULTWARDEN_ADMIN_TOKEN') }}"
+
+  post_tasks:
+    - name: Wait for Vaultwarden to be ready
+      ansible.builtin.wait_for:
+        port: "{{ vaultwarden_listen_port | default(8080) }}"
+        timeout: 60
+        msg: "Vaultwarden not ready after 60 seconds"
+
+    - name: Test Vaultwarden API
+      ansible.builtin.uri:
+        url: "http://localhost:{{ vaultwarden_listen_port | default(8080) }}/api/config"
+        method: GET
+        status_code: 200
+      register: vaultwarden_api
+
+    - name: Display API response
+      ansible.builtin.debug:
+        msg: "Vaultwarden API is responding: {{ vaultwarden_api.json.version | default('Unknown version') }}"
+
+    - name: Service status check
+      ansible.builtin.systemd:
+        name: vaultwarden
+        state: started
+      check_mode: yes
+      register: vaultwarden_service
+
+    - name: Display service status
+      ansible.builtin.debug:
+        msg: "Vaultwarden service is {{ vaultwarden_service.status.ActiveState }}"
+
+    - name: Display access information
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          Vaultwarden Deployment Successful
+          ==========================================
+
+          Web Vault: http://{{ ansible_host }}:{{ vaultwarden_listen_port | default(8080) }}
+          Admin Panel: http://{{ ansible_host }}:{{ vaultwarden_listen_port | default(8080) }}/admin
+          API: http://{{ ansible_host }}:{{ vaultwarden_listen_port | default(8080) }}/api
+
+          Admin Token: Use VAULTWARDEN_ADMIN_TOKEN to access Admin Panel
+
+          Next Steps:
+          1. Access Admin Panel and configure settings
+          2. Create first user account (via invitation)
+          3. Configure SMTP for password reset emails (optional)

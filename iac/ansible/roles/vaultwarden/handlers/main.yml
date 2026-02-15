@@ -1,0 +1,13 @@
+---
+# Vaultwarden Ansible Role - Handlers
+
+- name: restart vaultwarden
+  ansible.builtin.systemd:
+    name: vaultwarden
+    state: restarted
+    daemon_reload: yes
+
+- name: reload vaultwarden
+  ansible.builtin.systemd:
+    name: vaultwarden
+    state: reloaded

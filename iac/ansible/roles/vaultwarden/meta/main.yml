@@ -1,0 +1,27 @@
+---
+# Vaultwarden Ansible Role - Metadata
+
+galaxy_info:
+  role_name: vaultwarden
+  author: RALF Homelab
+  description: Install and configure Vaultwarden password manager for LXC containers
+  company: RALF
+  license: MIT
+  min_ansible_version: "2.15"
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+        - jammy
+
+  galaxy_tags:
+    - security
+    - password
+    - vaultwarden
+    - bitwarden
+    - lxc
+    - homelab
+
+dependencies: []
+  # PostgreSQL should be already running

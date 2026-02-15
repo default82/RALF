@@ -1,0 +1,117 @@
+---
+# Vaultwarden Ansible Role - Main Tasks
+
+- name: Create Vaultwarden system user
+  ansible.builtin.user:
+    name: "{{ vaultwarden_user }}"
+    system: yes
+    create_home: no
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Create Vaultwarden directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ vaultwarden_user }}"
+    group: "{{ vaultwarden_group }}"
+    mode: '0750'
+  loop:
+    - "{{ vaultwarden_install_dir }}"
+    - "{{ vaultwarden_data_dir }}"
+    - "{{ vaultwarden_attachments_folder }}"
+    - "{{ vaultwarden_sends_folder }}"
+    - "{{ vaultwarden_tmp_folder }}"
+    - /var/log/vaultwarden
+
+- name: Check if Vaultwarden is already installed
+  ansible.builtin.stat:
+    path: "{{ vaultwarden_install_dir }}/vaultwarden"
+  register: vaultwarden_binary
+
+- name: Download Vaultwarden binary
+  ansible.builtin.get_url:
+    url: "{{ vaultwarden_download_url }}"
+    dest: "/tmp/vaultwarden.tar.gz"
+    mode: '0644'
+  when: not vaultwarden_binary.stat.exists
+
+- name: Extract Vaultwarden binary
+  ansible.builtin.unarchive:
+    src: "/tmp/vaultwarden.tar.gz"
+    dest: "{{ vaultwarden_install_dir }}"
+    remote_src: yes
+    owner: "{{ vaultwarden_user }}"
+    group: "{{ vaultwarden_group }}"
+    mode: '0750'
+  when: not vaultwarden_binary.stat.exists
+
+- name: Remove download archive
+  ansible.builtin.file:
+    path: "/tmp/vaultwarden.tar.gz"
+    state: absent
+
+- name: Create Vaultwarden configuration file
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: "{{ vaultwarden_data_dir }}/config.json"
+    owner: "{{ vaultwarden_user }}"
+    group: "{{ vaultwarden_group }}"
+    mode: '0640'
+  notify: restart vaultwarden
+
+- name: Create Vaultwarden systemd service
+  ansible.builtin.template:
+    src: vaultwarden.service.j2
+    dest: /etc/systemd/system/vaultwarden.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart vaultwarden
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Ensure Vaultwarden service is started and enabled
+  ansible.builtin.systemd:
+    name: vaultwarden
+    state: started
+    enabled: yes
+
+- name: Wait for Vaultwarden to be ready
+  ansible.builtin.wait_for:
+    port: "{{ vaultwarden_listen_port }}"
+    timeout: 60
+
+- name: Create backup directory
+  ansible.builtin.file:
+    path: "{{ vaultwarden_backup_dir }}"
+    state: directory
+    owner: "{{ vaultwarden_user }}"
+    group: "{{ vaultwarden_group }}"
+    mode: '0750'
+  when: vaultwarden_backup_enabled
+
+- name: Setup backup cron job (database + attachments)
+  ansible.builtin.cron:
+    name: "Vaultwarden backup"
+    minute: "0"
+    hour: "3"
+    job: "tar czf {{ vaultwarden_backup_dir }}/backup-$(date +\\%Y\\%m\\%d-\\%H\\%M\\%S).tar.gz {{ vaultwarden_data_dir }}"
+    user: "{{ vaultwarden_user }}"
+    state: present
+  when: vaultwarden_backup_enabled
+
+- name: Setup backup retention cleanup
+  ansible.builtin.cron:
+    name: "Vaultwarden backup cleanup"
+    minute: "30"
+    hour: "3"
+    job: "find {{ vaultwarden_backup_dir }} -name 'backup-*.tar.gz' -mtime +{{ vaultwarden_backup_retention_days }} -delete"
+    user: root
+    state: present
+  when: vaultwarden_backup_enabled
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

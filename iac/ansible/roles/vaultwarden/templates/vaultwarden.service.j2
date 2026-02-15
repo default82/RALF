@@ -1,0 +1,31 @@
+[Unit]
+Description=Vaultwarden Password Manager
+Documentation=https://github.com/dani-garcia/vaultwarden
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User={{ vaultwarden_user }}
+Group={{ vaultwarden_group }}
+WorkingDirectory={{ vaultwarden_install_dir }}
+ExecStart={{ vaultwarden_install_dir }}/vaultwarden
+Environment="ROCKET_ADDRESS={{ vaultwarden_rocket_address }}"
+Environment="ROCKET_PORT={{ vaultwarden_rocket_port }}"
+Environment="DATA_FOLDER={{ vaultwarden_data_dir }}"
+LimitNOFILE=1048576
+LimitNPROC=64
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ vaultwarden_data_dir }} /var/log/vaultwarden
+NoNewPrivileges=true
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vaultwarden
+
+[Install]
+WantedBy=multi-user.target

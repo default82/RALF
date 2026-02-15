@@ -1,0 +1,62 @@
+---
+# Vaultwarden Ansible Role - Default Variables
+
+# Installation Method
+vaultwarden_install_method: "binary"  # binary or docker (we use binary for LXC)
+
+# Version
+vaultwarden_version: "1.32.0"  # Latest stable as of 2026-02
+vaultwarden_download_url: "https://github.com/dani-garcia/vaultwarden/releases/download/{{ vaultwarden_version }}/vaultwarden-{{ vaultwarden_version }}-linux-x86_64-musl.tar.gz"
+
+# Installation Paths
+vaultwarden_install_dir: "/opt/vaultwarden"
+vaultwarden_data_dir: "/var/lib/vaultwarden"
+vaultwarden_user: "vaultwarden"
+vaultwarden_group: "vaultwarden"
+
+# Network Configuration
+vaultwarden_listen_address: "0.0.0.0"
+vaultwarden_listen_port: 8080
+vaultwarden_domain: "vault.homelab.lan"
+vaultwarden_rocket_address: "{{ vaultwarden_listen_address }}"
+vaultwarden_rocket_port: "{{ vaultwarden_listen_port }}"
+
+# Database Configuration (PostgreSQL)
+vaultwarden_database_url: "postgresql://vaultwarden_user:{{ lookup('env', 'VAULTWARDEN_PG_PASS') }}@10.10.20.10:5432/vaultwarden"
+
+# Admin Token
+vaultwarden_admin_token: "{{ lookup('env', 'VAULTWARDEN_ADMIN_TOKEN') }}"
+
+# Security Settings
+vaultwarden_signups_allowed: false
+vaultwarden_invitations_allowed: true
+vaultwarden_show_password_hint: false
+vaultwarden_web_vault_enabled: true
+
+# SMTP Configuration (optional)
+vaultwarden_smtp_host: ""
+vaultwarden_smtp_from: ""
+vaultwarden_smtp_port: 587
+vaultwarden_smtp_security: "starttls"
+vaultwarden_smtp_username: ""
+vaultwarden_smtp_password: ""
+
+# Backup Configuration
+vaultwarden_backup_enabled: false
+vaultwarden_backup_dir: "/var/backups/vaultwarden"
+vaultwarden_backup_retention_days: 7
+
+# Logging
+vaultwarden_log_level: "info"  # trace, debug, info, warn, error
+vaultwarden_log_file: "/var/log/vaultwarden/vaultwarden.log"
+vaultwarden_extended_logging: true
+
+# Performance
+vaultwarden_worker_threads: 10
+vaultwarden_icon_cache_ttl: 2592000  # 30 days
+vaultwarden_icon_cache_negttl: 259200  # 3 days
+
+# Feature Flags
+vaultwarden_attachments_folder: "{{ vaultwarden_data_dir }}/attachments"
+vaultwarden_sends_folder: "{{ vaultwarden_data_dir }}/sends"
+vaultwarden_tmp_folder: "{{ vaultwarden_data_dir }}/tmp"

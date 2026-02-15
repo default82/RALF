@@ -86,6 +86,13 @@ fi
 log "PostgreSQL erreichbar ✓"
 
 ### =========================
+### 0) Create PostgreSQL database (if not exists)
+### =========================
+
+log "Erstelle PostgreSQL-Datenbank für Semaphore (idempotent)"
+create_database_idempotent "$PG_DB" "$PG_USER" "$PG_PASS" "$PG_HOST" "$PG_PORT"
+
+### =========================
 ### 1) Ensure template exists
 ### =========================
 
@@ -252,6 +259,8 @@ cat >/etc/semaphore/config.json <<EOF
   \"port\": \"\",
   \"interface\": \"${SEMAPHORE_BIND_ADDR}\",
   \"port_http\": \"${SEMAPHORE_PORT}\",
+  \"cookie_hash\": \"\$(openssl rand -base64 32)\",
+  \"cookie_encryption\": \"\$(openssl rand -base64 32)\",
   \"email_alert\": false,
   \"telegram_alert\": false,
   \"slack_alert\": false

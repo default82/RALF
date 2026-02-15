@@ -307,32 +307,43 @@ fi
 ### =========================
 
 if [[ "${AUTO_CONFIGURE:-true}" == "true" ]]; then
-  log "Auto-Configure: Starte Semaphore-Konfiguration"
-  log "  - Repository Connection zu Gitea"
-  log "  - SSH Keys"
-  log "  - Ansible Inventory"
-  log "  - Environment Variables"
-  log ""
-  log "Dies kann 2-3 Minuten dauern..."
-
-  # Führe configure-semaphore.sh aus
-  SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-
-  if bash "${SCRIPT_DIR}/configure-semaphore.sh"; then
-    log "✅ Semaphore-Konfiguration erfolgreich abgeschlossen"
-
-    # Marker-File für Tests
-    pct_exec "$CTID" "touch /root/.semaphore-configured"
+  # Prüfe ob bereits konfiguriert
+  if pct_exec "$CTID" "test -f /root/.semaphore-configured" 2>/dev/null; then
+    log "Semaphore bereits konfiguriert (Marker vorhanden) - überspringe"
   else
-    EXIT_CODE=$?
-    log "❌ Semaphore-Konfiguration fehlgeschlagen (Exit Code: $EXIT_CODE)"
-    log ""
-    log "Container CT ${CTID} läuft weiter, aber Konfiguration ist unvollständig"
-    log "Manuelle Konfiguration möglich mit:"
-    log "  bash bootstrap/configure-semaphore.sh"
-    log ""
-    log "HINWEIS: Dies ist kein kritischer Fehler - Container ist deployed"
-    # NICHT exit - Container ist erfolgreich deployed, nur Config fehlt
+    # Prüfe ob Konfigurations-Script existiert
+    if [[ ! -f "${SCRIPT_DIR}/configure-semaphore.sh" ]]; then
+      log "WARNUNG: configure-semaphore.sh nicht gefunden - überspringe Konfiguration"
+      log "Erwarteter Pfad: ${SCRIPT_DIR}/configure-semaphore.sh"
+    else
+      log "Auto-Configure: Starte Semaphore-Konfiguration"
+      log "  - Repository Connection zu Gitea"
+      log "  - SSH Keys"
+      log "  - Ansible Inventory"
+      log "  - Environment Variables"
+      log ""
+      log "Dies kann 2-3 Minuten dauern..."
+
+      # Führe configure-semaphore.sh mit Timeout aus (5 Min = geschätzt 2-3 Min + Puffer)
+      timeout 300 bash "${SCRIPT_DIR}/configure-semaphore.sh"
+      EXIT_CODE=$?
+
+      if [[ $EXIT_CODE -eq 0 ]]; then
+        log "Semaphore-Konfiguration erfolgreich abgeschlossen"
+
+        # Marker-File für Tests
+        pct_exec "$CTID" "touch /root/.semaphore-configured"
+      else
+        log "Semaphore-Konfiguration fehlgeschlagen (Exit Code: $EXIT_CODE)"
+        log ""
+        log "Container CT ${CTID} läuft weiter, aber Konfiguration ist unvollständig"
+        log "Manuelle Konfiguration möglich mit:"
+        log "  bash bootstrap/configure-semaphore.sh"
+        log ""
+        log "HINWEIS: Dies ist kein kritischer Fehler - Container ist deployed"
+        # NICHT exit - Container ist erfolgreich deployed, nur Config fehlt
+      fi
+    fi
   fi
 else
   log "AUTO_CONFIGURE=false - Überspringe Semaphore-Konfiguration"

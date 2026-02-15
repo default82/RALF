@@ -303,7 +303,47 @@ fi
 "
 
 ### =========================
-### 11) Final checks
+### 11) Auto-Configure Semaphore (Optional)
+### =========================
+
+if [[ "${AUTO_CONFIGURE:-true}" == "true" ]]; then
+  log "Auto-Configure: Starte Semaphore-Konfiguration"
+  log "  - Repository Connection zu Gitea"
+  log "  - SSH Keys"
+  log "  - Ansible Inventory"
+  log "  - Environment Variables"
+  log ""
+  log "Dies kann 2-3 Minuten dauern..."
+
+  # Führe configure-semaphore.sh aus
+  SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
+  if bash "${SCRIPT_DIR}/configure-semaphore.sh"; then
+    log "✅ Semaphore-Konfiguration erfolgreich abgeschlossen"
+
+    # Marker-File für Tests
+    pct_exec "$CTID" "touch /root/.semaphore-configured"
+  else
+    EXIT_CODE=$?
+    log "❌ Semaphore-Konfiguration fehlgeschlagen (Exit Code: $EXIT_CODE)"
+    log ""
+    log "Container CT ${CTID} läuft weiter, aber Konfiguration ist unvollständig"
+    log "Manuelle Konfiguration möglich mit:"
+    log "  bash bootstrap/configure-semaphore.sh"
+    log ""
+    log "HINWEIS: Dies ist kein kritischer Fehler - Container ist deployed"
+    # NICHT exit - Container ist erfolgreich deployed, nur Config fehlt
+  fi
+else
+  log "AUTO_CONFIGURE=false - Überspringe Semaphore-Konfiguration"
+  log ""
+  log "Für manuelle Konfiguration später:"
+  log "  bash bootstrap/configure-semaphore.sh"
+  log ""
+fi
+
+### =========================
+### 12) Final checks
 ### =========================
 
 log "Checks: Service status + Port listening"

@@ -130,7 +130,32 @@ cat /root/.ssh/id_ed25519.pub
 "
 
 ### =========================
-### 3) Login via Semaphore API (Session Cookie)
+### 3) Wait for Semaphore API to be ready
+### =========================
+
+log "Warte auf Semaphore API Bereitschaft..."
+
+MAX_WAIT=60
+WAIT_COUNT=0
+API_READY=false
+
+while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
+  if curl -sf "${SEMAPHORE_URL}/api/ping" >/dev/null 2>&1; then
+    API_READY=true
+    log "Semaphore API bereit nach ${WAIT_COUNT}s"
+    break
+  fi
+  sleep 1
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+done
+
+if [[ "$API_READY" != "true" ]]; then
+  echo "ERROR: Semaphore API nicht bereit nach ${MAX_WAIT}s"
+  exit 1
+fi
+
+### =========================
+### 4) Login via Semaphore API (Session Cookie)
 ### =========================
 
 log "Login als ${ADMIN1_USER} via Semaphore API"

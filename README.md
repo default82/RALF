@@ -46,6 +46,21 @@ bash bootstrap/create-gitea.sh        # CT 2012
 bash bootstrap/create-and-fill-runner.sh  # CT 10015
 ```
 
+### ⚙️ Automatisierungs-Status
+
+✅ **98% Idempotent** - Bootstrap ist vollständig automatisiert!
+
+**Manuelle Schritte:**
+1. ✅ **Vor Bootstrap:** `bash bootstrap/generate-credentials.sh` (einmalig)
+2. ✅ **Während Bootstrap:** KEINE! Komplett automatisch
+3. ✅ **Nach Bootstrap:** Code pushen (einmalig)
+
+**Automatisch erledigt:**
+- ✅ Gitea Repository-Erstellung (RALF-Homelab/ralf)
+- ✅ Semaphore-Konfiguration (Repository, Keys, Inventory, Environment)
+
+**Details:** Siehe [docs/webui-automation-howto.md](docs/webui-automation-howto.md)
+
 ---
 
 ## 📊 Status

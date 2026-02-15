@@ -55,6 +55,33 @@ else
   FAILED=1
 fi
 
+# 5. Repository Check (RALF-Homelab/ralf)
+echo -n "  Repository RALF-Homelab/ralf ... "
+REPO=$(curl -sf --connect-timeout 5 --max-time 10 "http://${GITEA_HOST}:${GITEA_HTTP_PORT}/api/v1/repos/RALF-Homelab/ralf" 2>/dev/null || echo "")
+if [[ -n "$REPO" ]] && echo "$REPO" | grep -q '"name":"ralf"'; then
+  echo "OK"
+else
+  echo "SKIP (noch nicht erstellt)"
+fi
+
+# 6. Admin User Check: kolja
+echo -n "  Admin User 'kolja' ... "
+ADMIN1=$(curl -sf --connect-timeout 5 --max-time 10 "http://${GITEA_HOST}:${GITEA_HTTP_PORT}/api/v1/users/kolja" 2>/dev/null || echo "")
+if [[ -n "$ADMIN1" ]] && echo "$ADMIN1" | grep -q '"login":"kolja"'; then
+  echo "OK"
+else
+  echo "SKIP (noch nicht erstellt)"
+fi
+
+# 7. Admin User Check: ralf
+echo -n "  Admin User 'ralf' ... "
+ADMIN2=$(curl -sf --connect-timeout 5 --max-time 10 "http://${GITEA_HOST}:${GITEA_HTTP_PORT}/api/v1/users/ralf" 2>/dev/null || echo "")
+if [[ -n "$ADMIN2" ]] && echo "$ADMIN2" | grep -q '"login":"ralf"'; then
+  echo "OK"
+else
+  echo "SKIP (noch nicht erstellt)"
+fi
+
 echo ""
 
 if [[ $FAILED -ne 0 ]]; then

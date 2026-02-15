@@ -389,7 +389,67 @@ fi
 "
 
 ### =========================
-### 13) Snapshot post-install
+### 13) Erstelle Repository 'ralf'
+### =========================
+
+log "Erstelle Repository: RALF-Homelab/ralf"
+
+pct_exec "$CTID" "
+set -euo pipefail
+
+# Warte auf Gitea API (nach Organization-Erstellung kann API kurz busy sein)
+for i in {1..10}; do
+  if curl -sf http://localhost:${GITEA_HTTP_PORT}/api/v1/version >/dev/null 2>&1; then
+    break
+  fi
+  if [[ \$i -eq 10 ]]; then
+    echo 'ERROR: Gitea API antwortet nicht nach 10 Sekunden'
+    exit 1
+  fi
+  sleep 1
+done
+
+# Prüfe ob Repository bereits existiert (via API)
+if curl -sf http://localhost:${GITEA_HTTP_PORT}/api/v1/repos/RALF-Homelab/ralf 2>/dev/null | grep -q '\"name\":\"ralf\"'; then
+  echo 'Repository RALF-Homelab/ralf existiert bereits'
+else
+  # Erstelle Repository via API
+  RESPONSE=\$(curl -s -w \"\\n%{http_code}\" \
+    -X POST http://localhost:${GITEA_HTTP_PORT}/api/v1/orgs/RALF-Homelab/repos \
+    -u '${GITEA_ADMIN1_USER}:${GITEA_ADMIN1_PASS}' \
+    -H 'Content-Type: application/json' \
+    -d '{
+      \"name\": \"ralf\",
+      \"description\": \"RALF Homelab - Self-orchestrating infrastructure platform\",
+      \"private\": true,
+      \"auto_init\": true,
+      \"default_branch\": \"main\",
+      \"gitignores\": \"Go,Python,Terraform\",
+      \"license\": \"MIT\",
+      \"readme\": \"Default\"
+    }')
+
+  HTTP_CODE=\$(echo \"\$RESPONSE\" | tail -n1)
+  BODY=\$(echo \"\$RESPONSE\" | head -n-1)
+
+  if [[ \"\$HTTP_CODE\" == \"201\" ]]; then
+    echo 'Repository RALF-Homelab/ralf erfolgreich erstellt'
+  elif [[ \"\$HTTP_CODE\" == \"409\" ]]; then
+    echo 'Repository existiert bereits (409 Conflict) - OK'
+  elif [[ \"\$HTTP_CODE\" == \"401\" ]]; then
+    echo 'ERROR: Authentifizierung fehlgeschlagen (401)'
+    echo 'Prüfe GITEA_ADMIN1_USER und GITEA_ADMIN1_PASS in credentials.env'
+    exit 1
+  else
+    echo \"ERROR: Unerwarteter HTTP Code: \$HTTP_CODE\"
+    echo \"Response: \$BODY\"
+    exit 1
+  fi
+fi
+"
+
+### =========================
+### 14) Snapshot post-install
 ### =========================
 
 log "Erstelle Snapshot 'post-install'"
@@ -400,7 +460,7 @@ else
 fi
 
 ### =========================
-### 14) Final checks
+### 15) Final checks
 ### =========================
 
 log "Checks: Service status + Port listening"

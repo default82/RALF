@@ -36,16 +36,6 @@
     group: root
     mode: "0640"
 
-- name: Fail if env file missing (secrets must be placed manually)
-  ansible.builtin.stat:
-    path: "{{ minio_env_file }}"
-  register: minio_env
-
-- name: Stop here if env file missing
-  ansible.builtin.fail:
-    msg: "Missing {{ minio_env_file }}. Create it from {{ minio_env_file }}.example and set MINIO_ROOT_USER/MINIO_ROOT_PASSWORD."
-  when: not minio_env.stat.exists
-
 - name: Deploy systemd unit
   ansible.builtin.template:
     src: minio.service.j2
@@ -83,4 +73,4 @@
     owner: root
     group: root
     mode: "0600"
-  notify: Restart minio
+  notify: restart minio

@@ -1,0 +1,24 @@
+[Unit]
+Description=MinIO
+Documentation=https://min.io/docs/minio/linux/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ minio_user }}
+Group={{ minio_group }}
+EnvironmentFile={{ minio_env_file }}
+ExecStart={{ minio_bin }} server {{ minio_data_dir }} --address {{ minio_api_addr }} --console-address {{ minio_console_addr }}
+Restart=always
+LimitNOFILE=65536
+TimeoutStopSec=30
+
+# Hardening (light)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths={{ minio_data_dir }}
+
+[Install]
+WantedBy=multi-user.target

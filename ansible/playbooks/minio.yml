@@ -1,0 +1,6 @@
+---
+- name: Deploy MinIO
+  hosts: minio
+  become: true
+  roles:
+    - role: minio

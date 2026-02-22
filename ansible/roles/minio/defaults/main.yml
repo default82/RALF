@@ -1,0 +1,13 @@
+---
+minio_user: minio
+minio_group: minio
+
+minio_bin: /usr/local/bin/minio
+minio_data_dir: /var/lib/minio
+
+# listen
+minio_api_addr: ":9000"
+minio_console_addr: ":9001"
+
+# env file liegt lokal auf dem Host (nicht im Repo!)
+minio_env_file: /etc/default/minio

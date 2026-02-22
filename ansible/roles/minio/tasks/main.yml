@@ -61,3 +61,26 @@
     enabled: true
     state: started
     daemon_reload: true
+
+- name: Ensure local env file exists on controller (secrets not in repo)
+  delegate_to: localhost
+  become: false
+  stat:
+    path: "{{ minio_env_src }}"
+  register: minio_env_local
+
+- name: Fail if local env file missing on controller
+  delegate_to: localhost
+  become: false
+  fail:
+    msg: "Missing {{ minio_env_src }} on controller. Generate it in /opt/ralf/stacks/minio-lxc/keys/minio.env"
+  when: not minio_env_local.stat.exists
+
+- name: Install MinIO env file from controller (secret)
+  copy:
+    src: "{{ minio_env_src }}"
+    dest: /etc/default/minio
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart minio

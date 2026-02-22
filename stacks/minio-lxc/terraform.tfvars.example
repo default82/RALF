@@ -1,0 +1,15 @@
+node_name    = "pve-deploy"
+vm_id        = 9400
+hostname     = "minio-svc"
+datastore_id = "local-lvm"
+bridge       = "vmbr0"
+
+ipv4_address = "10.10.40.20/24"
+ipv4_gateway = "10.10.40.1"
+
+# z.B. aus /root/.ssh/id_ed25519.pub (Runner-Key)
+ssh_pubkey = "ssh-ed25519 AAAA.... ralf"
+
+# Template muss in Proxmox vorhanden sein (vztmpl).
+# Beispiel:
+template_file_id = "local:vztmpl/ubuntu-24.04-server-cloudimg-amd64-root.tar.xz"

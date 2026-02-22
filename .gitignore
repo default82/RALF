@@ -1,0 +1,13 @@
+# local
+*.swp
+*.tmp
+.DS_Store
+
+# ansible
+*.retry
+
+# terragrunt/tofu
+.terraform/
+.terragrunt-cache/
+terraform.tfstate*
+crash.log

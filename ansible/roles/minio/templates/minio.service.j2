@@ -8,19 +8,15 @@ After=network-online.target
 User={{ minio_user }}
 Group={{ minio_group }}
 
-# Secrets + runtime config lives here:
 EnvironmentFile={{ minio_env_file }}
 
-# Use env vars from EnvironmentFile:
-# MINIO_VOLUMES=/var/lib/minio
-# MINIO_OPTS="--address :9000 --console-address :9001"
-ExecStart={{ minio_bin }} server ${MINIO_VOLUMES} ${MINIO_OPTS}
+# systemd does NOT split ${MINIO_OPTS}. Use a shell to expand+split it.
+ExecStart=/usr/bin/env bash -lc 'exec {{ minio_bin }} server "${MINIO_VOLUMES}" ${MINIO_OPTS}'
 
 Restart=always
 LimitNOFILE=65536
 TimeoutStopSec=30
 
-# Hardening (light)
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true

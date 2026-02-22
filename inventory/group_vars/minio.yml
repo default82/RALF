@@ -1,1 +1,7 @@
+# lokal erzeugte Secrets (nicht committen) – wandert später nach Vaultwarden
 minio_env_src: "/opt/ralf/stacks/minio-lxc/keys/minio.env"
+
+# defaults
+minio_root_user: "minioadmin"
+minio_volumes: "/var/lib/minio"
+minio_opts: "--address :9000 --console-address :9001"

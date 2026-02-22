@@ -19,3 +19,18 @@ crash.log
 
 # ansible
 ansible/collections/**/.cache/
+
+# OpenTofu/Terragrunt local state
+**/.terraform/
+**/.terraform.lock.hcl
+**/*.tfstate
+**/*.tfstate.*
+**/crash.log
+**/.terragrunt-cache/
+
+# local tfvars (never commit)
+**/terraform.tfvars
+**/*.auto.tfvars
+
+# local keys (never commit)
+stacks/**/keys/

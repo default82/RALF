@@ -7,17 +7,25 @@ After=network-online.target
 [Service]
 User={{ minio_user }}
 Group={{ minio_group }}
+
+# Secrets + runtime config lives here:
 EnvironmentFile={{ minio_env_file }}
-ExecStart={{ minio_bin }} server {{ minio_volumes }} {{ minio_opts }}
+
+# Use env vars from EnvironmentFile:
+# MINIO_VOLUMES=/var/lib/minio
+# MINIO_OPTS="--address :9000 --console-address :9001"
+ExecStart={{ minio_bin }} server ${MINIO_VOLUMES} ${MINIO_OPTS}
+
 Restart=always
 LimitNOFILE=65536
 TimeoutStopSec=30
 
+# Hardening (light)
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=full
-ReadWritePaths={{ minio_volumes }}
+ReadWritePaths={{ minio_data_dir }}
 
 [Install]
 WantedBy=multi-user.target

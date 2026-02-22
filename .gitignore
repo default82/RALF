@@ -11,3 +11,11 @@
 .terragrunt-cache/
 terraform.tfstate*
 crash.log
+
+# ralf local
+*.log
+.vscode/
+.idea/
+
+# ansible
+ansible/collections/**/.cache/

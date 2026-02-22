@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "== RALF doctor =="
+echo
+
+need() {
+  local c="$1"
+  if ! command -v "$c" >/dev/null 2>&1; then
+    echo "MISSING: $c"
+    return 1
+  fi
+  printf "OK:      %-12s %s\n" "$c" "$(command -v "$c")"
+}
+
+fail=0
+need git || fail=1
+need python3 || fail=1
+need ansible || fail=1
+need tofu || fail=1
+need terragrunt || fail=1
+
+echo
+echo "== versions =="
+git --version || true
+python3 --version || true
+ansible --version 2>/dev/null | head -n 1 || true
+tofu version 2>/dev/null | head -n 1 || true
+terragrunt --version 2>/dev/null | head -n 1 || true
+
+echo
+echo "== repo =="
+git rev-parse --show-toplevel
+git status --porcelain || true
+
+exit "$fail"

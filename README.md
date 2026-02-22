@@ -1,2 +1,7 @@
 # RALF
-Clean reboot (genesis).
+
+Minimal clean reboot (genesis).
+
+## Quickstart
+- Tools prüfen: `./scripts/doctor`
+- Doku: `docs/README.md`

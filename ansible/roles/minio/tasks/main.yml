@@ -20,7 +20,7 @@
     group: "{{ minio_group }}"
     mode: "0750"
 
-- name: Install MinIO binary
+- name: Install MinIO binary (latest stable via direct download)
   ansible.builtin.get_url:
     url: "https://dl.min.io/server/minio/release/linux-amd64/minio"
     dest: "{{ minio_bin }}"
@@ -36,43 +36,19 @@
     group: root
     mode: "0640"
 
-# ---- controller secret file (runtime generated, cached for later Vaultwarden import) ----
-- name: Ensure key dir exists on controller
-  delegate_to: localhost
-  become: false
-  ansible.builtin.file:
-    path: "{{ minio_env_src | dirname }}"
-    state: directory
-    mode: "0700"
-
-- name: Check if controller env file exists
+# --- Secrets come from controller file (generated at runtime) ---
+- name: Ensure local env file exists on controller (secrets not in repo)
   delegate_to: localhost
   become: false
   ansible.builtin.stat:
     path: "{{ minio_env_src }}"
   register: minio_env_local
 
-- name: Generate password on controller (only once)
+- name: Fail if local env file missing on controller
   delegate_to: localhost
   become: false
-  ansible.builtin.command: bash -lc "openssl rand -base64 42 | tr -d \"\\n\" | tr \"+/\" \"-_\" | cut -c1-40"
-  register: gen_pw
-  changed_when: true
-  when: not minio_env_local.stat.exists
-
-- name: Write controller env file (only once)
-  delegate_to: localhost
-  become: false
-  ansible.builtin.copy:
-    dest: "{{ minio_env_src }}"
-    mode: "0600"
-    content: |
-      # generated: {{ ansible_date_time.iso8601 }}
-      MINIO_ROOT_USER={{ minio_root_user }}
-      MINIO_ROOT_PASSWORD={{ gen_pw.stdout }}
-
-      MINIO_VOLUMES={{ minio_volumes }}
-      MINIO_OPTS="{{ minio_opts }}"
+  ansible.builtin.fail:
+    msg: "Missing {{ minio_env_src }} on controller. Generate it (e.g. stacks/minio-lxc/keys/minio.env)."
   when: not minio_env_local.stat.exists
 
 - name: Install MinIO env file from controller (secret)
@@ -84,7 +60,7 @@
     mode: "0600"
   notify: restart minio
 
-# ---- systemd ----
+# --- systemd AFTER env is present ---
 - name: Deploy systemd unit
   ansible.builtin.template:
     src: minio.service.j2
@@ -100,3 +76,10 @@
     enabled: true
     state: started
     daemon_reload: true
+
+# Optional: healthcheck tooling
+- name: Ensure curl is installed (for healthchecks)
+  ansible.builtin.apt:
+    name: curl
+    state: present
+    update_cache: true

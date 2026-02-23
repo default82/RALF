@@ -3,8 +3,7 @@
   hosts: postgres
   become: true
   vars:
-    pg_conf_glob: "/etc/postgresql/*/main/postgresql.conf"
-    pg_hba_glob: "/etc/postgresql/*/main/pg_hba.conf"
+    pg_conf_root: "/etc/postgresql"
     pg_listen: "*"
     pg_hba_net: "10.10.0.0/16"
     pg_socket_dir: "/var/run/postgresql"
@@ -117,23 +116,39 @@
         state: started
         enabled: true
 
+    - name: Find postgresql.conf files on remote host
+      ansible.builtin.find:
+        paths: "{{ pg_conf_root }}"
+        patterns: "postgresql.conf"
+        recurse: true
+        file_type: file
+      register: pg_conf_files
+
+    - name: Find pg_hba.conf files on remote host
+      ansible.builtin.find:
+        paths: "{{ pg_conf_root }}"
+        patterns: "pg_hba.conf"
+        recurse: true
+        file_type: file
+      register: pg_hba_files
+
     - name: Update listen_addresses
       ansible.builtin.lineinfile:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
         regexp: "^#?listen_addresses"
         line: "listen_addresses = '{{ pg_listen }}'"
         backup: true
-      loop: "{{ lookup('ansible.builtin.fileglob', pg_conf_glob, wantlist=True) }}"
+      loop: "{{ pg_conf_files.files }}"
       notify: restart postgresql
 
     - name: Allow internal network in pg_hba
       ansible.builtin.lineinfile:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
         line: "host all all {{ pg_hba_net }} md5"
         insertafter: EOF
         state: present
         backup: true
-      loop: "{{ lookup('ansible.builtin.fileglob', pg_hba_glob, wantlist=True) }}"
+      loop: "{{ pg_hba_files.files }}"
       notify: restart postgresql
 
     - name: Set postgres admin password
@@ -159,6 +174,7 @@
         encoding: UTF8
         lc_collate: C
         lc_ctype: C
+        template: template0
         login_unix_socket: "{{ pg_socket_dir }}"
 
     - name: Ensure semaphore database role
@@ -176,6 +192,7 @@
         encoding: UTF8
         lc_collate: C
         lc_ctype: C
+        template: template0
         login_unix_socket: "{{ pg_socket_dir }}"
 
     - name: Ensure vaultwarden database role
@@ -193,6 +210,7 @@
         encoding: UTF8
         lc_collate: C
         lc_ctype: C
+        template: template0
         login_unix_socket: "{{ pg_socket_dir }}"
 
     - name: Ensure mail database role
@@ -210,6 +228,7 @@
         encoding: UTF8
         lc_collate: C
         lc_ctype: C
+        template: template0
         login_unix_socket: "{{ pg_socket_dir }}"
 
     - name: Ensure mail schema tables

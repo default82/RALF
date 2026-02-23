@@ -259,3 +259,19 @@ ok "Repo + runtime layout ready"
 echo
 ok "Next step (inside CT):"
 echo "  pct exec ${CTID} -- bash -lc 'cd /opt/ralf/repo && bash bootstrap/runner.sh'"
+# ---- STEP 7: Execute runner inside CT ----
+step 7 "Executing bootstrap runner"
+pct exec "${CTID}" -- bash -lc '
+set -euo pipefail
+export PATH=/usr/local/bin:/usr/bin:/bin
+
+cd /opt/ralf/repo
+test -f bootstrap/runner.sh
+chmod +x bootstrap/runner.sh
+
+# Optional: make sure it is non-interactive
+export DEBIAN_FRONTEND=noninteractive
+
+bash bootstrap/runner.sh
+'
+ok "Runner finished"

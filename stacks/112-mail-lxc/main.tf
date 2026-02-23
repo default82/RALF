@@ -1,4 +1,4 @@
-resource "proxmox_virtual_environment_container" "maddy" {
+resource "proxmox_virtual_environment_container" "mail" {
   node_name     = var.node_name
   vm_id         = 11020
   unprivileged  = true
@@ -9,17 +9,17 @@ resource "proxmox_virtual_environment_container" "maddy" {
   }
 
   cpu {
-    cores = 1
+    cores = 2
   }
 
   memory {
-    dedicated = 1024
+    dedicated = 2048
     swap      = 0
   }
 
   disk {
     datastore_id = "local-lvm"
-    size         = 16
+    size         = 32
   }
 
   network_interface {
@@ -28,7 +28,7 @@ resource "proxmox_virtual_environment_container" "maddy" {
   }
 
   initialization {
-    hostname = "maddy"
+    hostname = "mail"
 
     ip_config {
       ipv4 {

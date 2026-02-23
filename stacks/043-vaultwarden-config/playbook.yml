@@ -1,0 +1,239 @@
+---
+- name: Configure Vaultwarden (PostgreSQL backend)
+  hosts: vaultwarden
+  become: true
+  vars:
+    vault_env_path: /opt/ralf/runtime/secrets/vaultwarden.env
+    pg_env_path: /opt/ralf/runtime/secrets/postgres.env
+    vw_user: vaultwarden
+    vw_group: vaultwarden
+    vw_bin: /usr/local/bin/vaultwarden
+    vw_data_dir: /var/lib/vaultwarden
+    vw_cfg_dir: /etc/vaultwarden
+    vw_env_file: /etc/vaultwarden/vaultwarden.env
+    vw_tls_dir: /etc/vaultwarden/tls
+    vw_tls_cert: /etc/vaultwarden/tls/fullchain.pem
+    vw_tls_key: /etc/vaultwarden/tls/privkey.pem
+
+  pre_tasks:
+    - name: Assert env files exist on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ vault_env_path }}"
+        - "{{ pg_env_path }}"
+      register: vw_env_stats
+
+    - name: Fail if env files missing on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.fail:
+        msg: "Missing {{ item.stat.path }} on CT 10010. Create it first."
+      loop: "{{ vw_env_stats.results }}"
+      when: not item.stat.exists
+
+    - name: Load env files from control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.slurp:
+        src: "{{ item.src }}"
+      loop:
+        - { key: vault, src: "{{ vault_env_path }}" }
+        - { key: postgres, src: "{{ pg_env_path }}" }
+      register: vw_env_raw
+
+    - name: Parse env line arrays
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        vault_env_lines: "{{ (vw_env_raw.results[0].content | b64decode).splitlines() }}"
+        pg_env_lines: "{{ (vw_env_raw.results[1].content | b64decode).splitlines() }}"
+
+    - name: Build vault env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        vault_env: "{{ vault_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ vault_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+    - name: Build postgres env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        pg_env: "{{ pg_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ pg_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - ca-certificates
+          - curl
+          - tar
+          - openssl
+          - nginx
+        state: present
+
+    - name: Ensure vaultwarden group exists
+      ansible.builtin.group:
+        name: "{{ vw_group }}"
+        system: true
+        state: present
+
+    - name: Ensure vaultwarden user exists
+      ansible.builtin.user:
+        name: "{{ vw_user }}"
+        group: "{{ vw_group }}"
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+        state: present
+
+    - name: Ensure vaultwarden directories exist
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ vw_data_dir }}", owner: "{{ vw_user }}", group: "{{ vw_group }}", mode: "0750" }
+        - { path: "{{ vw_cfg_dir }}", owner: root, group: root, mode: "0755" }
+        - { path: "{{ vw_tls_dir }}", owner: root, group: root, mode: "0750" }
+
+    - name: Install vaultwarden binary (latest release)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        tmpdir=$(mktemp -d)
+        trap 'rm -rf "$tmpdir"' EXIT
+        rel=$(curl -fsSL https://api.github.com/repos/dani-garcia/vaultwarden/releases/latest | grep '"tag_name"' | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+        url="https://github.com/dani-garcia/vaultwarden/releases/download/${rel}/vaultwarden-${rel}-x86_64-unknown-linux-gnu.tar.gz"
+        curl -fsSL "$url" -o "$tmpdir/vaultwarden.tgz"
+        tar -xzf "$tmpdir/vaultwarden.tgz" -C "$tmpdir"
+        install -m 0755 "$tmpdir/vaultwarden" {{ vw_bin }}
+      args:
+        executable: /bin/bash
+        creates: "{{ vw_bin }}"
+
+    - name: Generate self-signed certificate for Vaultwarden
+      ansible.builtin.command:
+        cmd: >-
+          openssl req -x509 -nodes -newkey rsa:2048
+          -keyout {{ vw_tls_key }}
+          -out {{ vw_tls_cert }}
+          -days 3650
+          -subj /CN=vaultwarden.homelab.lan
+      args:
+        creates: "{{ vw_tls_key }}"
+
+    - name: Set vaultwarden TLS key permissions
+      ansible.builtin.file:
+        path: "{{ vw_tls_key }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Render vaultwarden env file
+      ansible.builtin.copy:
+        dest: "{{ vw_env_file }}"
+        owner: root
+        group: "{{ vw_group }}"
+        mode: "0640"
+        content: |
+          DATA_FOLDER={{ vw_data_dir }}
+          DOMAIN={{ vault_env.VAULTWARDEN_DOMAIN }}
+          ADMIN_TOKEN={{ vault_env.VAULTWARDEN_ADMIN_TOKEN }}
+          ROCKET_ADDRESS=127.0.0.1
+          ROCKET_PORT={{ vault_env.ROCKET_PORT }}
+          SIGNUPS_ALLOWED={{ vault_env.SIGNUPS_ALLOWED }}
+          WEB_VAULT_ENABLED={{ vault_env.WEB_VAULT_ENABLED }}
+          DATABASE_URL=postgresql://{{ pg_env.VAULTWARDEN_DB_USER }}:{{ pg_env.VAULTWARDEN_DB_PASSWORD }}@{{ vault_env.VAULTWARDEN_DB_HOST }}:{{ vault_env.VAULTWARDEN_DB_PORT }}/{{ pg_env.VAULTWARDEN_DB_NAME }}
+      notify: restart vaultwarden
+
+    - name: Create vaultwarden systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/vaultwarden.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Vaultwarden Server
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User={{ vw_user }}
+          Group={{ vw_group }}
+          EnvironmentFile={{ vw_env_file }}
+          ExecStart={{ vw_bin }}
+          WorkingDirectory={{ vw_data_dir }}
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: restart vaultwarden
+
+    - name: Configure nginx TLS reverse proxy for vaultwarden
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/vaultwarden.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          server {
+            listen 443 ssl;
+            server_name vaultwarden.homelab.lan;
+
+            ssl_certificate {{ vw_tls_cert }};
+            ssl_certificate_key {{ vw_tls_key }};
+
+            location / {
+              proxy_pass http://127.0.0.1:{{ vault_env.ROCKET_PORT }};
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto https;
+            }
+          }
+      notify: restart nginx
+
+    - name: Enable vaultwarden nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/vaultwarden.conf
+        dest: /etc/nginx/sites-enabled/vaultwarden.conf
+        state: link
+      notify: restart nginx
+
+    - name: Disable default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: restart nginx
+
+    - name: Ensure services are enabled and started
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - vaultwarden
+        - nginx
+
+  handlers:
+    - name: restart vaultwarden
+      ansible.builtin.systemd:
+        name: vaultwarden
+        state: restarted
+        daemon_reload: true
+
+    - name: restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

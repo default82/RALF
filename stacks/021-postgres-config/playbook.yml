@@ -9,6 +9,7 @@
     pg_hba_net: "10.10.0.0/16"
     pg_socket_dir: "/var/run/postgresql"
     pg_env_path: /opt/ralf/runtime/secrets/postgres.env
+    mail_env_path: /opt/ralf/runtime/secrets/mail.env
 
   pre_tasks:
     - name: Ensure community.postgresql collection is available
@@ -53,6 +54,53 @@
         pg_env: "{{ pg_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
       loop: "{{ pg_env_lines }}"
       when: item | length > 0 and not item.startswith('#')
+
+    - name: Assert mail env file exists on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: "{{ mail_env_path }}"
+      register: mail_env_stat
+
+    - name: Fail if mail env missing on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.fail:
+        msg: "Missing {{ mail_env_path }} on CT 10010. Create it first."
+      when: not mail_env_stat.stat.exists
+
+    - name: Load mail env from control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.slurp:
+        src: "{{ mail_env_path }}"
+      register: mail_env_raw
+
+    - name: Parse mail env
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        mail_env_lines: "{{ (mail_env_raw.content | b64decode).splitlines() }}"
+
+    - name: Build mail env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        mail_env: "{{ mail_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ mail_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+    - name: Generate mail password hash for ralf
+      ansible.builtin.command:
+        cmd: "python3 -c \"import crypt; print(crypt.crypt('{{ mail_env.MAIL_PASSWORD_RALF }}', crypt.mksalt(crypt.METHOD_SHA512)))\""
+      register: mail_hash_ralf
+      changed_when: false
+
+    - name: Generate mail password hash for kolja
+      ansible.builtin.command:
+        cmd: "python3 -c \"import crypt; print(crypt.crypt('{{ mail_env.MAIL_PASSWORD_KOLJA }}', crypt.mksalt(crypt.METHOD_SHA512)))\""
+      register: mail_hash_kolja
+      changed_when: false
 
   tasks:
     - name: Install PostgreSQL and dependencies
@@ -129,6 +177,93 @@
         lc_collate: C
         lc_ctype: C
         login_unix_socket: "{{ pg_socket_dir }}"
+
+    - name: Ensure vaultwarden database role
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: "{{ pg_env.VAULTWARDEN_DB_USER }}"
+        password: "{{ pg_env.VAULTWARDEN_DB_PASSWORD }}"
+        login_unix_socket: "{{ pg_socket_dir }}"
+
+    - name: Ensure vaultwarden database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: "{{ pg_env.VAULTWARDEN_DB_NAME }}"
+        owner: "{{ pg_env.VAULTWARDEN_DB_USER }}"
+        encoding: UTF8
+        lc_collate: C
+        lc_ctype: C
+        login_unix_socket: "{{ pg_socket_dir }}"
+
+    - name: Ensure mail database role
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: "{{ pg_env.MAIL_DB_USER }}"
+        password: "{{ pg_env.MAIL_DB_PASSWORD }}"
+        login_unix_socket: "{{ pg_socket_dir }}"
+
+    - name: Ensure mail database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: "{{ pg_env.MAIL_DB_NAME }}"
+        owner: "{{ pg_env.MAIL_DB_USER }}"
+        encoding: UTF8
+        lc_collate: C
+        lc_ctype: C
+        login_unix_socket: "{{ pg_socket_dir }}"
+
+    - name: Ensure mail schema tables
+      become_user: postgres
+      community.postgresql.postgresql_query:
+        db: "{{ pg_env.MAIL_DB_NAME }}"
+        login_unix_socket: "{{ pg_socket_dir }}"
+        query: |
+          CREATE TABLE IF NOT EXISTS virtual_domains (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+          );
+          CREATE TABLE IF NOT EXISTS virtual_users (
+            id SERIAL PRIMARY KEY,
+            domain_id INTEGER NOT NULL REFERENCES virtual_domains(id) ON DELETE CASCADE,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            active BOOLEAN NOT NULL DEFAULT true
+          );
+
+    - name: Ensure mail domain exists
+      become_user: postgres
+      community.postgresql.postgresql_query:
+        db: "{{ pg_env.MAIL_DB_NAME }}"
+        login_unix_socket: "{{ pg_socket_dir }}"
+        named_args:
+          domain: "{{ mail_env.MAIL_DOMAIN }}"
+        query: |
+          INSERT INTO virtual_domains (name)
+          VALUES (%(domain)s)
+          ON CONFLICT (name) DO NOTHING;
+
+    - name: Ensure mail users exist
+      become_user: postgres
+      community.postgresql.postgresql_query:
+        db: "{{ pg_env.MAIL_DB_NAME }}"
+        login_unix_socket: "{{ pg_socket_dir }}"
+        named_args:
+          domain: "{{ mail_env.MAIL_DOMAIN }}"
+          email: "{{ item.email }}"
+          password: "{{ item.password_hash }}"
+        query: |
+          INSERT INTO virtual_users (domain_id, email, password, active)
+          SELECT d.id, %(email)s, %(password)s, true
+          FROM virtual_domains d
+          WHERE d.name = %(domain)s
+          ON CONFLICT (email) DO UPDATE
+          SET password = EXCLUDED.password,
+              active = true;
+      loop:
+        - email: "ralf@{{ mail_env.MAIL_DOMAIN }}"
+          password_hash: "{{ mail_hash_ralf.stdout }}"
+        - email: "kolja@{{ mail_env.MAIL_DOMAIN }}"
+          password_hash: "{{ mail_hash_kolja.stdout }}"
 
   handlers:
     - name: restart postgresql

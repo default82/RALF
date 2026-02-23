@@ -196,14 +196,12 @@ if ! command -v terragrunt >/dev/null 2>&1; then
   chmod 0755 /usr/local/bin/terragrunt
 fi
 
-# quick sanity
-if ! command -v tofu >/dev/null 2>&1; then
-  echo "tofu not in PATH, forcing /usr/local/bin"
-  export PATH="/usr/local/bin:$PATH"
-fi
-tofu version >/dev/null
-terragrunt --version >/dev/null
-ansible --version >/dev/null
+# sanity
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+
+command -v tofu >/dev/null
+command -v terragrunt >/dev/null
+command -v ansible >/dev/null
 '
 ok "Toolchain installed"
 

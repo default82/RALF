@@ -430,18 +430,6 @@ ok "Runner finished"
 step 9 "Checks"
 echo "  pct exec ${CTID} -- bash -lc 'export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2'"
 echo "  pct exec ${CTID} -- bash -lc 'cd ${RALF_REPO} && git log -1 --oneline'"
-# STEP X: Run stacks automatically
-pct exec "$CTID" -- bash -lc '
-set -euo pipefail
-cd /opt/ralf/repo
-chmod +x bootstrap/runner.sh
-
-export RUN_STACKS=1
-export AUTO_APPLY="${AUTO_APPLY:-0}"   # host kann AUTO_APPLY=1 setzen
-export START_AT="${START_AT:-030}"     # optional
-# export ONLY_STACKS="030-minio-lxc 031-minio-config"
-
-bash bootstrap/runner.sh
 '
 echo
 ok "Done."

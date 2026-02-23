@@ -1,9 +1,13 @@
 resource "proxmox_virtual_environment_container" "minio" {
   node_name     = var.node_name
   vm_id         = 3010
-  unprivileged  = false
+  unprivileged  = true
   started       = true
   start_on_boot = true
+  features {
+    nesting = true
+    keyctl  = true
+  }
 
   cpu {
     cores = 1

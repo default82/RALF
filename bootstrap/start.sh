@@ -405,24 +405,22 @@ chmod 600 '${CT_PVE_ENV}'
 fi
 
 # --------------------------
-# STEP 8: Run bootstrap runner
+# STEP 8: Run bootstrap runner (optional)
 # --------------------------
-pct exec "${CTID}" -- bash -lc "
+if [[ "$NO_RUNNER" == "1" ]]; then
+  step 8 "Run bootstrap runner (skipped)"
+  ok "Runner skipped"
+else
+  step 8 "Run bootstrap runner"
+  pct exec "${CTID}" -- bash -lc "
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
 export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH
-
 cd '${RALF_REPO}'
 chmod +x bootstrap/runner.sh
-
-# Runner automatisch mit echten Stacks starten
-export RUN_STACKS=1
-export STACKS='030-minio-lxc'
-export AUTO_APPLY=1
-
 bash bootstrap/runner.sh
 "
-ok "Runner finished"
+  ok "Runner finished"
+fi
 
 # --------------------------
 # STEP 9: Checks

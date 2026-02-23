@@ -1,21 +1,18 @@
-provider "proxmox" {
-  endpoint  = var.pm_api_url
-  api_token = "${var.pm_api_token_id}=${var.pm_api_token_secret}"
-  insecure  = true
-}
-
 resource "proxmox_virtual_environment_container" "minio" {
-  node_name = var.node_name
-  vm_id     = 3010
-  name      = "minio"
-  unprivileged = true
+  node_name     = var.node_name
+  vm_id         = 3010
+  unprivileged  = true
+  start_on_boot = true
 
   operating_system {
     template_file_id = "local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst"
+    # ggf. auch nötig/gewünscht je nach Provider-Version:
+    # type = "ubuntu"
   }
 
   cpu {
     cores = 1
+    # architecture = "amd64"   # optional, falls du es explizit willst
   }
 
   memory {
@@ -28,11 +25,13 @@ resource "proxmox_virtual_environment_container" "minio" {
   }
 
   network_interface {
-    name   = "eth0"
+    name   = "veth0"
     bridge = "vmbr0"
   }
 
   initialization {
+    hostname = "minio"
+
     ip_config {
       ipv4 {
         address = "10.10.30.10/16"
@@ -44,6 +43,4 @@ resource "proxmox_virtual_environment_container" "minio" {
       keys = [var.ssh_public_key]
     }
   }
-
-  start_on_boot = true
 }

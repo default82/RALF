@@ -7,7 +7,7 @@ provider "proxmox" {
 resource "proxmox_virtual_environment_container" "minio" {
   node_name = var.node_name
   vm_id     = 3010
-  hostname  = "minio"
+  name      = "minio"
   unprivileged = true
 
   operating_system {

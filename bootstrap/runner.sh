@@ -21,7 +21,7 @@ set +a
 echo "[runner] OK: Proxmox credentials loaded"
 
 # --- Controls ---
-AUTO_APPLY="${AUTO_APPLY:-0}"          # 0=plan, 1=apply
+AUTO_APPLY="${AUTO_APPLY:-0}"          # 0=plan/check, 1=apply/run
 START_AT="${START_AT:-}"               # e.g. "030" (inclusive)
 ONLY_STACKS="${ONLY_STACKS:-}"         # e.g. "030-minio-lxc 031-minio-config"
 RUN_STACKS="${RUN_STACKS:-1}"          # keep your gate
@@ -48,12 +48,11 @@ mapfile -t stacks < <(
 
 # 2) optional: START_AT Filter
 if [[ -n "$START_AT" ]]; then
-  stacks=( $(printf "%s\n" "${stacks[@]}" | awk -v s="$START_AT" '$0 >= s') )
+  mapfile -t stacks < <(printf "%s\n" "${stacks[@]}" | awk -v s="$START_AT" '$0 >= s')
 fi
 
 # 3) optional: ONLY_STACKS Filter (Whitelist)
 if [[ -n "$ONLY_STACKS" ]]; then
-  # make set for fast-ish match
   want="$ONLY_STACKS"
   filtered=()
   for s in "${stacks[@]}"; do
@@ -66,13 +65,16 @@ fi
 
 [[ ${#stacks[@]} -gt 0 ]] || { echo "ERROR: no stacks selected" >&2; exit 1; }
 
-
+# 4) Skip-Liste (Bootstrap raus!)
+SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
 
 for s in "${stacks[@]}"; do
-if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
-  echo "[runner] Skipping stack: $s (matches SKIP_STACKS_REGEX)"
-  continue
-fi
+  # >>> HIER WAR DEIN BUG: SKIP wurde nie angewendet <<<
+  if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
+    echo "[runner] Skipping stack: $s (matches SKIP_STACKS_REGEX)"
+    continue
+  fi
+
   dir="$RALF_REPO/stacks/$s"
   [[ -d "$dir" ]] || { echo "ERROR: stack dir not found: $dir" >&2; exit 1; }
 
@@ -89,8 +91,8 @@ fi
       tofu plan -input=false
     fi
   elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
-    # Beispiel: ansible im Stack-Verzeichnis
-    # (Inventory/Vars nach deinem Schema)
+    # ansible im Stack-Verzeichnis
+    # Inventory/Vars nach deinem Schema
     if [[ "$AUTO_APPLY" == "1" ]]; then
       ansible-playbook -i "$RALF_REPO/inventory/hosts.ini" playbook.yml
     else

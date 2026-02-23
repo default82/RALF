@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PATH=/usr/local/bin:/usr/bin:/bin
 
-RALF_REPO="${RALF_REPO:-/opt/ralf/repo}"
-RALF_RUNTIME="${RALF_RUNTIME:-/opt/ralf/runtime}"
+RALF_BASE="${RALF_BASE:-/opt/ralf}"
+RALF_REPO="${RALF_REPO:-$RALF_BASE/repo}"
+RALF_RUNTIME="${RALF_RUNTIME:-$RALF_BASE/runtime}"
 
-RUN_STACKS="${RUN_STACKS:-1}"
-AUTO_APPLY="${AUTO_APPLY:-0}"
-STACKS="${STACKS:-030-minio-lxc}"
+SECRETS="$RALF_RUNTIME/secrets"
+PVE_ENV="$SECRETS/pve.env"
 
-echo "[runner] RALF_REPO=${RALF_REPO}"
-echo "[runner] RALF_RUNTIME=${RALF_RUNTIME}"
+echo "[runner] RALF_REPO=$RALF_REPO"
+echo "[runner] RALF_RUNTIME=$RALF_RUNTIME"
 
-PVE_ENV="${RALF_RUNTIME}/secrets/pve.env"
 if [[ ! -f "$PVE_ENV" ]]; then
-  echo "[runner] ERROR: missing PVE env at $PVE_ENV" >&2
+  echo "ERROR: Missing $PVE_ENV" >&2
   exit 1
 fi
 
@@ -21,41 +21,45 @@ set -a
 source "$PVE_ENV"
 set +a
 
-export TF_VAR_pve_endpoint="${PVE_ENDPOINT}"
-export TF_VAR_pve_token_id="${PVE_TOKEN_ID}"
-export TF_VAR_pve_token_secret="${PVE_TOKEN_SECRET}"
-export TF_VAR_pve_node="${PVE_NODE}"
+echo "[runner] OK: PVE creds loaded (endpoint/token/node)"
 
-run_stack() {
-  local stack="$1"
-  local dir="${RALF_REPO}/stacks/${stack}"
+RUN_STACKS="${RUN_STACKS:-0}"
+AUTO_APPLY="${AUTO_APPLY:-0}"
+STACKS="${STACKS:-}"
 
-  if [[ ! -d "$dir" ]]; then
-    echo "[runner] ERROR: stack not found: $dir" >&2
-    exit 1
-  fi
-
+if [[ "$RUN_STACKS" != "1" ]]; then
   echo
-  echo "[runner] === stack: ${stack} ==="
-  cd "$dir"
-
-  tofu init -upgrade
-  tofu plan
-
-  if [[ "$AUTO_APPLY" == "1" ]]; then
-    tofu apply -auto-approve
-  else
-    echo "[runner] AUTO_APPLY=0 -> skipping apply"
-  fi
-}
-
-if [[ "$RUN_STACKS" == "1" ]]; then
-  for s in $STACKS; do
-    run_stack "$s"
-  done
-else
-  echo "[runner] RUN_STACKS=0 -> skipping stacks"
+  echo "[runner] Next: we will run tofu to provision minio/postgres/gitea/semaphore"
+  echo "         and use MinIO as remote state as soon as MinIO is up."
+  exit 0
 fi
 
+[[ -n "$STACKS" ]] || { echo "ERROR: RUN_STACKS=1 but STACKS is empty" >&2; exit 1; }
+
+cd "$RALF_REPO"
+
+for s in $STACKS; do
+  dir="$RALF_REPO/stacks/$s"
+  [[ -d "$dir" ]] || { echo "ERROR: stack dir not found: $dir" >&2; exit 1; }
+
+  echo
+  echo "[runner] === Stack: $s ==="
+  cd "$dir"
+
+  # Safety: show what will run
+  echo "[runner] pwd=$(pwd)"
+  echo "[runner] AUTO_APPLY=$AUTO_APPLY"
+
+  tofu init -input=false
+
+  if [[ "$AUTO_APPLY" == "1" ]]; then
+    tofu apply -auto-approve -input=false
+  else
+    tofu plan -input=false
+  fi
+
+  cd "$RALF_REPO"
+done
+
 echo
-echo "[runner] done"
+echo "[runner] Done stacks."

@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# === RALF Bootstrap Seed (FINAL BOSS Edition) ===
+# === RALF Bootstrap Seed ===
 # Runs on the Proxmox host. Creates/updates/starts an LXC CT and bootstraps RALF.
 #
-# One-liner (default):
+# One-liner:
 #   curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
 #
-# One-liner (avoid any caching weirdness):
+# Cache-bust:
 #   curl -fsSL "https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh?nocache=$(date +%s)" | bash
 #
-# Optional overrides:
-#   CT_HOSTNAME=ralf-bootstrap IP_CIDR=10.10.100.10/16 GW=10.10.0.1 BRIDGE=vmbr0 bash start.sh
-#   STORAGE=local-lvm TEMPLATE_STORAGE=local MEM_MB=2048 DISK_GB=32 CORES=1 bash start.sh
-#   FORCE_RECREATE=1 bash start.sh   # destroys and recreates CTID (dangerous)
+# Runner controls (host side, forwarded into CT):
+#   AUTO_APPLY=1 START_AT=030 ONLY_STACKS="030-minio-lxc 031-minio-config" bash start.sh
 #
 # Quality-of-life toggles:
 #   NO_TOOLCHAIN=1   # skip apt/tofu/terragrunt install step
@@ -21,12 +19,8 @@ set -euo pipefail
 #   NO_SECRETS=1     # skip pve.env injection
 #   NO_GIT=1         # skip repo checkout/update
 #   NO_SSHKEY=1      # skip authorized_keys injection
-#
-# Proxmox CT options:
-#   UNPRIVILEGED=1   # default
-#   ONBOOT=1         # set CT onboot=1
-#   STARTUP="order=10,up=30"  # optional Proxmox startup string
-#   FEATURES="nesting=1,keyctl=1"  # default
+
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 # --------------------------
 # Config (safe defaults)
@@ -47,10 +41,10 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}" # 'dir' storage that has vztmpl co
 SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-/root/.ssh/ralf_ed25519.pub}"
 
 # Secrets (host -> CT injection)
-HOST_PVE_ENV="${HOST_PVE_ENV:-/root/ralf-secrets/pve.env}"   # lives on Proxmox host
-CT_PVE_ENV="${CT_PVE_ENV:-/opt/ralf/runtime/secrets/pve.env}" # expected path inside CT
+HOST_PVE_ENV="${HOST_PVE_ENV:-/root/ralf-secrets/pve.env}"     # lives on Proxmox host
+CT_PVE_ENV="${CT_PVE_ENV:-/opt/ralf/runtime/secrets/pve.env}"  # expected path inside CT
 
-# Template selection (future-proof)
+# Template selection
 DIST="${DIST:-ubuntu}"
 SERIES="${SERIES:-24.04}"
 FLAVOR="${FLAVOR:-standard}"
@@ -73,6 +67,11 @@ NO_RUNNER="${NO_RUNNER:-0}"
 NO_SECRETS="${NO_SECRETS:-0}"
 NO_GIT="${NO_GIT:-0}"
 NO_SSHKEY="${NO_SSHKEY:-0}"
+
+# Runner controls (forwarded)
+AUTO_APPLY="${AUTO_APPLY:-0}"
+START_AT="${START_AT:-030}"
+ONLY_STACKS="${ONLY_STACKS:-}"
 
 # --------------------------
 # UI helpers
@@ -104,6 +103,7 @@ need head
 need tail
 need printf
 need sed
+need base64
 
 # --------------------------
 # Validate SSH key presence (unless skipped)
@@ -125,17 +125,17 @@ if [[ -z "${CTID:-}" ]]; then
   [[ "$O4" =~ ^[0-9]+$ ]] || die "IP fourth octet is not numeric: $O4"
   (( O3 >= 0 && O3 <= 255 )) || die "IP third octet out of range: $O3"
   (( O4 >= 0 && O4 <= 255 )) || die "IP fourth octet out of range: $O4"
-  CTID="${O3}${O4}"  # string concat, e.g. 100 + 10 => "10010"
+  CTID="${O3}${O4}"  # e.g. 100 + 10 => "10010"
 fi
 
 echo "==> Target: CTID=${CTID} CT_HOSTNAME=${CT_HOSTNAME} IP=${IP_CIDR} GW=${GW} BRIDGE=${BRIDGE}"
 echo "==> Storage: rootfs=${STORAGE} templates=${TEMPLATE_STORAGE}"
 echo "==> Options: unprivileged=${UNPRIVILEGED} features=${FEATURES} onboot=${ONBOOT} startup='${STARTUP}'"
 echo "==> Toggles: NO_TOOLCHAIN=${NO_TOOLCHAIN} NO_GIT=${NO_GIT} NO_SECRETS=${NO_SECRETS} NO_RUNNER=${NO_RUNNER} NO_SSHKEY=${NO_SSHKEY}"
+echo "==> Runner: AUTO_APPLY=${AUTO_APPLY} START_AT=${START_AT} ONLY_STACKS='${ONLY_STACKS}'"
 
 ct_exists()   { pct status "${CTID}" >/dev/null 2>&1; }
 ct_running()  { pct status "${CTID}" 2>/dev/null | grep -q "running"; }
-ct_stopped()  { pct status "${CTID}" 2>/dev/null | grep -q "stopped"; }
 
 # --------------------------
 # Optional: Force recreate
@@ -189,12 +189,10 @@ OSTEMPLATE="${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}"
 # STEP 2: Create or update CT
 # --------------------------
 step 2 "Ensuring container exists/configured"
-
 DESIRED_NET0="name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}"
 
 if ! ct_exists; then
   step 2 "Creating container ${CTID}"
-
   pct create "${CTID}" "${OSTEMPLATE}" \
     --hostname "${CT_HOSTNAME}" \
     --memory "${MEM_MB}" \
@@ -204,11 +202,9 @@ if ! ct_exists; then
     --unprivileged "${UNPRIVILEGED}" \
     --features "${FEATURES}" \
     --start 0
-
   ok "Container created"
 else
   step 2 "Container exists — adjusting mutable settings"
-
   pct set "${CTID}" \
     --hostname "${CT_HOSTNAME}" \
     --memory "${MEM_MB}" \
@@ -255,8 +251,6 @@ if [[ "$NO_SSHKEY" == "1" ]]; then
 else
   step 4 "Injecting SSH key"
   PUBKEY="$(cat "$SSH_PUBKEY_FILE")"
-
-  # shellcheck disable=SC2016
   pct exec "${CTID}" -- bash -lc "set -euo pipefail
 install -d -m 700 /root/.ssh
 touch /root/.ssh/authorized_keys
@@ -284,7 +278,6 @@ apt-get install -y --no-install-recommends \
   python3 python3-venv python3-pip \
   ansible
 
-# Ensure /usr/local/bin is in PATH for non-interactive shells
 if [[ ! -f /etc/profile.d/ralf-path.sh ]] || ! grep -q "export PATH=/usr/local/bin" /etc/profile.d/ralf-path.sh; then
   printf "%s\n" "export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH" > /etc/profile.d/ralf-path.sh
   chmod 0644 /etc/profile.d/ralf-path.sh
@@ -292,7 +285,6 @@ fi
 
 export PATH=/usr/local/bin:/usr/bin:/bin:$PATH
 
-# OpenTofu (standalone). Idempotent.
 if ! command -v tofu >/dev/null 2>&1; then
   curl --proto "=https" --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh
   chmod +x /tmp/install-opentofu.sh
@@ -300,7 +292,6 @@ if ! command -v tofu >/dev/null 2>&1; then
   rm -f /tmp/install-opentofu.sh
 fi
 
-# Terragrunt. Idempotent.
 ARCH=$(dpkg --print-architecture)
 case "$ARCH" in
   amd64) TG_ARCH=amd64 ;;
@@ -362,74 +353,54 @@ if [[ "$NO_SECRETS" == "1" ]]; then
 else
   step 7 "Injecting Proxmox API secrets (host -> container)"
 
-  if [[ ! -f "$HOST_PVE_ENV" ]]; then
-    warn "Missing host secrets file: $HOST_PVE_ENV"
-    cat >&2 <<EOF
+  [[ -f "$HOST_PVE_ENV" ]] || die "Missing host secrets file: $HOST_PVE_ENV"
 
-Create it on the Proxmox host like:
-
-  install -d -m 700 /root/ralf-secrets
-  cat >/root/ralf-secrets/pve.env <<'ENV'
-  PVE_ENDPOINT="https://10.10.10.10:8006"
-  PVE_TOKEN_ID="root@pam!ralf"
-  PVE_TOKEN_SECRET="xxxx"
-  PVE_NODE="pve-deploy"
-  ENV
-  chmod 600 /root/ralf-secrets/pve.env
-
-Then rerun:
-  curl -fsSL "https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh?nocache=\$(date +%s)" | bash
-
-EOF
-    exit 1
-  fi
-
-  # Ensure secrets dir exists inside CT
   CT_PVE_DIR="$(dirname "$CT_PVE_ENV")"
   pct exec "${CTID}" -- bash -lc "set -euo pipefail
 install -d -m 700 '${CT_PVE_DIR}'
 "
-
-  # Copy host file content into CT safely via base64 (avoids heredoc interpolation pitfalls)
-  if ! command -v base64 >/dev/null 2>&1; then
-    need base64
-  fi
 
   PVE_B64="$(base64 -w0 "$HOST_PVE_ENV")"
   pct exec "${CTID}" -- bash -lc "set -euo pipefail
 echo '${PVE_B64}' | base64 -d > '${CT_PVE_ENV}'
 chmod 600 '${CT_PVE_ENV}'
 "
-
   ok "pve.env injected to ${CT_PVE_ENV}"
 fi
 
 # --------------------------
-# STEP 8: Run bootstrap runner (optional)
+# STEP 8: Run bootstrap runner (ONCE)
 # --------------------------
 if [[ "$NO_RUNNER" == "1" ]]; then
-  step 8 "Run bootstrap runner (skipped)"
+  step 8 "Running bootstrap runner (skipped)"
   ok "Runner skipped"
 else
-  step 8 "Run bootstrap runner"
+  step 8 "Running bootstrap runner"
   pct exec "${CTID}" -- bash -lc "
 set -euo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH
+export RALF_BASE='${RALF_BASE}'
+export RALF_REPO='${RALF_REPO}'
+export RALF_RUNTIME='${RALF_RUNTIME}'
+
 cd '${RALF_REPO}'
 chmod +x bootstrap/runner.sh
+
+export RUN_STACKS=1
+export AUTO_APPLY='${AUTO_APPLY}'
+export START_AT='${START_AT}'
+export ONLY_STACKS='${ONLY_STACKS}'
+
 bash bootstrap/runner.sh
 "
   ok "Runner finished"
 fi
 
 # --------------------------
-# STEP 9: Checks
+# STEP 9: Checks (NO runner call here)
 # --------------------------
 step 9 "Checks"
-
-printf "  pct exec %s -- bash -lc \"export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2\"\n" "$CTID"
-
-printf "  pct exec %s -- bash -lc \"cd %s && git log -1 --oneline\"\n" "$CTID" "$RALF_REPO"
-
+echo "  pct exec ${CTID} -- bash -lc 'export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2'"
+echo "  pct exec ${CTID} -- bash -lc 'cd ${RALF_REPO} && git log -1 --oneline'"
 echo
 ok "Done."

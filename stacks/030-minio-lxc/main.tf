@@ -1,7 +1,7 @@
 resource "proxmox_virtual_environment_container" "minio" {
   node_name     = var.node_name
   vm_id         = 3010
-  unprivileged  = true
+  unprivileged  = false
   started       = true
   start_on_boot = true
 

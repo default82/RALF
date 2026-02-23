@@ -6,7 +6,6 @@ resource "proxmox_virtual_environment_container" "minio" {
   start_on_boot = true
   features {
     nesting = true
-    keyctl  = true
   }
 
   cpu {

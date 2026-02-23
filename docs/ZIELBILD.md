@@ -36,7 +36,7 @@ Er lernt.
 
 - PostgreSQL
 - Gitea
-- Semaphore (Bootstrap-Container wird Semaphore)
+- Semaphore
 - MinIO
 - Vaultwarden
 - Prometheus

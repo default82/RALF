@@ -407,24 +407,22 @@ fi
 # --------------------------
 # STEP 8: Run bootstrap runner
 # --------------------------
-if [[ "$NO_RUNNER" == "1" ]]; then
-  step 8 "Running bootstrap runner (skipped)"
-  ok "Runner skipped"
-else
-  step 8 "Running bootstrap runner"
-  pct exec "${CTID}" -- bash -lc "
+pct exec "${CTID}" -- bash -lc "
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH
 
 cd '${RALF_REPO}'
-test -f bootstrap/runner.sh
 chmod +x bootstrap/runner.sh
+
+# Runner automatisch mit echten Stacks starten
+export RUN_STACKS=1
+export STACKS='030-minio-lxc'
+export AUTO_APPLY=1
 
 bash bootstrap/runner.sh
 "
-  ok "Runner finished"
-fi
+ok "Runner finished
 
 # --------------------------
 # STEP 9: Checks

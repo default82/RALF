@@ -371,30 +371,25 @@ fi
 # --------------------------
 # STEP 8: Run bootstrap runner (ONCE)
 # --------------------------
+
 if [[ "$NO_RUNNER" == "1" ]]; then
-  step 8 "Running bootstrap runner (skipped)"
-  ok "Runner skipped"
+  ok "Runner skipped (NO_RUNNER=1)"
 else
-  step 8 "Running bootstrap runner"
-
-  pct exec "${CTID}" -- \
-    env \
-      PATH="/usr/local/bin:/usr/bin:/bin" \
-      RALF_BASE="${RALF_BASE}" \
-      RALF_REPO="${RALF_REPO}" \
-      RALF_RUNTIME="${RALF_RUNTIME}" \
-      RUN_STACKS="1" \
-      AUTO_APPLY="${AUTO_APPLY:-0}" \
-      START_AT="${START_AT:-030}" \
-      ONLY_STACKS="${ONLY_STACKS:-}" \
-      SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}" \
+  pct exec "${CTID}" -- env \
+    RUN_STACKS=1 \
+    AUTO_APPLY="${AUTO_APPLY:-0}" \
+    START_AT="${START_AT:-030}" \
+    ONLY_STACKS="${ONLY_STACKS:-}" \
+    RALF_BASE="${RALF_BASE}" \
+    RALF_REPO="${RALF_REPO}" \
+    RALF_RUNTIME="${RALF_RUNTIME}" \
     bash -lc '
-      set -euo pipefail
-      cd "$RALF_REPO"
-      chmod +x bootstrap/runner.sh
-      bash bootstrap/runner.sh
-    '
-
+set -euo pipefail
+export PATH=/usr/local/bin:/usr/bin:/bin:$PATH
+cd "$RALF_REPO"
+chmod +x bootstrap/runner.sh
+bash bootstrap/runner.sh
+'
   ok "Runner finished"
 fi
 

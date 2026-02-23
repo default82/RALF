@@ -38,6 +38,9 @@ export TF_VAR_pm_api_token_id="${PVE_TOKEN_ID}"
 export TF_VAR_pm_api_token_secret="${PVE_TOKEN_SECRET}"
 export TF_VAR_node_name="${PVE_NODE}"
 export TF_VAR_ssh_public_key="$(awk 'NR==1{print;exit}' /root/.ssh/authorized_keys 2>/dev/null || true)"
+if [[ -f /root/.ssh/ralf_ed25519 ]]; then
+  export ANSIBLE_PRIVATE_KEY_FILE="/root/.ssh/ralf_ed25519"
+fi
 
 recover_warning_container_create() {
   local dir="$1"

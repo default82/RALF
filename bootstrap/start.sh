@@ -39,6 +39,7 @@ STORAGE="${STORAGE:-local-lvm}"               # rootfs storage (lvmthin)
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}" # 'dir' storage that has vztmpl content
 
 SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-/root/.ssh/ralf_ed25519.pub}"
+SSH_PRIVKEY_FILE="${SSH_PRIVKEY_FILE:-/root/keys/Ralf/ralf_ed25519}"
 
 # Secrets (host -> CT injection)
 HOST_PVE_ENV="${HOST_PVE_ENV:-/root/ralf-secrets/pve.env}"     # lives on Proxmox host
@@ -109,6 +110,9 @@ need base64
 # Validate SSH key presence (unless skipped)
 # --------------------------
 if [[ "$NO_SSHKEY" != "1" ]]; then
+  if [[ ! -f "$SSH_PUBKEY_FILE" && -f /root/keys/Ralf/ralf_ed25519.pub ]]; then
+    SSH_PUBKEY_FILE="/root/keys/Ralf/ralf_ed25519.pub"
+  fi
   [[ -f "$SSH_PUBKEY_FILE" ]] || die "SSH public key not found at $SSH_PUBKEY_FILE (or set NO_SSHKEY=1)"
 fi
 
@@ -257,6 +261,12 @@ touch /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 grep -qxF '$PUBKEY' /root/.ssh/authorized_keys || echo '$PUBKEY' >> /root/.ssh/authorized_keys
 "
+  if [[ -f "$SSH_PRIVKEY_FILE" ]]; then
+    pct push "${CTID}" "$SSH_PRIVKEY_FILE" /root/.ssh/ralf_ed25519 >/dev/null
+    pct exec "${CTID}" -- bash -lc "chmod 600 /root/.ssh/ralf_ed25519"
+  else
+    warn "SSH private key not found at ${SSH_PRIVKEY_FILE} (Ansible may fail)"
+  fi
   ok "SSH key ready"
 fi
 

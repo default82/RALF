@@ -141,8 +141,19 @@
         state: started
         enabled: true
 
-    - name: Apply pending Synapse config changes before user bootstrap
-      ansible.builtin.meta: flush_handlers
+    - name: Restart Synapse before user bootstrap (ensures shared-secret config is active)
+      ansible.builtin.service:
+        name: matrix-synapse
+        state: restarted
+      changed_when: false
+
+    - name: Wait for Synapse HTTP listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ syn_env.SYNAPSE_LISTEN_PORT | int }}"
+        delay: 1
+        timeout: 30
+      changed_when: false
 
     - name: Create admin users (ralf, kolja)
       ansible.builtin.command:

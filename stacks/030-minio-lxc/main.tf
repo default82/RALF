@@ -1,9 +1,9 @@
 resource "proxmox_virtual_environment_container" "minio" {
-  node_name    = var.node_name
-  vm_id        = 3010
-  unprivileged = true
-  start_on_boot = true
+  node_name     = var.node_name
+  vm_id         = 3010
+  unprivileged  = true
   started       = true
+  start_on_boot = true
 
   cpu {
     cores = 1
@@ -20,13 +20,8 @@ resource "proxmox_virtual_environment_container" "minio" {
   }
 
   network_interface {
+    name   = "eth0"
     bridge = "vmbr0"
-    enabled = true
-    name = "eth0"
-  }
-
-  operating_system {
-    template_file_id = var.lxc_template_id
   }
 
   initialization {
@@ -42,5 +37,10 @@ resource "proxmox_virtual_environment_container" "minio" {
     user_account {
       keys = [var.ssh_public_key]
     }
+  }
+
+  operating_system {
+    template_file_id = "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+    type             = "unmanaged"
   }
 }

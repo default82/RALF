@@ -176,15 +176,25 @@
       environment:
         HOME: "{{ exo_home }}"
 
+    - name: Install exo dashboard dependencies
+      become_user: "{{ exo_user }}"
+      ansible.builtin.command:
+        cmd: npm install
+        chdir: "{{ exo_repo_dir }}/dashboard"
+      args:
+        creates: "{{ exo_repo_dir }}/dashboard/node_modules/.bin/vite"
+      environment:
+        HOME: "{{ exo_home }}"
+
     - name: Build exo dashboard assets
       become_user: "{{ exo_user }}"
       ansible.builtin.command:
         cmd: npm run build
         chdir: "{{ exo_repo_dir }}/dashboard"
+      args:
+        creates: "{{ exo_repo_dir }}/dashboard/build/index.html"
       environment:
         HOME: "{{ exo_home }}"
-      register: exo_dashboard_build
-      changed_when: true
 
     - name: Ensure exo Python environment is synced (uv, Python 3.13)
       become_user: "{{ exo_user }}"

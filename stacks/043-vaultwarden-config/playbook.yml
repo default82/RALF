@@ -7,7 +7,7 @@
     pg_env_path: /opt/ralf/runtime/secrets/postgres.env
     vw_user: vaultwarden
     vw_group: vaultwarden
-    vw_bin: /usr/local/bin/vaultwarden
+    vw_bin: /usr/bin/vaultwarden
     vw_data_dir: /var/lib/vaultwarden
     vw_cfg_dir: /etc/vaultwarden
     vw_env_file: /etc/vaultwarden/vaultwarden.env
@@ -106,16 +106,18 @@
         - { path: "{{ vw_cfg_dir }}", owner: root, group: root, mode: "0755" }
         - { path: "{{ vw_tls_dir }}", owner: root, group: root, mode: "0750" }
 
-    - name: Install vaultwarden binary (latest release)
+    - name: Install vaultwarden package from vaultwarden-deb (latest)
       ansible.builtin.shell: |
         set -euo pipefail
         tmpdir=$(mktemp -d)
         trap 'rm -rf "$tmpdir"' EXIT
-        rel=$(curl -fsSL https://api.github.com/repos/dani-garcia/vaultwarden/releases/latest | grep '"tag_name"' | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
-        url="https://github.com/dani-garcia/vaultwarden/releases/download/${rel}/vaultwarden-${rel}-x86_64-unknown-linux-gnu.tar.gz"
-        curl -fsSL "$url" -o "$tmpdir/vaultwarden.tgz"
-        tar -xzf "$tmpdir/vaultwarden.tgz" -C "$tmpdir"
-        install -m 0755 "$tmpdir/vaultwarden" {{ vw_bin }}
+        pkg_file=$(curl -fsSL https://vaultwarden-deb.pages.dev/dists/bookworm/main/binary-amd64/Packages \
+          | awk '/^Filename: .*vaultwarden_[0-9].*_amd64\\.deb$/ {print $2}' \
+          | tail -n1)
+        test -n "$pkg_file"
+        curl -fsSL "https://vaultwarden-deb.pages.dev/${pkg_file}" -o "$tmpdir/vaultwarden.deb"
+        apt-get update -y
+        apt-get install -y "$tmpdir/vaultwarden.deb"
       args:
         executable: /bin/bash
         creates: "{{ vw_bin }}"

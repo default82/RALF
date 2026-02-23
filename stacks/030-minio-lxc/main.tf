@@ -21,7 +21,7 @@ resource "proxmox_virtual_environment_container" "minio" {
 
   network_interface {
     bridge = "vmbr0"
-    name   = "veth0"
+    enabled = true
   }
 
   operating_system {

@@ -28,7 +28,6 @@ FLAVOR="${FLAVOR:-standard}"
 
 # ---- Helpers ----
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1" >&2; exit 1; }; }
-
 need pct
 need pveam
 need awk
@@ -42,6 +41,8 @@ if [[ ! -f "$SSH_PUBKEY_FILE" ]]; then
   echo "ERROR: SSH public key not found at $SSH_PUBKEY_FILE" >&2
   exit 1
 fi
+
+PUBKEY_CONTENT="$(cat "$SSH_PUBKEY_FILE")"
 
 # ---- Derive CTID from IP (last two octets -> concat) ----
 IP="${IP_CIDR%%/*}"   # 10.10.100.10
@@ -57,7 +58,6 @@ echo "==> Refresh template list"
 pveam update >/dev/null
 
 echo "==> Resolving latest template for: ${DIST}-${SERIES}-${FLAVOR}"
-
 CANDIDATES="$(
   pveam available -section system \
     | awk '{print $NF}' \
@@ -90,15 +90,28 @@ echo "==> Using ostemplate: ${OSTEMPLATE}"
 # ---- Create or update CT ----
 if ! pct status "${CTID}" >/dev/null 2>&1; then
   echo "==> Creating CT ${CTID} (${CT_HOSTNAME} @ ${IP_CIDR})"
-  pct create "${CTID}" "${OSTEMPLATE}" \
-    --hostname "${CT_HOSTNAME}" \
-    --memory "${MEM_MB}" \
-    --cores "${CORES}" \
-    --rootfs "${STORAGE}:${DISK_GB}" \
-    --net0 "name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}" \
-    --unprivileged 1 \
-    --features "nesting=1" \
+
+  # Try to inject pubkey at creation time (some Proxmox versions support this)
+  CREATE_ARGS=(
+    "${CTID}" "${OSTEMPLATE}"
+    --hostname "${CT_HOSTNAME}"
+    --memory "${MEM_MB}"
+    --cores "${CORES}"
+    --rootfs "${STORAGE}:${DISK_GB}"
+    --net0 "name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}"
+    --unprivileged 1
+    --features "nesting=1"
     --start 0
+  )
+
+  if pct create --help 2>/dev/null | grep -q -- '--ssh-public-keys'; then
+    echo "==> pct create supports --ssh-public-keys (using ${SSH_PUBKEY_FILE})"
+    CREATE_ARGS+=( --ssh-public-keys "${SSH_PUBKEY_FILE}" )
+  else
+    echo "==> pct create does NOT support --ssh-public-keys (will use fallback via pct exec)"
+  fi
+
+  pct create "${CREATE_ARGS[@]}"
 else
   echo "==> CT ${CTID} already exists. Ensuring config is set."
   pct set "${CTID}" \
@@ -110,14 +123,23 @@ else
     --features "nesting=1" >/dev/null
 fi
 
-echo "==> Installing SSH pubkey into CT ${CTID}"
-pct set "${CTID}" --ssh-public-keys "${SSH_PUBKEY_FILE}" >/dev/null
-
+# ---- Ensure CT is running ----
 echo "==> Starting CT ${CTID}"
 pct start "${CTID}" >/dev/null 2>&1 || true
+
+# ---- Ensure SSH key exists inside CT (fallback / idempotent) ----
+echo "==> Ensuring SSH authorized_keys inside CT ${CTID}"
+pct exec "${CTID}" -- bash -lc "set -euo pipefail
+mkdir -p /root/.ssh
+chmod 700 /root/.ssh
+touch /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
+grep -qxF '$PUBKEY_CONTENT' /root/.ssh/authorized_keys || echo '$PUBKEY_CONTENT' >> /root/.ssh/authorized_keys
+"
 
 echo "==> Status:"
 pct status "${CTID}"
 
 echo "==> Done."
 echo "   Next: pct exec ${CTID} -- bash -lc 'hostname; ip -br a; uname -a'"
+echo "   SSH test: ssh -i /root/.ssh/ralf_ed25519 root@${IP}"

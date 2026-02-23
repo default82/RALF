@@ -197,6 +197,10 @@ if ! command -v terragrunt >/dev/null 2>&1; then
 fi
 
 # quick sanity
+if ! command -v tofu >/dev/null 2>&1; then
+  echo "tofu not in PATH, forcing /usr/local/bin"
+  export PATH="/usr/local/bin:$PATH"
+fi
 tofu version >/dev/null
 terragrunt --version >/dev/null
 ansible --version >/dev/null

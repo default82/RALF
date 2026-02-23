@@ -112,7 +112,10 @@
         tmpdir=$(mktemp -d)
         trap 'rm -rf "$tmpdir"' EXIT
         pkg_file=$(curl -fsSL https://vaultwarden-deb.pages.dev/dists/bookworm/main/binary-amd64/Packages \
-          | awk '/^Filename: .*vaultwarden_[0-9].*_amd64\\.deb$/ {print $2}' \
+          | tr -d '\r' \
+          | grep '^Filename: dists/bookworm/main/binary-amd64/vaultwarden_' \
+          | grep -v 'web-vault' \
+          | awk '{print $2}' \
           | tail -n1)
         test -n "$pkg_file"
         curl -fsSL "https://vaultwarden-deb.pages.dev/${pkg_file}" -o "$tmpdir/vaultwarden.deb"

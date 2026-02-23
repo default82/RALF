@@ -13,7 +13,7 @@
     n8n_tls_dir: /etc/n8n/tls
     n8n_tls_cert: /etc/n8n/tls/fullchain.pem
     n8n_tls_key: /etc/n8n/tls/privkey.pem
-    n8n_bin: /usr/local/bin/n8n
+    n8n_bin: /usr/bin/n8n
 
   pre_tasks:
     - name: Assert env files exist on control node
@@ -139,7 +139,7 @@
 
     - name: Install n8n globally with npm
       ansible.builtin.command:
-        cmd: npm install -g n8n
+        cmd: npm install -g --no-audit --no-fund n8n
       args:
         creates: "{{ n8n_bin }}"
 

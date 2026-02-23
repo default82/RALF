@@ -66,6 +66,8 @@ fi
 
 [[ ${#stacks[@]} -gt 0 ]] || { echo "ERROR: no stacks selected" >&2; exit 1; }
 
+SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
+
 for s in "${stacks[@]}"; do
   dir="$RALF_REPO/stacks/$s"
   [[ -d "$dir" ]] || { echo "ERROR: stack dir not found: $dir" >&2; exit 1; }

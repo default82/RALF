@@ -76,3 +76,40 @@ pct status "${CTID}"
 
 echo "==> Done."
 echo "   Next: pct exec ${CTID} -- bash -lc 'hostname; ip -br a; uname -a'"
+
+# ---- Proxmox LXC template (future-proof) ------------------------------------
+VZTMPL_STORAGE="${VZTMPL_STORAGE:-local}"   # 'local' muss vzdump/vztmpl können (dir storage)
+DIST="${DIST:-ubuntu}"
+SERIES="${SERIES:-24.04}"
+FLAVOR="${FLAVOR:-standard}"
+
+echo "==> Ensure templates list is fresh"
+pveam update >/dev/null
+
+echo "==> Resolving latest template for: ${DIST}-${SERIES}-${FLAVOR}"
+TEMPLATE="$(pveam available -section system \
+  | awk '{print $1}' \
+  | grep -E "^${DIST}-${SERIES}-${FLAVOR}_[0-9]+\.[0-9]+-[0-9]+_amd64\.tar\.zst$" \
+  | sort -V \
+  | tail -n 1)"
+
+if [[ -z "${TEMPLATE}" ]]; then
+  echo "ERROR: Could not find a matching template via pveam available."
+  echo "Tried pattern: ^${DIST}-${SERIES}-${FLAVOR}_[0-9]+\\.[0-9]+-[0-9]+_amd64\\.tar\\.zst$"
+  echo "Hint: run: pveam available -section system | grep -i ubuntu"
+  exit 1
+fi
+
+echo "==> Latest template resolved: ${TEMPLATE}"
+
+CACHE="/var/lib/vz/template/cache/${TEMPLATE}"
+if [[ -f "${CACHE}" ]]; then
+  echo "==> Template already cached: ${CACHE}"
+else
+  echo "==> Downloading template to ${VZTMPL_STORAGE}..."
+  pveam download "${VZTMPL_STORAGE}" "${TEMPLATE}"
+fi
+
+OSTEMPLATE="${VZTMPL_STORAGE}:vztmpl/${TEMPLATE}"
+echo "==> Using ostemplate: ${OSTEMPLATE}"
+# ---------------------------------------------------------------------------

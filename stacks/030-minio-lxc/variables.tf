@@ -1,5 +1,6 @@
 variable "pm_api_url" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "pm_api_token_id" {
@@ -18,6 +19,11 @@ variable "node_name" {
 }
 
 variable "ssh_public_key" {
-  type      = string
-  sensitive = true
+  type = string
+}
+
+variable "lxc_template_id" {
+  type        = string
+  description = "Proxmox template volume id, e.g. local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+  default     = "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
 }

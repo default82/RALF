@@ -37,12 +37,11 @@ need head
 need tail
 need printf
 
-if [[ ! -f "$SSH_PUBKEY_FILE" ]]; then
-  echo "ERROR: SSH public key not found at $SSH_PUBKEY_FILE" >&2
-  exit 1
-fi
+die() { echo "ERROR: $*" >&2; exit 1; }
 
-PUBKEY_CONTENT="$(cat "$SSH_PUBKEY_FILE")"
+if [[ ! -f "$SSH_PUBKEY_FILE" ]]; then
+  die "SSH public key not found at $SSH_PUBKEY_FILE"
+fi
 
 # ---- Derive CTID from IP (last two octets -> concat) ----
 IP="${IP_CIDR%%/*}"   # 10.10.100.10
@@ -77,7 +76,7 @@ echo "==> Latest template resolved: ${TEMPLATE}"
 
 # ---- Ensure template is cached ----
 CACHE="/var/lib/vz/template/cache/${TEMPLATE}"
-if [[ -f "${CACHE}" ]]; then
+if [[ -f "$CACHE" ]]; then
   echo "==> Template already cached: ${CACHE}"
 else
   echo "==> Downloading template to ${TEMPLATE_STORAGE}..."
@@ -87,11 +86,20 @@ fi
 OSTEMPLATE="${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}"
 echo "==> Using ostemplate: ${OSTEMPLATE}"
 
+# ---- Determine if pct supports SSH pubkeys option on create/set ----
+PCT_CREATE_HELP="$(pct create --help 2>/dev/null || true)"
+PCT_SET_HELP="$(pct set --help 2>/dev/null || true)"
+
+SUPPORTS_CREATE_SSH_KEYS=0
+SUPPORTS_SET_SSH_KEYS=0
+grep -q -- '--ssh-public-keys' <<<"$PCT_CREATE_HELP" && SUPPORTS_CREATE_SSH_KEYS=1
+grep -q -- '--ssh-public-keys' <<<"$PCT_SET_HELP" && SUPPORTS_SET_SSH_KEYS=1
+
 # ---- Create or update CT ----
+CREATED=0
 if ! pct status "${CTID}" >/dev/null 2>&1; then
   echo "==> Creating CT ${CTID} (${CT_HOSTNAME} @ ${IP_CIDR})"
 
-  # Try to inject pubkey at creation time (some Proxmox versions support this)
   CREATE_ARGS=(
     "${CTID}" "${OSTEMPLATE}"
     --hostname "${CT_HOSTNAME}"
@@ -104,45 +112,52 @@ if ! pct status "${CTID}" >/dev/null 2>&1; then
     --start 0
   )
 
-  if pct create --help 2>/dev/null | grep -q -- '--ssh-public-keys'; then
-    echo "==> pct create supports --ssh-public-keys (using ${SSH_PUBKEY_FILE})"
+  if [[ $SUPPORTS_CREATE_SSH_KEYS -eq 1 ]]; then
+    echo "==> pct create supports --ssh-public-keys (using it)"
     CREATE_ARGS+=( --ssh-public-keys "${SSH_PUBKEY_FILE}" )
   else
-    echo "==> pct create does NOT support --ssh-public-keys (will use fallback via pct exec)"
+    echo "==> pct create does NOT support --ssh-public-keys (will inject via pct exec)"
   fi
 
   pct create "${CREATE_ARGS[@]}"
+  CREATED=1
 else
   echo "==> CT ${CTID} already exists. Ensuring config is set."
-
-  # NOTE: some options are create-time only (read-only later), e.g. unprivileged.
-  # So we only set mutable options here.
+  # NOTE: create-time only options like --unprivileged must NOT be set here.
   pct set "${CTID}" \
     --hostname "${CT_HOSTNAME}" \
     --memory "${MEM_MB}" \
     --cores "${CORES}" \
     --net0 "name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}" \
-    --features "nesting=1" >/dev/null || true
+    --features "nesting=1" >/dev/null
 
-  # If you ever need to switch privileged/unprivileged, you must recreate the CT.
+  # If supported, we can also set ssh keys here; otherwise fallback later.
+  if [[ $SUPPORTS_SET_SSH_KEYS -eq 1 ]]; then
+    echo "==> pct set supports --ssh-public-keys (using it)"
+    pct set "${CTID}" --ssh-public-keys "${SSH_PUBKEY_FILE}" >/dev/null
+  else
+    echo "==> pct set does NOT support --ssh-public-keys (will inject via pct exec)"
+  fi
 fi
-# ---- Ensure CT is running ----
+
 echo "==> Starting CT ${CTID}"
 pct start "${CTID}" >/dev/null 2>&1 || true
 
-# ---- Ensure SSH key exists inside CT (fallback / idempotent) ----
-echo "==> Ensuring SSH authorized_keys inside CT ${CTID}"
-pct exec "${CTID}" -- bash -lc "set -euo pipefail
-mkdir -p /root/.ssh
-chmod 700 /root/.ssh
-touch /root/.ssh/authorized_keys
-chmod 600 /root/.ssh/authorized_keys
-grep -qxF '$PUBKEY_CONTENT' /root/.ssh/authorized_keys || echo '$PUBKEY_CONTENT' >> /root/.ssh/authorized_keys
-"
+# ---- Fallback: inject SSH pubkey via pct exec if pct can't do it ----
+if [[ $SUPPORTS_CREATE_SSH_KEYS -eq 0 && $SUPPORTS_SET_SSH_KEYS -eq 0 ]]; then
+  echo "==> Injecting SSH pubkey via pct exec into /root/.ssh/authorized_keys"
+  PUBKEY="$(cat "$SSH_PUBKEY_FILE")"
+  pct exec "${CTID}" -- bash -lc "
+    set -euo pipefail
+    install -d -m 0700 /root/.ssh
+    touch /root/.ssh/authorized_keys
+    chmod 0600 /root/.ssh/authorized_keys
+    grep -qxF '$PUBKEY' /root/.ssh/authorized_keys || echo '$PUBKEY' >> /root/.ssh/authorized_keys
+  "
+fi
 
 echo "==> Status:"
 pct status "${CTID}"
 
 echo "==> Done."
 echo "   Next: pct exec ${CTID} -- bash -lc 'hostname; ip -br a; uname -a'"
-echo "   SSH test: ssh -i /root/.ssh/ralf_ed25519 root@${IP}"

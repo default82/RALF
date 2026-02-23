@@ -210,6 +210,24 @@
         template: template0
         login_unix_socket: "{{ pg_socket_dir }}"
 
+    - name: Ensure n8n database role
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: "{{ pg_env.N8N_DB_USER }}"
+        password: "{{ pg_env.N8N_DB_PASSWORD }}"
+        login_unix_socket: "{{ pg_socket_dir }}"
+
+    - name: Ensure n8n database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: "{{ pg_env.N8N_DB_NAME }}"
+        owner: "{{ pg_env.N8N_DB_USER }}"
+        encoding: UTF8
+        lc_collate: C
+        lc_ctype: C
+        template: template0
+        login_unix_socket: "{{ pg_socket_dir }}"
+
     - name: Ensure mail database role
       become_user: postgres
       community.postgresql.postgresql_user:

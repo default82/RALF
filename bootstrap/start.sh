@@ -1,19 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# === RALF Bootstrap Seed (Proxmox Host Script) ===
+# === RALF Bootstrap Seed (FINAL BOSS Edition) ===
 # Runs on the Proxmox host. Creates/updates/starts an LXC CT and bootstraps RALF.
 #
-# One-liner:
+# One-liner (default):
 #   curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+#
+# One-liner (avoid any caching weirdness):
+#   curl -fsSL "https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh?nocache=$(date +%s)" | bash
 #
 # Optional overrides:
 #   CT_HOSTNAME=ralf-bootstrap IP_CIDR=10.10.100.10/16 GW=10.10.0.1 BRIDGE=vmbr0 bash start.sh
 #   STORAGE=local-lvm TEMPLATE_STORAGE=local MEM_MB=2048 DISK_GB=32 CORES=1 bash start.sh
 #   FORCE_RECREATE=1 bash start.sh   # destroys and recreates CTID (dangerous)
-#   RALF_GIT_URL=https://github.com/default82/RALF bash start.sh
+#
+# Quality-of-life toggles:
+#   NO_TOOLCHAIN=1   # skip apt/tofu/terragrunt install step
+#   NO_RUNNER=1      # skip running bootstrap/runner.sh
+#   NO_SECRETS=1     # skip pve.env injection
+#   NO_GIT=1         # skip repo checkout/update
+#   NO_SSHKEY=1      # skip authorized_keys injection
+#
+# Proxmox CT options:
+#   UNPRIVILEGED=1   # default
+#   ONBOOT=1         # set CT onboot=1
+#   STARTUP="order=10,up=30"  # optional Proxmox startup string
+#   FEATURES="nesting=1,keyctl=1"  # default
 
-# ---- Config ----
+# --------------------------
+# Config (safe defaults)
+# --------------------------
 CT_HOSTNAME="${CT_HOSTNAME:-ralf-bootstrap}"   # IMPORTANT: don't use HOSTNAME (env var collision)
 
 IP_CIDR="${IP_CIDR:-10.10.100.10/16}"
@@ -29,9 +46,9 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}" # 'dir' storage that has vztmpl co
 
 SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-/root/.ssh/ralf_ed25519.pub}"
 
-# ---- Secrets (host -> CT injection) ----
+# Secrets (host -> CT injection)
 HOST_PVE_ENV="${HOST_PVE_ENV:-/root/ralf-secrets/pve.env}"   # lives on Proxmox host
-CT_PVE_ENV="/opt/ralf/runtime/secrets/pve.env"               # expected path inside CT
+CT_PVE_ENV="${CT_PVE_ENV:-/opt/ralf/runtime/secrets/pve.env}" # expected path inside CT
 
 # Template selection (future-proof)
 DIST="${DIST:-ubuntu}"
@@ -45,14 +62,39 @@ RALF_REPO="${RALF_REPO:-/opt/ralf/repo}"
 RALF_RUNTIME="${RALF_RUNTIME:-/opt/ralf/runtime}"
 
 FORCE_RECREATE="${FORCE_RECREATE:-0}"
+UNPRIVILEGED="${UNPRIVILEGED:-1}"
+FEATURES="${FEATURES:-nesting=1,keyctl=1}"
+ONBOOT="${ONBOOT:-0}"
+STARTUP="${STARTUP:-}"
 
-# ---- UI helpers ----
-step() { echo; echo "[STEP $1] $2"; }
+# Toggles
+NO_TOOLCHAIN="${NO_TOOLCHAIN:-0}"
+NO_RUNNER="${NO_RUNNER:-0}"
+NO_SECRETS="${NO_SECRETS:-0}"
+NO_GIT="${NO_GIT:-0}"
+NO_SSHKEY="${NO_SSHKEY:-0}"
+
+# --------------------------
+# UI helpers
+# --------------------------
+STEP_NO="0"
+step() { STEP_NO="$1"; echo; echo "[STEP $1] $2"; }
 ok()   { echo "✔ $1"; }
 warn() { echo "⚠ $1" >&2; }
 die()  { echo "ERROR: $1" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 
+on_err() {
+  local ec=$?
+  warn "Failed at STEP ${STEP_NO}. Exit code: ${ec}"
+  warn "Tip: re-run with cache-bust: curl -fsSL \"https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh?nocache=\$(date +%s)\" | bash"
+  exit "$ec"
+}
+trap on_err ERR
+
+# --------------------------
+# Requirements (host)
+# --------------------------
 need pct
 need pveam
 need awk
@@ -62,32 +104,42 @@ need head
 need tail
 need printf
 need sed
-need ip
-need tar
 
-if [[ ! -f "$SSH_PUBKEY_FILE" ]]; then
-  die "SSH public key not found at $SSH_PUBKEY_FILE"
+# --------------------------
+# Validate SSH key presence (unless skipped)
+# --------------------------
+if [[ "$NO_SSHKEY" != "1" ]]; then
+  [[ -f "$SSH_PUBKEY_FILE" ]] || die "SSH public key not found at $SSH_PUBKEY_FILE (or set NO_SSHKEY=1)"
 fi
 
-# ---- Derive CTID from IP (last two octets -> concat) ----
-IP="${IP_CIDR%%/*}"   # 10.10.100.10
+# --------------------------
+# Derive CTID from IP (3rd+4th octet concat) unless CTID is provided
+# --------------------------
+IP="${IP_CIDR%%/*}"
 O3="$(awk -F. '{print $3}' <<<"$IP")"
 O4="$(awk -F. '{print $4}' <<<"$IP")"
-CTID="${CTID:-${O3}${O4}}"  # e.g. 100 + 10 => "10010" (string concat)
 
-# sanity
-[[ "$O3" =~ ^[0-9]+$ ]] || die "IP third octet is not numeric: $O3"
-[[ "$O4" =~ ^[0-9]+$ ]] || die "IP fourth octet is not numeric: $O4"
-(( O3 >= 0 && O3 <= 255 )) || die "IP third octet out of range: $O3"
-(( O4 >= 0 && O4 <= 255 )) || die "IP fourth octet out of range: $O4"
+[[ "${CTID:-}" =~ ^[0-9]+$ ]] || true
+if [[ -z "${CTID:-}" ]]; then
+  [[ "$O3" =~ ^[0-9]+$ ]] || die "IP third octet is not numeric: $O3"
+  [[ "$O4" =~ ^[0-9]+$ ]] || die "IP fourth octet is not numeric: $O4"
+  (( O3 >= 0 && O3 <= 255 )) || die "IP third octet out of range: $O3"
+  (( O4 >= 0 && O4 <= 255 )) || die "IP fourth octet out of range: $O4"
+  CTID="${O3}${O4}"  # string concat, e.g. 100 + 10 => "10010"
+fi
 
 echo "==> Target: CTID=${CTID} CT_HOSTNAME=${CT_HOSTNAME} IP=${IP_CIDR} GW=${GW} BRIDGE=${BRIDGE}"
 echo "==> Storage: rootfs=${STORAGE} templates=${TEMPLATE_STORAGE}"
+echo "==> Options: unprivileged=${UNPRIVILEGED} features=${FEATURES} onboot=${ONBOOT} startup='${STARTUP}'"
+echo "==> Toggles: NO_TOOLCHAIN=${NO_TOOLCHAIN} NO_GIT=${NO_GIT} NO_SECRETS=${NO_SECRETS} NO_RUNNER=${NO_RUNNER} NO_SSHKEY=${NO_SSHKEY}"
 
-ct_exists() { pct status "${CTID}" >/dev/null 2>&1; }
-ct_running() { pct status "${CTID}" 2>/dev/null | grep -q "running"; }
+ct_exists()   { pct status "${CTID}" >/dev/null 2>&1; }
+ct_running()  { pct status "${CTID}" 2>/dev/null | grep -q "running"; }
+ct_stopped()  { pct status "${CTID}" 2>/dev/null | grep -q "stopped"; }
 
-# ---- Optional: Force recreate ----
+# --------------------------
+# Optional: Force recreate
+# --------------------------
 if [[ "$FORCE_RECREATE" == "1" ]]; then
   step 0 "FORCE_RECREATE=1 — destroying CT ${CTID}"
   pct stop "${CTID}" >/dev/null 2>&1 || true
@@ -99,7 +151,9 @@ if [[ "$FORCE_RECREATE" == "1" ]]; then
   fi
 fi
 
-# ---- STEP 1: Resolve latest template ----
+# --------------------------
+# STEP 1: Resolve latest template
+# --------------------------
 step 1 "Resolving template"
 pveam update >/dev/null
 
@@ -131,7 +185,11 @@ fi
 
 OSTEMPLATE="${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}"
 
-# ---- STEP 2: Create or update CT ----
+# --------------------------
+# STEP 2: Create or update CT
+# --------------------------
+step 2 "Ensuring container exists/configured"
+
 DESIRED_NET0="name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}"
 
 if ! ct_exists; then
@@ -143,22 +201,26 @@ if ! ct_exists; then
     --cores "${CORES}" \
     --rootfs "${STORAGE}:${DISK_GB}" \
     --net0 "${DESIRED_NET0}" \
-    --unprivileged 1 \
-    --features "nesting=1" \
+    --unprivileged "${UNPRIVILEGED}" \
+    --features "${FEATURES}" \
     --start 0
 
   ok "Container created"
 else
   step 2 "Container exists — adjusting mutable settings"
 
-  # NOTE: unprivileged is read-only after create, do NOT touch here.
   pct set "${CTID}" \
     --hostname "${CT_HOSTNAME}" \
     --memory "${MEM_MB}" \
     --cores "${CORES}" \
-    --features "nesting=1" >/dev/null
+    --features "${FEATURES}" >/dev/null
 
-  # net0: do not change live on running CT (avoids "Address already assigned")
+  if [[ -n "${STARTUP}" ]]; then
+    pct set "${CTID}" --startup "${STARTUP}" >/dev/null || warn "Could not set startup='${STARTUP}' (ignored)"
+  fi
+
+  pct set "${CTID}" --onboot "${ONBOOT}" >/dev/null || warn "Could not set onboot=${ONBOOT} (ignored)"
+
   CURRENT_NET0="$(pct config "${CTID}" | awk -F': ' '$1=="net0"{print $2}')"
   if [[ "${CURRENT_NET0}" != "${DESIRED_NET0}" ]]; then
     if ct_running; then
@@ -173,25 +235,46 @@ else
   ok "Config ensured"
 fi
 
-# ---- STEP 3: Start CT ----
+# --------------------------
+# STEP 3: Start CT
+# --------------------------
 step 3 "Starting container"
-pct start "${CTID}" >/dev/null 2>&1 || true
-ct_running && ok "Container running" || die "Container not running"
+if ct_running; then
+  ok "Container already running"
+else
+  pct start "${CTID}" >/dev/null 2>&1 || true
+  ct_running && ok "Container running" || die "Container not running"
+fi
 
-# ---- STEP 4: Inject SSH key ----
-step 4 "Injecting SSH key"
-PUBKEY="$(cat "$SSH_PUBKEY_FILE")"
-pct exec "${CTID}" -- bash -lc "set -euo pipefail
+# --------------------------
+# STEP 4: Inject SSH key
+# --------------------------
+if [[ "$NO_SSHKEY" == "1" ]]; then
+  step 4 "Injecting SSH key (skipped)"
+  ok "SSH key injection skipped"
+else
+  step 4 "Injecting SSH key"
+  PUBKEY="$(cat "$SSH_PUBKEY_FILE")"
+
+  # shellcheck disable=SC2016
+  pct exec "${CTID}" -- bash -lc "set -euo pipefail
 install -d -m 700 /root/.ssh
 touch /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 grep -qxF '$PUBKEY' /root/.ssh/authorized_keys || echo '$PUBKEY' >> /root/.ssh/authorized_keys
 "
-ok "SSH key ready"
+  ok "SSH key ready"
+fi
 
-# ---- STEP 5: Install toolchain inside CT ----
-step 5 "Installing toolchain inside container"
-pct exec "${CTID}" -- bash -lc '
+# --------------------------
+# STEP 5: Install toolchain inside CT
+# --------------------------
+if [[ "$NO_TOOLCHAIN" == "1" ]]; then
+  step 5 "Installing toolchain inside container (skipped)"
+  ok "Toolchain step skipped"
+else
+  step 5 "Installing toolchain inside container"
+  pct exec "${CTID}" -- bash -lc '
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
@@ -231,16 +314,22 @@ if ! command -v terragrunt >/dev/null 2>&1; then
   chmod 0755 /usr/local/bin/terragrunt
 fi
 
-# sanity
 command -v tofu >/dev/null
 command -v terragrunt >/dev/null
 command -v ansible >/dev/null
 '
-ok "Toolchain installed"
+  ok "Toolchain installed"
+fi
 
-# ---- STEP 6: Base layout + repo checkout ----
-step 6 "Base layout + repo checkout"
-pct exec "${CTID}" -- bash -lc "
+# --------------------------
+# STEP 6: Base layout + repo checkout/update
+# --------------------------
+if [[ "$NO_GIT" == "1" ]]; then
+  step 6 "Base layout + repo checkout (skipped)"
+  ok "Repo step skipped"
+else
+  step 6 "Base layout + repo checkout"
+  pct exec "${CTID}" -- bash -lc "
 set -euo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH
 
@@ -261,14 +350,21 @@ echo \"RALF_BASE=${RALF_BASE}\"
 echo \"RALF_REPO=${RALF_REPO}\"
 echo \"RALF_RUNTIME=${RALF_RUNTIME}\"
 "
-ok "Repo + runtime layout ready"
+  ok "Repo + runtime layout ready"
+fi
 
-# ---- STEP 7: Inject Proxmox API secrets (host -> container) ----
-step 7 "Injecting Proxmox API secrets (host -> container)"
+# --------------------------
+# STEP 7: Inject Proxmox API secrets (host -> CT)
+# --------------------------
+if [[ "$NO_SECRETS" == "1" ]]; then
+  step 7 "Injecting Proxmox API secrets (skipped)"
+  ok "Secrets injection skipped"
+else
+  step 7 "Injecting Proxmox API secrets (host -> container)"
 
-if [[ ! -f "$HOST_PVE_ENV" ]]; then
-  warn "Missing host secrets file: $HOST_PVE_ENV"
-  cat >&2 <<EOF
+  if [[ ! -f "$HOST_PVE_ENV" ]]; then
+    warn "Missing host secrets file: $HOST_PVE_ENV"
+    cat >&2 <<EOF
 
 Create it on the Proxmox host like:
 
@@ -282,41 +378,41 @@ Create it on the Proxmox host like:
   chmod 600 /root/ralf-secrets/pve.env
 
 Then rerun:
-  curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+  curl -fsSL "https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh?nocache=\$(date +%s)" | bash
 
 EOF
-  exit 1
-fi
+    exit 1
+  fi
 
-# Create secrets dir inside CT
-pct exec "${CTID}" -- bash -lc "set -euo pipefail
-install -d -m 700 '$(dirname "$CT_PVE_ENV")'
-"
-
-# Robust, binary-safe-ish copy using tar streaming (avoids heredoc edge cases)
-HOST_ENV_DIR="$(dirname "$HOST_PVE_ENV")"
-HOST_ENV_BASE="$(basename "$HOST_PVE_ENV")"
-CT_ENV_DIR="$(dirname "$CT_PVE_ENV")"
-
-tar -C "$HOST_ENV_DIR" -cf - "$HOST_ENV_BASE" \
-  | pct exec "${CTID}" -- tar -C "$CT_ENV_DIR" -xf -
-
-# Ensure correct path name (in case basename differs)
-if [[ "$CT_ENV_DIR/$HOST_ENV_BASE" != "$CT_PVE_ENV" ]]; then
+  # Ensure secrets dir exists inside CT
+  CT_PVE_DIR="$(dirname "$CT_PVE_ENV")"
   pct exec "${CTID}" -- bash -lc "set -euo pipefail
-mv -f '$CT_ENV_DIR/$HOST_ENV_BASE' '$CT_PVE_ENV'
+install -d -m 700 '${CT_PVE_DIR}'
 "
+
+  # Copy host file content into CT safely via base64 (avoids heredoc interpolation pitfalls)
+  if ! command -v base64 >/dev/null 2>&1; then
+    need base64
+  fi
+
+  PVE_B64="$(base64 -w0 "$HOST_PVE_ENV")"
+  pct exec "${CTID}" -- bash -lc "set -euo pipefail
+echo '${PVE_B64}' | base64 -d > '${CT_PVE_ENV}'
+chmod 600 '${CT_PVE_ENV}'
+"
+
+  ok "pve.env injected to ${CT_PVE_ENV}"
 fi
 
-pct exec "${CTID}" -- bash -lc "set -euo pipefail
-chmod 600 '$CT_PVE_ENV'
-"
-
-ok "pve.env injected to ${CT_PVE_ENV}"
-
-# ---- STEP 8: Run runner ----
-step 8 "Running bootstrap runner"
-pct exec "${CTID}" -- bash -lc "
+# --------------------------
+# STEP 8: Run bootstrap runner
+# --------------------------
+if [[ "$NO_RUNNER" == "1" ]]; then
+  step 8 "Running bootstrap runner (skipped)"
+  ok "Runner skipped"
+else
+  step 8 "Running bootstrap runner"
+  pct exec "${CTID}" -- bash -lc "
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH
@@ -327,9 +423,12 @@ chmod +x bootstrap/runner.sh
 
 bash bootstrap/runner.sh
 "
-ok "Runner finished"
+  ok "Runner finished"
+fi
 
-# ---- STEP 9: Quick checks ----
+# --------------------------
+# STEP 9: Checks
+# --------------------------
 step 9 "Checks"
 echo "  pct exec ${CTID} -- bash -lc 'export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2'"
 echo "  pct exec ${CTID} -- bash -lc 'cd ${RALF_REPO} && git log -1 --oneline'"

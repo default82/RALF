@@ -208,3 +208,54 @@ echo
 ok "Done."
 echo "Next checks:"
 echo "  pct exec ${CTID} -- bash -lc '\''export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version; ansible --version | head'\''"
+# ---- STEP 6: Base layout + repo checkout inside CT ----
+step 6 "Base layout + repo checkout"
+pct exec "${CTID}" -- bash -lc '
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+export PATH=/usr/local/bin:/usr/bin:/bin
+
+RALF_BASE=/opt/ralf
+RALF_REPO=$RALF_BASE/repo
+RALF_RUNTIME=$RALF_BASE/runtime
+
+install -d -m 0755 "$RALF_BASE" \
+  "$RALF_REPO" \
+  "$RALF_RUNTIME"/{secrets,keys,state,cache,logs} \
+  "$RALF_BASE"/bin
+
+# Git: safe dir (falls später als root gearbeitet wird)
+git config --global --add safe.directory "$RALF_REPO" || true
+
+# Repo checkout (idempotent-ish)
+REPO_URL="${REPO_URL:-https://github.com/default82/RALF.git}"
+BRANCH="${BRANCH:-main}"
+
+if [[ -d "$RALF_REPO/.git" ]]; then
+  cd "$RALF_REPO"
+  git fetch --all --prune
+  git checkout "$BRANCH"
+  git pull --ff-only
+else
+  rm -rf "$RALF_REPO"
+  git clone --branch "$BRANCH" "$REPO_URL" "$RALF_REPO"
+fi
+
+# Convenience: profile snippet for PATH (optional)
+cat >/etc/profile.d/ralf.sh <<EOF
+export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH
+export RALF_BASE=$RALF_BASE
+export RALF_RUNTIME=$RALF_RUNTIME
+export RALF_REPO=$RALF_REPO
+EOF
+chmod 0644 /etc/profile.d/ralf.sh
+
+echo "RALF_BASE=$RALF_BASE"
+echo "RALF_REPO=$RALF_REPO"
+echo "RALF_RUNTIME=$RALF_RUNTIME"
+'
+ok "Repo + runtime layout ready"
+
+echo
+ok "Next step (inside CT):"
+echo "  pct exec ${CTID} -- bash -lc 'cd /opt/ralf/repo && bash bootstrap/runner.sh'"

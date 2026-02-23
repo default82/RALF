@@ -65,8 +65,28 @@ fi
 
 [[ ${#stacks[@]} -gt 0 ]] || { echo "ERROR: no stacks selected" >&2; exit 1; }
 
-# 4) Skip-Liste (Bootstrap raus!)
+# 4) Skip-Liste
 SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
+
+wait_for_ssh() {
+  local host="$1"
+  local timeout="${2:-180}"
+  local start
+  start="$(date +%s)"
+
+  echo "[runner] Waiting for SSH on ${host}:22 (timeout ${timeout}s)..."
+  while true; do
+    if timeout 2 bash -lc ">/dev/tcp/${host}/22" 2>/dev/null; then
+      echo "[runner] SSH is reachable on ${host}:22"
+      return 0
+    fi
+    if (( $(date +%s) - start > timeout )); then
+      echo "ERROR: SSH not reachable on ${host}:22 after ${timeout}s" >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
 
 for s in "${stacks[@]}"; do
   if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
@@ -89,11 +109,22 @@ for s in "${stacks[@]}"; do
     else
       tofu plan -input=false
     fi
+
   elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
-    if [[ "$AUTO_APPLY" == "1" ]]; then
-      ansible-playbook -i "$RALF_REPO/inventory/hosts.ini" playbook.yml
+    # IMPORTANT:
+    # In PLAN mode we do NOT run remote Ansible (it would fail by design).
+    if [[ "$AUTO_APPLY" != "1" ]]; then
+      echo "[runner] AUTO_APPLY=0 → ansible remote run skipped; running syntax-check only"
+      ansible-playbook --syntax-check playbook.yml
     else
-      ansible-playbook -i "$RALF_REPO/inventory/hosts.ini" --check --diff playbook.yml
+      # If you want per-stack wait targets, we can generalize later.
+      # For now: when minio-config runs, wait for minio host to answer SSH.
+      if [[ "$s" == "031-minio-config" ]]; then
+        wait_for_ssh "10.10.30.10" 240
+      fi
+
+      inv="$RALF_REPO/inventory/hosts.ini"
+      ansible-playbook -i "$inv" playbook.yml
     fi
   else
     echo "ERROR: unknown stack type in $dir (no tofu, no playbook)" >&2

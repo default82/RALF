@@ -13,7 +13,8 @@ variable "pm_api_token_secret" {
 }
 
 variable "node_name" {
-  type = string
+  type    = string
+  default = "pve-deploy"
 }
 
 variable "ssh_public_key" {

@@ -558,7 +558,7 @@ fi
 
 # n8n
 N8N_ENV=\"\$SECRETS_DIR/n8n.env\"
-if [[ ! -f \"\$N8N_ENV\" ]]; then
+if [[ ! -s \"\$N8N_ENV\" ]]; then
   umask 077
   N8N_HOSTNAME=\"\${N8N_HOSTNAME:-n8n.homelab.lan}\"
   N8N_PROTOCOL=\"\${N8N_PROTOCOL:-https}\"

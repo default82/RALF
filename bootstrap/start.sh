@@ -355,6 +355,31 @@ echo \"RALF_RUNTIME=${RALF_RUNTIME}\"
 fi
 
 # --------------------------
+# STEP 6b: Ensure MinIO env on control node (CT)
+# --------------------------
+if [[ "$NO_SECRETS" == "1" ]]; then
+  warn "MinIO env generation skipped (NO_SECRETS=1)"
+else
+  pct exec "${CTID}" -- bash -lc "
+set -euo pipefail
+MINIO_ENV='${RALF_RUNTIME}/secrets/minio.env'
+install -d -m 0700 '${RALF_RUNTIME}/secrets'
+if [[ ! -f \"\$MINIO_ENV\" ]]; then
+  umask 077
+  MINIO_ROOT_USER=\"\${MINIO_ROOT_USER:-minioadmin}\"
+  MINIO_ROOT_PASSWORD=\"\$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)\"
+  cat >\"\$MINIO_ENV\" <<EOF
+MINIO_ROOT_USER=\$MINIO_ROOT_USER
+MINIO_ROOT_PASSWORD=\$MINIO_ROOT_PASSWORD
+MINIO_VOLUMES=/var/lib/minio
+MINIO_CONSOLE_ADDRESS=:9001
+EOF
+fi
+"
+  ok "MinIO env ensured"
+fi
+
+# --------------------------
 # STEP 7: Inject Proxmox API secrets (host -> CT)
 # --------------------------
 if [[ "$NO_SECRETS" == "1" ]]; then

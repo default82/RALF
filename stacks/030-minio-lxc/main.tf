@@ -1,12 +1,3 @@
-terraform {
-  required_providers {
-    proxmox = {
-      source  = "bpg/proxmox"
-      version = "~> 0.46"
-    }
-  }
-}
-
 resource "proxmox_virtual_environment_container" "minio" {
   node_name    = var.node_name
   vm_id        = 3010

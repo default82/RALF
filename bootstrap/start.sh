@@ -114,15 +114,18 @@ if ! pct status "${CTID}" >/dev/null 2>&1; then
   pct create "${CREATE_ARGS[@]}"
 else
   echo "==> CT ${CTID} already exists. Ensuring config is set."
+
+  # NOTE: some options are create-time only (read-only later), e.g. unprivileged.
+  # So we only set mutable options here.
   pct set "${CTID}" \
     --hostname "${CT_HOSTNAME}" \
     --memory "${MEM_MB}" \
     --cores "${CORES}" \
     --net0 "name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}" \
-    --unprivileged 1 \
-    --features "nesting=1" >/dev/null
-fi
+    --features "nesting=1" >/dev/null || true
 
+  # If you ever need to switch privileged/unprivileged, you must recreate the CT.
+fi
 # ---- Ensure CT is running ----
 echo "==> Starting CT ${CTID}"
 pct start "${CTID}" >/dev/null 2>&1 || true

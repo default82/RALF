@@ -28,6 +28,10 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}" # 'dir' storage that has vztmpl co
 
 SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-/root/.ssh/ralf_ed25519.pub}"
 
+# ---- Secrets (host -> CT injection) ----
+HOST_PVE_ENV="${HOST_PVE_ENV:-/root/ralf-secrets/pve.env}"   # lives on Proxmox host
+CT_PVE_ENV="/opt/ralf/runtime/secrets/pve.env"               # expected path inside CT
+
 # Template selection (future-proof)
 DIST="${DIST:-ubuntu}"
 SERIES="${SERIES:-24.04}"
@@ -256,6 +260,44 @@ echo \"RALF_RUNTIME=${RALF_RUNTIME}\"
 "
 ok "Repo + runtime layout ready"
 
+if [[ ! -f "$HOST_PVE_ENV" ]]; then
+  warn "Missing host secrets file: $HOST_PVE_ENV"
+  cat >&2 <<EOF
+
+Create it on the Proxmox host like:
+
+  install -d -m 700 /root/ralf-secrets
+  cat >/root/ralf-secrets/pve.env <<'ENV'
+  PVE_ENDPOINT="https://10.10.10.10:8006"
+  PVE_TOKEN_ID="root@pam!ralf"
+  PVE_TOKEN_SECRET="xxxx"
+  PVE_NODE="pve-deploy"
+  ENV
+  chmod 600 /root/ralf-secrets/pve.env
+
+Then rerun:
+  curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+
+EOF
+  exit 1
+fi
+
+# Create secrets dir inside CT, then inject file with correct perms
+pct exec "${CTID}" -- bash -lc "set -euo pipefail
+install -d -m 700 \"$(dirname "$CT_PVE_ENV")\"
+"
+
+# Copy host file content into CT (no interactive prompts)
+PVE_ENV_CONTENT="$(cat "$HOST_PVE_ENV")"
+pct exec "${CTID}" -- bash -lc "set -euo pipefail
+cat >\"$CT_PVE_ENV\" <<'ENV'
+$PVE_ENV_CONTENT
+ENV
+chmod 600 \"$CT_PVE_ENV\"
+"
+
+ok "pve.env injected to ${CT_PVE_ENV}"
+
 # ---- STEP 7: Always run runner ----
 step 7 "Running bootstrap runner"
 pct exec "${CTID}" -- bash -lc "
@@ -276,3 +318,4 @@ ok "Done."
 echo "Checks:"
 echo "  pct exec ${CTID} -- bash -lc 'export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2'"
 echo "  pct exec ${CTID} -- bash -lc 'cd ${RALF_REPO} && git log -1 --oneline'"
+step 8 "Injecting Proxmox API secrets (host -> container)"

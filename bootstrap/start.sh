@@ -11,6 +11,7 @@ set -euo pipefail
 #   CT_HOSTNAME=ralf-bootstrap IP_CIDR=10.10.100.10/16 GW=10.10.0.1 BRIDGE=vmbr0 bash start.sh
 #   STORAGE=local-lvm TEMPLATE_STORAGE=local MEM_MB=2048 DISK_GB=32 CORES=1 bash start.sh
 #   FORCE_RECREATE=1 bash start.sh   # destroys and recreates CTID (dangerous)
+#   RALF_GIT_URL=https://github.com/default82/RALF bash start.sh
 
 # ---- Config ----
 CT_HOSTNAME="${CT_HOSTNAME:-ralf-bootstrap}"   # IMPORTANT: don't use HOSTNAME (env var collision)
@@ -62,6 +63,7 @@ need tail
 need printf
 need sed
 need ip
+need tar
 
 if [[ ! -f "$SSH_PUBKEY_FILE" ]]; then
   die "SSH public key not found at $SSH_PUBKEY_FILE"
@@ -199,10 +201,11 @@ apt-get install -y --no-install-recommends \
   python3 python3-venv python3-pip \
   ansible
 
-# Make sure /usr/local/bin is in PATH for non-interactive shells
-grep -q "export PATH=/usr/local/bin" /etc/profile.d/ralf-path.sh 2>/dev/null || \
+# Ensure /usr/local/bin is in PATH for non-interactive shells
+if [[ ! -f /etc/profile.d/ralf-path.sh ]] || ! grep -q "export PATH=/usr/local/bin" /etc/profile.d/ralf-path.sh; then
   printf "%s\n" "export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH" > /etc/profile.d/ralf-path.sh
-chmod 0644 /etc/profile.d/ralf-path.sh
+  chmod 0644 /etc/profile.d/ralf-path.sh
+fi
 
 export PATH=/usr/local/bin:/usr/bin:/bin:$PATH
 
@@ -260,6 +263,9 @@ echo \"RALF_RUNTIME=${RALF_RUNTIME}\"
 "
 ok "Repo + runtime layout ready"
 
+# ---- STEP 7: Inject Proxmox API secrets (host -> container) ----
+step 7 "Injecting Proxmox API secrets (host -> container)"
+
 if [[ ! -f "$HOST_PVE_ENV" ]]; then
   warn "Missing host secrets file: $HOST_PVE_ENV"
   cat >&2 <<EOF
@@ -282,24 +288,34 @@ EOF
   exit 1
 fi
 
-# Create secrets dir inside CT, then inject file with correct perms
+# Create secrets dir inside CT
 pct exec "${CTID}" -- bash -lc "set -euo pipefail
-install -d -m 700 \"$(dirname "$CT_PVE_ENV")\"
+install -d -m 700 '$(dirname "$CT_PVE_ENV")'
 "
 
-# Copy host file content into CT (no interactive prompts)
-PVE_ENV_CONTENT="$(cat "$HOST_PVE_ENV")"
+# Robust, binary-safe-ish copy using tar streaming (avoids heredoc edge cases)
+HOST_ENV_DIR="$(dirname "$HOST_PVE_ENV")"
+HOST_ENV_BASE="$(basename "$HOST_PVE_ENV")"
+CT_ENV_DIR="$(dirname "$CT_PVE_ENV")"
+
+tar -C "$HOST_ENV_DIR" -cf - "$HOST_ENV_BASE" \
+  | pct exec "${CTID}" -- tar -C "$CT_ENV_DIR" -xf -
+
+# Ensure correct path name (in case basename differs)
+if [[ "$CT_ENV_DIR/$HOST_ENV_BASE" != "$CT_PVE_ENV" ]]; then
+  pct exec "${CTID}" -- bash -lc "set -euo pipefail
+mv -f '$CT_ENV_DIR/$HOST_ENV_BASE' '$CT_PVE_ENV'
+"
+fi
+
 pct exec "${CTID}" -- bash -lc "set -euo pipefail
-cat >\"$CT_PVE_ENV\" <<'ENV'
-$PVE_ENV_CONTENT
-ENV
-chmod 600 \"$CT_PVE_ENV\"
+chmod 600 '$CT_PVE_ENV'
 "
 
 ok "pve.env injected to ${CT_PVE_ENV}"
 
-# ---- STEP 7: Always run runner ----
-step 7 "Running bootstrap runner"
+# ---- STEP 8: Run runner ----
+step 8 "Running bootstrap runner"
 pct exec "${CTID}" -- bash -lc "
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -313,8 +329,10 @@ bash bootstrap/runner.sh
 "
 ok "Runner finished"
 
-echo
-ok "Done."
-echo "Checks:"
+# ---- STEP 9: Quick checks ----
+step 9 "Checks"
 echo "  pct exec ${CTID} -- bash -lc 'export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2'"
 echo "  pct exec ${CTID} -- bash -lc 'cd ${RALF_REPO} && git log -1 --oneline'"
+
+echo
+ok "Done."

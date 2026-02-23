@@ -422,7 +422,7 @@ export AUTO_APPLY=1
 
 bash bootstrap/runner.sh
 "
-ok "Runner finished
+ok "Runner finished"
 
 # --------------------------
 # STEP 9: Checks

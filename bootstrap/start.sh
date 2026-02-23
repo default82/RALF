@@ -47,51 +47,28 @@ CTID="${CTID:-${O3}${O4}}"  # e.g. 100 + 10 => "10010"
 
 echo "==> Target: CTID=${CTID} CT_HOSTNAME=${CT_HOSTNAME} IP=${IP_CIDR} GW=${GW} BRIDGE=${BRIDGE}"
 
-# ---- Resolve latest template ----
 echo "==> Refresh template list"
 pveam update >/dev/null
 
-# Escape dots for regex (24.04 -> 24\.04)
-SERIES_RE="$(sed 's/\./\\./g' <<<"$SERIES")"
-
 echo "==> Resolving latest template for: ${DIST}-${SERIES}-${FLAVOR}"
-AVAILABLE="$(pveam available -section system || true)"
-if [[ -z "$AVAILABLE" ]]; then
-  echo "ERROR: pveam available returned empty output. Is pveam working / network OK?" >&2
-  exit 1
-fi
 
-TEMPLATE="$(
-  printf "%s\n" "$AVAILABLE" \
-  | awk '{print $2}' \
-  | grep -E "^${DIST}-${SERIES_RE}-${FLAVOR}_[0-9]+\.[0-9]+-[0-9]+_amd64\.tar\.zst$" \
-  | sort -V \
-  | tail -n 1
+# Kandidatenliste bauen (und NICHT bei 0 Treffern sterben)
+CANDIDATES="$(
+  pveam available -section system \
+    | awk '{print $NF}' \
+    | grep -E "^${DIST}-${SERIES}-${FLAVOR}_[0-9]+\.[0-9]+-[0-9]+_amd64\.tar\.(xz|zst)$" \
+    || true
 )"
 
-if [[ -z "${TEMPLATE}" ]]; then
-  echo "ERROR: Could not find matching template." >&2
-  echo "Wanted regex:" >&2
-  echo "  ^${DIST}-${SERIES_RE}-${FLAVOR}_[0-9]+\\.[0-9]+-[0-9]+_amd64\\.tar\\.zst$" >&2
-  echo "Available ubuntu templates (debug):" >&2
-  printf "%s\n" "$AVAILABLE" | grep -i ubuntu | head -n 30 >&2 || true
+if [[ -z "$CANDIDATES" ]]; then
+  echo "ERROR: No matching template found for ${DIST}-${SERIES}-${FLAVOR}" >&2
+  echo "Available ubuntu templates:" >&2
+  pveam available -section system | awk '{print $NF}' | grep -i "^ubuntu" | head -n 20 >&2
   exit 1
 fi
 
+TEMPLATE="$(printf "%s\n" "$CANDIDATES" | sort -V | tail -n 1)"
 echo "==> Latest template resolved: ${TEMPLATE}"
-
-# ---- Ensure template cached ----
-CACHE="/var/lib/vz/template/cache/${TEMPLATE}"
-if [[ -f "${CACHE}" ]]; then
-  echo "==> Template already cached: ${CACHE}"
-else
-  echo "==> Downloading template to ${TEMPLATE_STORAGE}..."
-  pveam download "${TEMPLATE_STORAGE}" "${TEMPLATE}"
-fi
-
-OSTEMPLATE="${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}"
-echo "==> Using ostemplate: ${OSTEMPLATE}"
-
 # ---- Create or update CT ----
 if ! pct status "${CTID}" >/dev/null 2>&1; then
   echo "==> Creating CT ${CTID} (${CT_HOSTNAME} @ ${IP_CIDR})"

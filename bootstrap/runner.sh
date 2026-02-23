@@ -69,7 +69,6 @@ fi
 SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
 
 for s in "${stacks[@]}"; do
-  # >>> HIER WAR DEIN BUG: SKIP wurde nie angewendet <<<
   if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
     echo "[runner] Skipping stack: $s (matches SKIP_STACKS_REGEX)"
     continue
@@ -91,8 +90,6 @@ for s in "${stacks[@]}"; do
       tofu plan -input=false
     fi
   elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
-    # ansible im Stack-Verzeichnis
-    # Inventory/Vars nach deinem Schema
     if [[ "$AUTO_APPLY" == "1" ]]; then
       ansible-playbook -i "$RALF_REPO/inventory/hosts.ini" playbook.yml
     else

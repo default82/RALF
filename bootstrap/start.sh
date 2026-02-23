@@ -3,6 +3,7 @@ set -euo pipefail
 
 # === RALF Bootstrap Seed (Proxmox Host Script) ===
 # Creates/starts LXC bootstrap container idempotent-ish.
+# Runs on the Proxmox host (pve-deploy).
 
 # ---- Config ----
 CT_HOSTNAME="${CT_HOSTNAME:-ralf-bootstrap}"   # IMPORTANT: don't use HOSTNAME (env var collision)
@@ -33,6 +34,9 @@ need awk
 need grep
 need sort
 need sed
+need head
+need tail
+need printf
 
 if [[ ! -f "$SSH_PUBKEY_FILE" ]]; then
   echo "ERROR: SSH public key not found at $SSH_PUBKEY_FILE" >&2
@@ -46,13 +50,15 @@ O4="$(awk -F. '{print $4}' <<<"$IP")"
 CTID="${CTID:-${O3}${O4}}"  # e.g. 100 + 10 => "10010"
 
 echo "==> Target: CTID=${CTID} CT_HOSTNAME=${CT_HOSTNAME} IP=${IP_CIDR} GW=${GW} BRIDGE=${BRIDGE}"
+echo "==> Storage: rootfs=${STORAGE} templates=${TEMPLATE_STORAGE}"
 
+# ---- Resolve latest template (future-proof) ----
 echo "==> Refresh template list"
 pveam update >/dev/null
 
 echo "==> Resolving latest template for: ${DIST}-${SERIES}-${FLAVOR}"
 
-# Kandidatenliste bauen (und NICHT bei 0 Treffern sterben)
+# build candidates list (do NOT die on 0 matches)
 CANDIDATES="$(
   pveam available -section system \
     | awk '{print $NF}' \
@@ -62,13 +68,26 @@ CANDIDATES="$(
 
 if [[ -z "$CANDIDATES" ]]; then
   echo "ERROR: No matching template found for ${DIST}-${SERIES}-${FLAVOR}" >&2
-  echo "Available ubuntu templates:" >&2
+  echo "Available ubuntu templates (first 20):" >&2
   pveam available -section system | awk '{print $NF}' | grep -i "^ubuntu" | head -n 20 >&2
   exit 1
 fi
 
 TEMPLATE="$(printf "%s\n" "$CANDIDATES" | sort -V | tail -n 1)"
 echo "==> Latest template resolved: ${TEMPLATE}"
+
+# ---- Ensure template is cached ----
+CACHE="/var/lib/vz/template/cache/${TEMPLATE}"
+if [[ -f "$CACHE" ]]; then
+  echo "==> Template already cached: ${CACHE}"
+else
+  echo "==> Downloading template to ${TEMPLATE_STORAGE}..."
+  pveam download "${TEMPLATE_STORAGE}" "${TEMPLATE}"
+fi
+
+OSTEMPLATE="${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}"
+echo "==> Using ostemplate: ${OSTEMPLATE}"
+
 # ---- Create or update CT ----
 if ! pct status "${CTID}" >/dev/null 2>&1; then
   echo "==> Creating CT ${CTID} (${CT_HOSTNAME} @ ${IP_CIDR})"

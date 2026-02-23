@@ -41,6 +41,6 @@ resource "proxmox_virtual_environment_container" "minio" {
 
   operating_system {
     template_file_id = "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
-    type             = "unmanaged"
+    type             = "ubuntu"
   }
 }

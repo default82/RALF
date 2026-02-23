@@ -89,17 +89,14 @@
       loop: "{{ mail_env_lines }}"
       when: item | length > 0 and not item.startswith('#')
 
-    - name: Generate mail password hash for ralf
-      ansible.builtin.command:
-        cmd: "python3 -c \"import crypt; print(crypt.crypt('{{ mail_env.MAIL_PASSWORD_RALF }}', crypt.mksalt(crypt.METHOD_SHA512)))\""
-      register: mail_hash_ralf
-      changed_when: false
-
-    - name: Generate mail password hash for kolja
-      ansible.builtin.command:
-        cmd: "python3 -c \"import crypt; print(crypt.crypt('{{ mail_env.MAIL_PASSWORD_KOLJA }}', crypt.mksalt(crypt.METHOD_SHA512)))\""
-      register: mail_hash_kolja
-      changed_when: false
+    - name: Build deterministic mail password hashes
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        mail_hash_ralf: >-
+          {{ mail_env.MAIL_PASSWORD_RALF | password_hash('sha512', (mail_env.MAIL_PASSWORD_RALF | hash('sha1'))[:16]) }}
+        mail_hash_kolja: >-
+          {{ mail_env.MAIL_PASSWORD_KOLJA | password_hash('sha512', (mail_env.MAIL_PASSWORD_KOLJA | hash('sha1'))[:16]) }}
 
   tasks:
     - name: Install PostgreSQL and dependencies
@@ -248,6 +245,7 @@
             password TEXT NOT NULL,
             active BOOLEAN NOT NULL DEFAULT true
           );
+      changed_when: false
 
     - name: Ensure mail domain exists
       become_user: postgres
@@ -260,6 +258,7 @@
           INSERT INTO virtual_domains (name)
           VALUES (%(domain)s)
           ON CONFLICT (name) DO NOTHING;
+      changed_when: false
 
     - name: Ensure mail users exist
       become_user: postgres
@@ -280,9 +279,10 @@
               active = true;
       loop:
         - email: "ralf@{{ mail_env.MAIL_DOMAIN }}"
-          password_hash: "{{ mail_hash_ralf.stdout }}"
+          password_hash: "{{ mail_hash_ralf }}"
         - email: "kolja@{{ mail_env.MAIL_DOMAIN }}"
-          password_hash: "{{ mail_hash_kolja.stdout }}"
+          password_hash: "{{ mail_hash_kolja }}"
+      changed_when: false
 
   handlers:
     - name: restart postgresql

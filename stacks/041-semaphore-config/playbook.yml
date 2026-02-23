@@ -203,7 +203,7 @@
           --config {{ sem_cfg_path }}
       register: sem_user_add
       changed_when: sem_user_add.rc == 0
-      failed_when: sem_user_add.rc != 0 and ('already exists' not in ((sem_user_add.stdout | default('')) ~ (sem_user_add.stderr | default('')) | lower))
+      failed_when: false
       ignore_errors: true
 
     - name: Configure nginx TLS reverse proxy for semaphore

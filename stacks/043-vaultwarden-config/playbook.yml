@@ -111,16 +111,17 @@
         set -euo pipefail
         tmpdir=$(mktemp -d)
         trap 'rm -rf "$tmpdir"' EXIT
-        pkg_file=$(curl -fsSL https://vaultwarden-deb.pages.dev/dists/bookworm/main/binary-amd64/Packages \
-          | tr -d '\r' \
-          | grep '^Filename: dists/bookworm/main/binary-amd64/vaultwarden_' \
-          | grep -v 'web-vault' \
-          | awk '{print $2}' \
-          | tail -n1)
+        pkg_index="$tmpdir/Packages"
+        curl -fsSL https://vaultwarden-deb.pages.dev/dists/bookworm/main/binary-amd64/Packages \
+          | tr -d '\r' > "$pkg_index"
+        pkg_file=$(grep '^Filename: dists/bookworm/main/binary-amd64/vaultwarden_' "$pkg_index" | grep -v 'web-vault' | awk '{print $2}' | tail -n1)
+        web_pkg_file=$(grep '^Filename: dists/bookworm/main/binary-amd64/vaultwarden-web-vault_' "$pkg_index" | awk '{print $2}' | tail -n1)
         test -n "$pkg_file"
+        test -n "$web_pkg_file"
         curl -fsSL "https://vaultwarden-deb.pages.dev/${pkg_file}" -o "$tmpdir/vaultwarden.deb"
+        curl -fsSL "https://vaultwarden-deb.pages.dev/${web_pkg_file}" -o "$tmpdir/vaultwarden-web-vault.deb"
         apt-get update -y
-        apt-get install -y "$tmpdir/vaultwarden.deb"
+        apt-get install -y "$tmpdir/vaultwarden-web-vault.deb" "$tmpdir/vaultwarden.deb"
       args:
         executable: /bin/bash
         creates: "{{ vw_bin }}"

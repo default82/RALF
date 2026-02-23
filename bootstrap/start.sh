@@ -28,12 +28,12 @@ FLAVOR="${FLAVOR:-standard}"
 
 # ---- Helpers ----
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing command: $1" >&2; exit 1; }; }
+
 need pct
 need pveam
 need awk
 need grep
 need sort
-need sed
 need head
 need tail
 need printf
@@ -58,7 +58,6 @@ pveam update >/dev/null
 
 echo "==> Resolving latest template for: ${DIST}-${SERIES}-${FLAVOR}"
 
-# build candidates list (do NOT die on 0 matches)
 CANDIDATES="$(
   pveam available -section system \
     | awk '{print $NF}' \
@@ -68,8 +67,8 @@ CANDIDATES="$(
 
 if [[ -z "$CANDIDATES" ]]; then
   echo "ERROR: No matching template found for ${DIST}-${SERIES}-${FLAVOR}" >&2
-  echo "Available ubuntu templates (first 20):" >&2
-  pveam available -section system | awk '{print $NF}' | grep -i "^ubuntu" | head -n 20 >&2
+  echo "Available ${DIST} templates (first 20):" >&2
+  pveam available -section system | awk '{print $NF}' | grep -i "^${DIST}" | head -n 20 >&2
   exit 1
 fi
 
@@ -78,7 +77,7 @@ echo "==> Latest template resolved: ${TEMPLATE}"
 
 # ---- Ensure template is cached ----
 CACHE="/var/lib/vz/template/cache/${TEMPLATE}"
-if [[ -f "$CACHE" ]]; then
+if [[ -f "${CACHE}" ]]; then
   echo "==> Template already cached: ${CACHE}"
 else
   echo "==> Downloading template to ${TEMPLATE_STORAGE}..."

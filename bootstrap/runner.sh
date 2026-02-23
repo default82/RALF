@@ -15,18 +15,24 @@ echo "[runner] RALF_RUNTIME=$RALF_RUNTIME"
 [[ -f "$PVE_ENV" ]] || { echo "ERROR: Missing $PVE_ENV" >&2; exit 1; }
 
 set -a
+# shellcheck disable=SC1090
 source "$PVE_ENV"
 set +a
 
 echo "[runner] OK: Proxmox credentials loaded"
 
 # --- Controls ---
-AUTO_APPLY="${AUTO_APPLY:-0}"          # 0=plan/check, 1=apply/run
+AUTO_APPLY="${AUTO_APPLY:-0}"          # 0=plan/syntax-check, 1=apply/run
 START_AT="${START_AT:-}"               # e.g. "030" (inclusive)
 ONLY_STACKS="${ONLY_STACKS:-}"         # e.g. "030-minio-lxc 031-minio-config"
-RUN_STACKS="${RUN_STACKS:-1}"          # keep your gate
+RUN_STACKS="${RUN_STACKS:-1}"
 
-# --- Export TF_VARs (after sourcing pve.env!) ---
+# --- Export TF_VARs ---
+: "${PVE_ENDPOINT:?missing in pve.env}"
+: "${PVE_TOKEN_ID:?missing in pve.env}"
+: "${PVE_TOKEN_SECRET:?missing in pve.env}"
+: "${PVE_NODE:?missing in pve.env}"
+
 export TF_VAR_pm_api_url="${PVE_ENDPOINT}"
 export TF_VAR_pm_api_token_id="${PVE_TOKEN_ID}"
 export TF_VAR_pm_api_token_secret="${PVE_TOKEN_SECRET}"
@@ -51,12 +57,11 @@ if [[ -n "$START_AT" ]]; then
   mapfile -t stacks < <(printf "%s\n" "${stacks[@]}" | awk -v s="$START_AT" '$0 >= s')
 fi
 
-# 3) optional: ONLY_STACKS Filter (Whitelist)
+# 3) optional: ONLY_STACKS Filter
 if [[ -n "$ONLY_STACKS" ]]; then
-  want="$ONLY_STACKS"
   filtered=()
   for s in "${stacks[@]}"; do
-    for w in $want; do
+    for w in $ONLY_STACKS; do
       [[ "$s" == "$w" ]] && filtered+=("$s")
     done
   done
@@ -65,28 +70,8 @@ fi
 
 [[ ${#stacks[@]} -gt 0 ]] || { echo "ERROR: no stacks selected" >&2; exit 1; }
 
-# 4) Skip-Liste
+# 4) Skip-Liste (Bootstrap raus)
 SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
-
-wait_for_ssh() {
-  local host="$1"
-  local timeout="${2:-180}"
-  local start
-  start="$(date +%s)"
-
-  echo "[runner] Waiting for SSH on ${host}:22 (timeout ${timeout}s)..."
-  while true; do
-    if timeout 2 bash -lc ">/dev/tcp/${host}/22" 2>/dev/null; then
-      echo "[runner] SSH is reachable on ${host}:22"
-      return 0
-    fi
-    if (( $(date +%s) - start > timeout )); then
-      echo "ERROR: SSH not reachable on ${host}:22 after ${timeout}s" >&2
-      return 1
-    fi
-    sleep 2
-  done
-}
 
 for s in "${stacks[@]}"; do
   if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
@@ -101,7 +86,6 @@ for s in "${stacks[@]}"; do
   echo "[runner] === Stack: $s ==="
   cd "$dir"
 
-  # Stack-Typ erkennen:
   if [[ -f "main.tf" || -f "versions.tf" ]]; then
     tofu init -input=false
     if [[ "$AUTO_APPLY" == "1" ]]; then
@@ -110,33 +94,22 @@ for s in "${stacks[@]}"; do
       tofu plan -input=false
     fi
 
-INV="${RALF_REPO}/inventory/hosts.ini"
+  elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
+    inv="$RALF_REPO/inventory/hosts.ini"
+    [[ -f "$inv" ]] || { echo "ERROR: missing inventory: $inv" >&2; exit 1; }
 
-elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
-  if [[ "$AUTO_APPLY" == "1" ]]; then
-    ansible-playbook -i "$INV" playbook.yml
-  else
-    echo "[runner] AUTO_APPLY=0 → ansible remote run skipped; running syntax-check only"
-    ansible-playbook -i "$INV" --syntax-check playbook.yml
-  fi
-    else
-      # If you want per-stack wait targets, we can generalize later.
-      # For now: when minio-config runs, wait for minio host to answer SSH.
-      if [[ "$s" == "031-minio-config" ]]; then
-        wait_for_ssh "10.10.30.10" 240
-      fi
-
-      inv="$RALF_REPO/inventory/hosts.ini"
+    if [[ "$AUTO_APPLY" == "1" ]]; then
       ansible-playbook -i "$inv" playbook.yml
+    else
+      echo "[runner] AUTO_APPLY=0 → ansible remote run skipped; running syntax-check only"
+      ansible-playbook -i "$inv" --syntax-check playbook.yml
     fi
+
   else
     echo "ERROR: unknown stack type in $dir (no tofu, no playbook)" >&2
     exit 1
   fi
-if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
-  echo "[runner] Skipping stack: $s (matches SKIP_STACKS_REGEX)"
-  continue
-fi
+
   cd "$RALF_REPO"
 done
 

@@ -39,6 +39,38 @@ export TF_VAR_pm_api_token_secret="${PVE_TOKEN_SECRET}"
 export TF_VAR_node_name="${PVE_NODE}"
 export TF_VAR_ssh_public_key="$(awk 'NR==1{print;exit}' /root/.ssh/authorized_keys 2>/dev/null || true)"
 
+recover_warning_container_create() {
+  local dir="$1"
+  local res_name vm_id
+
+  res_name="$(awk 'match($0, /resource[[:space:]]+"proxmox_virtual_environment_container"[[:space:]]+"([^"]+)"/, m) { print m[1]; exit }' "$dir"/*.tf 2>/dev/null || true)"
+  vm_id="$(awk 'match($0, /vm_id[[:space:]]*=[[:space:]]*([0-9]+)/, m) { print m[1]; exit }' "$dir"/*.tf 2>/dev/null || true)"
+
+  [[ -n "$res_name" && -n "$vm_id" ]] || {
+    echo "[runner] Could not detect proxmox container resource/vm_id for warning recovery"
+    return 1
+  }
+
+  if ! pct config "$vm_id" >/dev/null 2>&1; then
+    echo "[runner] Warning recovery skipped: CT $vm_id does not exist on host"
+    return 1
+  fi
+
+  echo "[runner] CT $vm_id exists despite warning; trying tofu import for proxmox_virtual_environment_container.$res_name"
+
+  local addr="proxmox_virtual_environment_container.$res_name"
+  local import_id
+  for import_id in "$vm_id" "${TF_VAR_node_name}/${vm_id}" "${TF_VAR_node_name}/lxc/${vm_id}"; do
+    if tofu import -input=false "$addr" "$import_id" >/dev/null 2>&1; then
+      echo "[runner] Imported $addr using id '$import_id'"
+      return 0
+    fi
+  done
+
+  echo "[runner] Failed to import $addr after warning"
+  return 1
+}
+
 if [[ "${RUN_STACKS}" != "1" ]]; then
   echo "[runner] RUN_STACKS!=1 → exit"
   exit 0
@@ -89,7 +121,17 @@ for s in "${stacks[@]}"; do
   if [[ -f "main.tf" || -f "versions.tf" ]]; then
     tofu init -input=false
     if [[ "$AUTO_APPLY" == "1" ]]; then
-      tofu apply -auto-approve -input=false
+      apply_output=""
+      if ! apply_output="$(tofu apply -auto-approve -input=false 2>&1)"; then
+        printf '%s\n' "$apply_output"
+        if grep -q "exit code: WARNINGS: 1" <<<"$apply_output" && recover_warning_container_create "$dir"; then
+          tofu apply -auto-approve -input=false
+        else
+          exit 1
+        fi
+      else
+        printf '%s\n' "$apply_output"
+      fi
     else
       tofu plan -input=false
     fi

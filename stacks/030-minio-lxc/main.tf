@@ -1,22 +1,26 @@
-resource "proxmox_virtual_environment_container" "minio" {
-  node_name     = var.node_name
-  vm_id         = 3010
-  unprivileged  = true
-  start_on_boot = true
-
-  operating_system {
-    template_file_id = "local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst"
-    # ggf. auch nötig/gewünscht je nach Provider-Version:
-    # type = "ubuntu"
+terraform {
+  required_providers {
+    proxmox = {
+      source  = "bpg/proxmox"
+      version = "~> 0.46"
+    }
   }
+}
+
+resource "proxmox_virtual_environment_container" "minio" {
+  node_name    = var.node_name
+  vm_id        = 3010
+  unprivileged = true
+  start_on_boot = true
+  started       = true
 
   cpu {
     cores = 1
-    # architecture = "amd64"   # optional, falls du es explizit willst
   }
 
   memory {
     dedicated = 2048
+    swap      = 0
   }
 
   disk {
@@ -25,8 +29,12 @@ resource "proxmox_virtual_environment_container" "minio" {
   }
 
   network_interface {
-    name   = "veth0"
     bridge = "vmbr0"
+    name   = "veth0"
+  }
+
+  operating_system {
+    template_file_id = var.lxc_template_id
   }
 
   initialization {

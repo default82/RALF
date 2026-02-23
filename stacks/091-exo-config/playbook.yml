@@ -161,8 +161,7 @@
       become_user: "{{ exo_user }}"
       ansible.builtin.command:
         cmd: "{{ exo_home }}/.cargo/bin/rustup default nightly"
-      register: rustup_default_nightly
-      changed_when: "'nightly' in (rustup_default_nightly.stdout | default(''))"
+      changed_when: false
       environment:
         HOME: "{{ exo_home }}"
 

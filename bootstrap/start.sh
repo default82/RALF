@@ -433,6 +433,14 @@ set -a
 source \"\$POSTGRES_ENV\"
 set +a
 
+# Backfill newly introduced DB credentials into existing postgres.env files
+: \"\${N8N_DB_USER:=n8n}\"
+: \"\${N8N_DB_PASSWORD:=\$(rand)}\"
+: \"\${N8N_DB_NAME:=n8n}\"
+grep -q '^N8N_DB_USER=' \"\$POSTGRES_ENV\" || printf 'N8N_DB_USER=%s\n' \"\$N8N_DB_USER\" >> \"\$POSTGRES_ENV\"
+grep -q '^N8N_DB_PASSWORD=' \"\$POSTGRES_ENV\" || printf 'N8N_DB_PASSWORD=%s\n' \"\$N8N_DB_PASSWORD\" >> \"\$POSTGRES_ENV\"
+grep -q '^N8N_DB_NAME=' \"\$POSTGRES_ENV\" || printf 'N8N_DB_NAME=%s\n' \"\$N8N_DB_NAME\" >> \"\$POSTGRES_ENV\"
+
 # Semaphore
 SEMAPHORE_ENV=\"\$SECRETS_DIR/semaphore.env\"
 if [[ ! -f \"\$SEMAPHORE_ENV\" ]]; then

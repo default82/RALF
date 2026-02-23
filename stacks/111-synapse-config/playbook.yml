@@ -141,6 +141,9 @@
         state: started
         enabled: true
 
+    - name: Apply pending Synapse config changes before user bootstrap
+      ansible.builtin.meta: flush_handlers
+
     - name: Create admin users (ralf, kolja)
       ansible.builtin.command:
         cmd: "register_new_matrix_user -c {{ synapse_conf_path }} http://localhost:{{ syn_env.SYNAPSE_LISTEN_PORT }} --admin --user {{ item.user }} --password {{ item.pass }} --exists-ok"
@@ -148,6 +151,10 @@
         - { user: "ralf", pass: "{{ syn_env.SYNAPSE_ADMIN_PASSWORD_RALF }}" }
         - { user: "kolja", pass: "{{ syn_env.SYNAPSE_ADMIN_PASSWORD_KOLJA }}" }
       changed_when: false
+      failed_when:
+        - create_admin_users.rc != 0
+        - "'User ID already taken.' not in (create_admin_users.stdout | default(''))"
+      register: create_admin_users
 
   handlers:
     - name: restart synapse

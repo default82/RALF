@@ -1,0 +1,156 @@
+---
+- name: Configure Matrix Synapse
+  hosts: synapse
+  become: true
+  vars:
+    synapse_env_path: /opt/ralf/runtime/secrets/synapse.env
+    synapse_conf_path: /etc/matrix-synapse/homeserver.yaml
+    synapse_signing_key_path: /etc/matrix-synapse/homeserver.signing.key
+
+  pre_tasks:
+    - name: Assert synapse env file exists on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: "{{ synapse_env_path }}"
+      register: syn_env_stat
+
+    - name: Fail if synapse env missing on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.fail:
+        msg: "Missing {{ synapse_env_path }} on CT 10010. Create it first."
+      when: not syn_env_stat.stat.exists
+
+    - name: Load synapse env from control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.slurp:
+        src: "{{ synapse_env_path }}"
+      register: syn_env_raw
+
+    - name: Parse synapse env
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        syn_env_lines: "{{ (syn_env_raw.content | b64decode).splitlines() }}"
+
+    - name: Build synapse env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        syn_env: "{{ syn_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ syn_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+  tasks:
+    - name: Install dependencies
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Matrix.org repository key
+      ansible.builtin.get_url:
+        url: https://packages.matrix.org/debian/matrix-org-archive-keyring.gpg
+        dest: /usr/share/keyrings/matrix-org-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Add Matrix.org apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/matrix-org-archive-keyring.gpg] https://packages.matrix.org/debian/ {{ ansible_distribution_release }} main"
+        filename: matrix-org
+        state: present
+
+    - name: Preseed Synapse debconf
+      ansible.builtin.debconf:
+        name: matrix-synapse
+        question: "{{ item.question }}"
+        value: "{{ item.value }}"
+        vtype: "{{ item.vtype }}"
+      loop:
+        - { question: "matrix-synapse/server-name", value: "{{ syn_env.SYNAPSE_SERVER_NAME }}", vtype: "string" }
+        - { question: "matrix-synapse/report-stats", value: "{{ syn_env.SYNAPSE_REPORT_STATS }}", vtype: "boolean" }
+
+    - name: Install Matrix Synapse
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - matrix-synapse-py3
+        state: present
+
+    - name: Ensure Synapse signing key exists
+      ansible.builtin.command:
+        cmd: "python3 -m synapse.app.homeserver --generate-keys -c {{ synapse_conf_path }}"
+      args:
+        creates: "{{ synapse_signing_key_path }}"
+
+    - name: Render Synapse config
+      ansible.builtin.copy:
+        dest: "{{ synapse_conf_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          server_name: "{{ syn_env.SYNAPSE_SERVER_NAME }}"
+          public_baseurl: "{{ syn_env.SYNAPSE_PUBLIC_BASEURL }}"
+          pid_file: /var/run/matrix-synapse.pid
+
+          listeners:
+            - port: {{ syn_env.SYNAPSE_LISTEN_PORT | int }}
+              tls: false
+              type: http
+              x_forwarded: true
+              resources:
+                - names: [client, federation]
+                  compress: false
+
+          database:
+            name: psycopg2
+            args:
+              user: "{{ syn_env.SYNAPSE_DB_USER }}"
+              password: "{{ syn_env.SYNAPSE_DB_PASSWORD }}"
+              database: "{{ syn_env.SYNAPSE_DB_NAME }}"
+              host: "{{ syn_env.SYNAPSE_DB_HOST }}"
+              port: {{ syn_env.SYNAPSE_DB_PORT | int }}
+
+          registration_shared_secret: "{{ syn_env.SYNAPSE_REGISTRATION_SHARED_SECRET }}"
+          macaroon_secret_key: "{{ syn_env.SYNAPSE_MACAROON_SECRET_KEY }}"
+          form_secret: "{{ syn_env.SYNAPSE_FORM_SECRET }}"
+
+          enable_registration: {{ syn_env.SYNAPSE_ENABLE_REGISTRATION | lower }}
+          report_stats: {{ syn_env.SYNAPSE_REPORT_STATS | lower }}
+          signing_key_path: "{{ synapse_signing_key_path }}"
+
+          email:
+            smtp_host: "{{ syn_env.SYNAPSE_SMTP_HOST }}"
+            smtp_port: {{ syn_env.SYNAPSE_SMTP_PORT | int }}
+            smtp_user: "{{ syn_env.SYNAPSE_SMTP_USER }}"
+            smtp_pass: "{{ syn_env.SYNAPSE_SMTP_PASSWORD }}"
+            notif_from: "{{ syn_env.SYNAPSE_SMTP_FROM }}"
+
+      notify: restart synapse
+
+    - name: Ensure Synapse is enabled and started
+      ansible.builtin.service:
+        name: matrix-synapse
+        state: started
+        enabled: true
+
+    - name: Create admin users (ralf, kolja)
+      ansible.builtin.command:
+        cmd: "register_new_matrix_user -c {{ synapse_conf_path }} http://localhost:{{ syn_env.SYNAPSE_LISTEN_PORT }} --admin --user {{ item.user }} --password {{ item.pass }} --exists-ok"
+      loop:
+        - { user: "ralf", pass: "{{ syn_env.SYNAPSE_ADMIN_PASSWORD_RALF }}" }
+        - { user: "kolja", pass: "{{ syn_env.SYNAPSE_ADMIN_PASSWORD_KOLJA }}" }
+      changed_when: false
+
+  handlers:
+    - name: restart synapse
+      ansible.builtin.service:
+        name: matrix-synapse
+        state: restarted

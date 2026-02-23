@@ -376,25 +376,25 @@ if [[ "$NO_RUNNER" == "1" ]]; then
   ok "Runner skipped"
 else
   step 8 "Running bootstrap runner"
-  pct exec "${CTID}" -- bash -lc "
-set -euo pipefail
-export PATH=/usr/local/bin:/usr/bin:/bin:\$PATH
-export RALF_BASE='${RALF_BASE}'
-export RALF_REPO='${RALF_REPO}'
-export RALF_RUNTIME='${RALF_RUNTIME}'
 
-cd '${RALF_REPO}'
-chmod +x bootstrap/runner.sh
+  pct exec "${CTID}" -- \
+    env \
+      PATH="/usr/local/bin:/usr/bin:/bin" \
+      RALF_BASE="${RALF_BASE}" \
+      RALF_REPO="${RALF_REPO}" \
+      RALF_RUNTIME="${RALF_RUNTIME}" \
+      RUN_STACKS="1" \
+      AUTO_APPLY="${AUTO_APPLY:-0}" \
+      START_AT="${START_AT:-030}" \
+      ONLY_STACKS="${ONLY_STACKS:-}" \
+      SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}" \
+    bash -lc '
+      set -euo pipefail
+      cd "$RALF_REPO"
+      chmod +x bootstrap/runner.sh
+      bash bootstrap/runner.sh
+    '
 
-# Runner controls: inherit from host env (or defaults)
-export RUN_STACKS=1
-export AUTO_APPLY="${AUTO_APPLY:-0}"
-export START_AT="${START_AT:-030}"
-export ONLY_STACKS="${ONLY_STACKS:-}"
-export SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
-
-bash bootstrap/runner.sh
-"
   ok "Runner finished"
 fi
 

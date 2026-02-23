@@ -53,7 +53,7 @@ pveam update >/dev/null
 
 echo "==> Resolving latest template for: ${DIST}-${SERIES}-${FLAVOR}"
 TEMPLATE="$(pveam available -section system \
-  | awk '{print $1}' \
+  | awk '{print $2}' \
   | grep -E "^${DIST}-${SERIES}-${FLAVOR}_[0-9]+\.[0-9]+-[0-9]+_amd64\.tar\.zst$" \
   | sort -V \
   | tail -n 1)"

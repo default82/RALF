@@ -9,6 +9,13 @@ RALF_RUNTIME="${RALF_RUNTIME:-$RALF_BASE/runtime}"
 SECRETS="$RALF_RUNTIME/secrets"
 PVE_ENV="$SECRETS/pve.env"
 
+# Optional: allow template override from environment (start.sh can set it)
+: "${TF_VAR_lxc_template_id:=}"
+if [[ -n "$TF_VAR_lxc_template_id" ]]; then
+  export TF_VAR_lxc_template_id
+  echo "[runner] Using TF_VAR_lxc_template_id=$TF_VAR_lxc_template_id"
+fi
+
 echo "[runner] RALF_REPO=$RALF_REPO"
 echo "[runner] RALF_RUNTIME=$RALF_RUNTIME"
 

@@ -110,12 +110,15 @@ for s in "${stacks[@]}"; do
       tofu plan -input=false
     fi
 
-  elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
-    # IMPORTANT:
-    # In PLAN mode we do NOT run remote Ansible (it would fail by design).
-    if [[ "$AUTO_APPLY" != "1" ]]; then
-      echo "[runner] AUTO_APPLY=0 → ansible remote run skipped; running syntax-check only"
-      ansible-playbook --syntax-check playbook.yml
+INV="${RALF_REPO}/inventory/hosts.ini"
+
+elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
+  if [[ "$AUTO_APPLY" == "1" ]]; then
+    ansible-playbook -i "$INV" playbook.yml
+  else
+    echo "[runner] AUTO_APPLY=0 → ansible remote run skipped; running syntax-check only"
+    ansible-playbook -i "$INV" --syntax-check playbook.yml
+  fi
     else
       # If you want per-stack wait targets, we can generalize later.
       # For now: when minio-config runs, wait for minio host to answer SSH.
@@ -130,7 +133,10 @@ for s in "${stacks[@]}"; do
     echo "ERROR: unknown stack type in $dir (no tofu, no playbook)" >&2
     exit 1
   fi
-
+if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
+  echo "[runner] Skipping stack: $s (matches SKIP_STACKS_REGEX)"
+  continue
+fi
   cd "$RALF_REPO"
 done
 

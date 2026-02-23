@@ -428,8 +428,10 @@ ok "Runner finished"
 # STEP 9: Checks
 # --------------------------
 step 9 "Checks"
-echo "  pct exec ${CTID} -- bash -lc 'export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2'"
-echo "  pct exec ${CTID} -- bash -lc 'cd ${RALF_REPO} && git log -1 --oneline'"
+
+printf "  pct exec %s -- bash -lc \"export PATH=/usr/local/bin:/usr/bin:/bin; tofu version; terragrunt --version | head -n 1; ansible --version | head -n 2\"\n" "$CTID"
+
+printf "  pct exec %s -- bash -lc \"cd %s && git log -1 --oneline\"\n" "$CTID" "$RALF_REPO"
 
 echo
 ok "Done."

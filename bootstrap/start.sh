@@ -386,10 +386,12 @@ export RALF_RUNTIME='${RALF_RUNTIME}'
 cd '${RALF_REPO}'
 chmod +x bootstrap/runner.sh
 
+# Runner controls: inherit from host env (or defaults)
 export RUN_STACKS=1
-export AUTO_APPLY='${AUTO_APPLY}'
-export START_AT='${START_AT}'
-export ONLY_STACKS='${ONLY_STACKS}'
+export AUTO_APPLY="${AUTO_APPLY:-0}"
+export START_AT="${START_AT:-030}"
+export ONLY_STACKS="${ONLY_STACKS:-}"
+export SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
 
 bash bootstrap/runner.sh
 "

@@ -367,7 +367,12 @@ install -d -m 0700 '${RALF_RUNTIME}/secrets'
 if [[ ! -f \"\$MINIO_ENV\" ]]; then
   umask 077
   MINIO_ROOT_USER=\"\${MINIO_ROOT_USER:-minioadmin}\"
-  MINIO_ROOT_PASSWORD=\"\$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)\"
+  MINIO_ROOT_PASSWORD=\"\$(python3 - <<'PY'
+import secrets, string
+alphabet = string.ascii_letters + string.digits
+print(''.join(secrets.choice(alphabet) for _ in range(32)))
+PY
+)\"
   cat >\"\$MINIO_ENV\" <<EOF
 MINIO_ROOT_USER=\$MINIO_ROOT_USER
 MINIO_ROOT_PASSWORD=\$MINIO_ROOT_PASSWORD

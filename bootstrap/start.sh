@@ -710,6 +710,48 @@ EOF
 fi
 "
   ok "tfstate.env ensured"
+
+  pct exec "${CTID}" -- bash -lc "
+set -euo pipefail
+SECRETS_DIR='${RALF_RUNTIME}/secrets'
+POSTGRES_ENV=\"\$SECRETS_DIR/postgres.env\"
+GITEA_ENV=\"\$SECRETS_DIR/gitea.env\"
+rand() {
+  python3 - <<'PY'
+import secrets, string
+alphabet = string.ascii_letters + string.digits
+print(''.join(secrets.choice(alphabet) for _ in range(32)))
+PY
+}
+set -a
+source \"\$POSTGRES_ENV\"
+set +a
+: \"\${GITEA_DB_USER:=gitea}\"
+: \"\${GITEA_DB_PASSWORD:=\$(rand)}\"
+: \"\${GITEA_DB_NAME:=gitea}\"
+grep -q '^GITEA_DB_USER=' \"\$POSTGRES_ENV\" || printf 'GITEA_DB_USER=%s\n' \"\$GITEA_DB_USER\" >> \"\$POSTGRES_ENV\"
+grep -q '^GITEA_DB_PASSWORD=' \"\$POSTGRES_ENV\" || printf 'GITEA_DB_PASSWORD=%s\n' \"\$GITEA_DB_PASSWORD\" >> \"\$POSTGRES_ENV\"
+grep -q '^GITEA_DB_NAME=' \"\$POSTGRES_ENV\" || printf 'GITEA_DB_NAME=%s\n' \"\$GITEA_DB_NAME\" >> \"\$POSTGRES_ENV\"
+if [[ ! -s \"\$GITEA_ENV\" ]]; then
+  umask 077
+  cat >\"\$GITEA_ENV\" <<EOF
+GITEA_DOMAIN=gitea.homelab.lan
+GITEA_ROOT_URL=https://gitea.homelab.lan/
+GITEA_HTTP_PORT=3000
+GITEA_SSH_PORT=2222
+GITEA_DB_HOST=10.10.20.10
+GITEA_DB_PORT=5432
+GITEA_DB_NAME=\$GITEA_DB_NAME
+GITEA_DB_USER=\$GITEA_DB_USER
+GITEA_DB_PASSWORD=\$GITEA_DB_PASSWORD
+GITEA_ADMIN_USER=ralf
+GITEA_ADMIN_EMAIL=ralf@homelab.lan
+GITEA_ADMIN_PASSWORD=\$(rand)
+GITEA_MIRROR_SOURCE_URL=https://github.com/default82/RALF.git
+EOF
+fi
+"
+  ok "gitea env + db vars ensured"
 fi
 
 # --------------------------

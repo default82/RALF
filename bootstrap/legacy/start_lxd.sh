@@ -10,7 +10,7 @@ set -euo pipefail
 # - writes outputs/lxd_apply_report.json
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-outputs_dir="${repo_root}/outputs"
+outputs_dir="${OUTPUTS_DIR:-${repo_root}/outputs}"
 mkdir -p "$outputs_dir"
 
 name="${CT_HOSTNAME:-ralf-bootstrap}"

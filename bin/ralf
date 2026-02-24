@@ -287,6 +287,7 @@ if [[ "${cfg[apply]}" == "1" ]]; then
     if [[ -x "$provisioner_adapter" ]]; then
       # Forward merged values into the provisioner adapter environment.
       export PROFILE="${cfg[profile]}"
+      export OUTPUTS_DIR="${outputs_dir}"
       [[ -n "${cfg[network_cidr]}" ]] && export NETWORK_CIDR="${cfg[network_cidr]}"
       [[ -n "${cfg[base_domain]}" ]] && export BASE_DOMAIN="${cfg[base_domain]}"
       [[ -n "${cfg[ct_hostname]}" ]] && export CT_HOSTNAME="${cfg[ct_hostname]}"

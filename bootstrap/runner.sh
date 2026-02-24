@@ -26,6 +26,7 @@ AUTO_APPLY="${AUTO_APPLY:-0}"          # 0=plan/syntax-check, 1=apply/run
 START_AT="${START_AT:-}"               # e.g. "030" (inclusive)
 ONLY_STACKS="${ONLY_STACKS:-}"         # e.g. "030-minio-lxc 031-minio-config"
 RUN_STACKS="${RUN_STACKS:-1}"
+TFSTATE_ENV="$SECRETS/tfstate.env"
 
 # --- Export TF_VARs ---
 : "${PVE_ENDPOINT:?missing in pve.env}"
@@ -40,6 +41,17 @@ export TF_VAR_node_name="${PVE_NODE}"
 export TF_VAR_ssh_public_key="$(awk 'NR==1{print;exit}' /root/.ssh/authorized_keys 2>/dev/null || true)"
 if [[ -f /root/.ssh/ralf_ed25519 ]]; then
   export ANSIBLE_PRIVATE_KEY_FILE="/root/.ssh/ralf_ed25519"
+fi
+
+TFSTATE_REMOTE_ENABLED=0
+if [[ -f "$TFSTATE_ENV" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$TFSTATE_ENV"
+  set +a
+  if [[ "${TFSTATE_ENABLE_REMOTE:-1}" == "1" ]]; then
+    TFSTATE_REMOTE_ENABLED=1
+  fi
 fi
 
 recover_warning_container_create() {
@@ -95,10 +107,16 @@ fi
 # 3) optional: ONLY_STACKS Filter
 if [[ -n "$ONLY_STACKS" ]]; then
   filtered=()
-  for s in "${stacks[@]}"; do
-    for w in $ONLY_STACKS; do
-      [[ "$s" == "$w" ]] && filtered+=("$s")
+  for w in $ONLY_STACKS; do
+    found=0
+    for s in "${stacks[@]}"; do
+      if [[ "$s" == "$w" ]]; then
+        filtered+=("$s")
+        found=1
+        break
+      fi
     done
+    [[ "$found" == "1" ]] || { echo "ERROR: requested stack not found: $w" >&2; exit 1; }
   done
   stacks=("${filtered[@]}")
 fi
@@ -107,6 +125,33 @@ fi
 
 # 4) Skip-Liste (Bootstrap raus)
 SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
+REMOTE_STATE_SKIP_REGEX="${REMOTE_STATE_SKIP_REGEX:-^(030-minio-lxc)$}"
+
+configure_remote_s3_backend() {
+  local stack_name="$1"
+  local dir="$2"
+
+  cat > "$dir/.ralf_backend.tf" <<EOF
+terraform {
+  backend "s3" {}
+}
+EOF
+
+  cat > "$dir/.ralf_backend.hcl" <<EOF
+bucket = "${TFSTATE_S3_BUCKET}"
+key    = "${TFSTATE_S3_PREFIX%/}/${stack_name}/terraform.tfstate"
+region = "${TFSTATE_S3_REGION:-us-east-1}"
+endpoint = "${TFSTATE_S3_ENDPOINT}"
+access_key = "${TFSTATE_S3_ACCESS_KEY}"
+secret_key = "${TFSTATE_S3_SECRET_KEY}"
+skip_credentials_validation = true
+skip_metadata_api_check = true
+skip_requesting_account_id = true
+skip_region_validation = true
+force_path_style = true
+encrypt = true
+EOF
+}
 
 for s in "${stacks[@]}"; do
   if [[ "$s" =~ $SKIP_STACKS_REGEX ]]; then
@@ -122,7 +167,18 @@ for s in "${stacks[@]}"; do
   cd "$dir"
 
   if [[ -f "main.tf" || -f "versions.tf" ]]; then
-    tofu init -input=false
+    if [[ "$TFSTATE_REMOTE_ENABLED" == "1" && ! "$s" =~ $REMOTE_STATE_SKIP_REGEX ]]; then
+      : "${TFSTATE_S3_BUCKET:?missing in tfstate.env}"
+      : "${TFSTATE_S3_ENDPOINT:?missing in tfstate.env}"
+      : "${TFSTATE_S3_ACCESS_KEY:?missing in tfstate.env}"
+      : "${TFSTATE_S3_SECRET_KEY:?missing in tfstate.env}"
+      : "${TFSTATE_S3_PREFIX:=ralf}"
+      configure_remote_s3_backend "$s" "$dir"
+      echo "[runner] Remote S3 backend enabled for $s (${TFSTATE_S3_BUCKET}/${TFSTATE_S3_PREFIX%/}/$s)"
+      tofu init -input=false -reconfigure -backend-config=.ralf_backend.hcl
+    else
+      tofu init -input=false
+    fi
     if [[ "$AUTO_APPLY" == "1" ]]; then
       apply_output=""
       if ! apply_output="$(tofu apply -auto-approve -input=false 2>&1)"; then

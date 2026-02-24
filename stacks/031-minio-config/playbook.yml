@@ -14,6 +14,8 @@
 
     # Ziel auf dem MinIO-Host
     minio_env_remote_path: /etc/default/minio
+    minio_mc_bin: /usr/local/bin/mc
+    minio_tfstate_bucket: tofu-state
 
   pre_tasks:
     - name: Assert MinIO env file exists on control node
@@ -72,6 +74,12 @@
         mode: "0755"
       register: minio_download
 
+    - name: Download MinIO client binary (mc)
+      ansible.builtin.get_url:
+        url: "https://dl.min.io/client/mc/release/linux-amd64/mc"
+        dest: "{{ minio_mc_bin }}"
+        mode: "0755"
+
     - name: Upload MinIO env file to target
       ansible.builtin.copy:
         src: "{{ minio_env_local_path }}"
@@ -127,6 +135,43 @@
       retries: 30
       delay: 2
       until: health.status == 200
+
+    - name: Read MinIO env file from control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.slurp:
+        src: "{{ minio_env_local_path }}"
+      register: minio_env_raw
+
+    - name: Parse MinIO env lines
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        minio_env_lines: "{{ (minio_env_raw.content | b64decode).splitlines() }}"
+
+    - name: Build MinIO env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        minio_env: "{{ minio_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ minio_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+    - name: Ensure remote-state bucket exists in MinIO
+      ansible.builtin.command:
+        cmd: >-
+          {{ minio_mc_bin }} mb --ignore-existing local/{{ minio_tfstate_bucket }}
+      environment:
+        MC_HOST_local: "http://{{ minio_env.MINIO_ROOT_USER }}:{{ minio_env.MINIO_ROOT_PASSWORD }}@127.0.0.1:9000"
+      changed_when: false
+
+    - name: Enable versioning on remote-state bucket
+      ansible.builtin.command:
+        cmd: >-
+          {{ minio_mc_bin }} version enable local/{{ minio_tfstate_bucket }}
+      environment:
+        MC_HOST_local: "http://{{ minio_env.MINIO_ROOT_USER }}:{{ minio_env.MINIO_ROOT_PASSWORD }}@127.0.0.1:9000"
+      changed_when: false
 
   handlers:
     - name: restart minio

@@ -95,4 +95,4 @@ Provisioner adapter status:
 
 - `proxmox_pct`: delegates to `bootstrap/legacy/start_proxmox_pct.sh`
 - `host`: delegates to `bootstrap/legacy/start_host.sh` (minimal local apply: workspace prepare, no destructive changes)
-- `lxd`: delegates to `bootstrap/legacy/start_lxd.sh` (minimal apply: validates `lxc`/LXD, create-if-missing)
+- `lxd`: delegates to `bootstrap/legacy/start_lxd.sh` (minimal apply: validates `lxc`/LXD, create-if-missing, stamps `user.ralf.*` metadata)

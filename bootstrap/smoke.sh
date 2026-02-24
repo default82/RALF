@@ -63,6 +63,40 @@ case "$PHASE" in
     tcp_check 10.10.40.10 443 semaphore-https
     https_check_insecure https://10.10.40.10/ semaphore-nginx
     ;;
+  vaultwarden)
+    tcp_check 10.10.40.20 443 vaultwarden-https
+    https_check_insecure https://10.10.40.20/ vaultwarden-nginx
+    ;;
+  n8n)
+    tcp_check 10.10.40.30 443 n8n-https
+    https_check_insecure https://10.10.40.30/ n8n-nginx
+    ;;
+  exo)
+    tcp_check 10.10.90.10 443 exo-https
+    https_check_insecure https://10.10.90.10/ exo-nginx
+    ;;
+  synapse)
+    tcp_check 10.10.110.10 8008 synapse-http
+    http_check http://10.10.110.10:8008/_matrix/client/versions synapse-client-versions
+    ;;
+  mail)
+    tcp_check 10.10.110.20 25 mail-smtp
+    tcp_check 10.10.110.20 587 mail-submission
+    tcp_check 10.10.110.20 993 mail-imaps
+    ;;
+  vault)
+    "$0" vaultwarden
+    ;;
+  automation)
+    "$0" n8n
+    ;;
+  ai)
+    "$0" exo
+    ;;
+  communication)
+    "$0" synapse
+    "$0" mail
+    ;;
   phase1)
     "$0" minio
     "$0" postgres
@@ -70,7 +104,7 @@ case "$PHASE" in
     "$0" semaphore
     ;;
   *)
-    echo "usage: $0 [minio|postgres|gitea|semaphore|phase1]" >&2
+    echo "usage: $0 [minio|postgres|gitea|semaphore|vaultwarden|n8n|exo|synapse|mail|vault|automation|ai|communication|phase1]" >&2
     exit 2
     ;;
 esac

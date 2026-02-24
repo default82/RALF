@@ -118,3 +118,13 @@ Current modes:
 - `--status` : summarize generated host bootstrap artifacts/readiness
 - `--artifacts` : list generated host bootstrap artifacts
 - `--run` : guarded preflight only (requires `HOST_RUNNER_ENABLE_EXEC=1`, no stack execution yet)
+- `--json` : machine-readable output for `--status` / `--artifacts`
+- `--quiet` : suppress contextual header lines (where applicable)
+
+Examples:
+
+```bash
+.ralf-host/bin/ralf-host-runner --status
+.ralf-host/bin/ralf-host-runner --status --json
+.ralf-host/bin/ralf-host-runner --artifacts --json
+```

@@ -21,6 +21,7 @@ lxd_profile="${LXD_PROFILE:-default}"
 config_changed=0
 config_error=""
 metadata_preview_file="${artifacts_dir}/lxd-metadata-targets.json"
+metadata_applied_file="${artifacts_dir}/lxd-metadata-applied.json"
 plan_file="${artifacts_dir}/lxd-plan.md"
 instance_state="unknown"
 
@@ -47,12 +48,28 @@ EOF
 - Profile: \`${lxd_profile}\`
 - Outputs dir: \`${outputs_dir}\`
 - Metadata preview: \`${metadata_preview_file}\`
+- Metadata applied: \`${metadata_applied_file}\`
 
 ## Behavior
 - Validate \`lxc\` client and LXD reachability
 - Create instance only if missing
 - Stamp \`user.ralf.*\` metadata idempotently
 - No destructive changes
+EOF
+}
+
+write_applied_metadata() {
+  cat > "$metadata_applied_file" <<EOF
+{
+  "instance_name": "$(json_escape "$name")",
+  "instance_state": "$(json_escape "$instance_state")",
+  "metadata": {
+    "user.ralf.profile": "$(json_escape "$(lxc config get "$name" "user.ralf.profile" 2>/dev/null || true)")",
+    "user.ralf.base_domain": "$(json_escape "$(lxc config get "$name" "user.ralf.base_domain" 2>/dev/null || true)")",
+    "user.ralf.network_cidr": "$(json_escape "$(lxc config get "$name" "user.ralf.network_cidr" 2>/dev/null || true)")",
+    "user.ralf.managed": "$(json_escape "$(lxc config get "$name" "user.ralf.managed" 2>/dev/null || true)")"
+  }
+}
 EOF
 }
 
@@ -83,6 +100,7 @@ write_report() {
   "profile": "$(json_escape "$lxd_profile")",
   "artifacts_dir": "$(json_escape "$artifacts_dir")",
   "metadata_preview_file": "$(json_escape "$metadata_preview_file")",
+  "metadata_applied_file": "$(json_escape "$metadata_applied_file")",
   "plan_file": "$(json_escape "$plan_file")",
   "lxc_version": "$(json_escape "$lxc_version")",
   "profile_name": "$(json_escape "${PROFILE:-}")",
@@ -147,6 +165,10 @@ fi
 
 if [[ "$instance_state" == "exists" && "$config_changed" -eq 1 ]]; then
   instance_state="updated"
+fi
+
+if [[ -z "$config_error" ]]; then
+  write_applied_metadata
 fi
 
 if [[ "$created" == "true" ]]; then

@@ -104,5 +104,17 @@ Bootstrap phases:
 Provisioner adapter status:
 
 - `proxmox_pct`: delegates to `bootstrap/legacy/start_proxmox_pct.sh`
-- `host`: delegates to `bootstrap/legacy/start_host.sh` (minimal local apply: workspace prepare, no destructive changes)
+- `host`: delegates to `bootstrap/legacy/start_host.sh` (minimal local apply: workspace prepare, no destructive changes, generates `ralf-host-runner`)
 - `lxd`: delegates to `bootstrap/legacy/start_lxd.sh` (minimal apply: validates `lxc`/LXD, create-if-missing, stamps `user.ralf.*` metadata)
+
+### Host Adapter Wrapper (`ralf-host-runner`)
+
+The `host` adapter generates a helper wrapper at `.ralf-host/bin/ralf-host-runner`.
+
+Current modes:
+
+- `--check` : validate prerequisites and print derived paths
+- `--dry-run` : print a preview of the future runner invocation
+- `--status` : summarize generated host bootstrap artifacts/readiness
+- `--artifacts` : list generated host bootstrap artifacts
+- `--run` : guarded preflight only (requires `HOST_RUNNER_ENABLE_EXEC=1`, no stack execution yet)

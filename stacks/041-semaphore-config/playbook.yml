@@ -88,11 +88,19 @@
       ansible.builtin.stat:
         path: /root/.ssh/ralf_ed25519
       register: local_ansible_ssh_key
+      failed_when: false
 
-    - name: Fail if Ansible SSH private key is missing on control node
+    - name: Check existing Ansible SSH private key on Semaphore host
+      ansible.builtin.stat:
+        path: "{{ ralf_runtime_secrets }}/ralf_ed25519"
+      register: target_ansible_ssh_key
+
+    - name: Fail if no Ansible SSH private key is available
       ansible.builtin.fail:
-        msg: "Missing /root/.ssh/ralf_ed25519 on control node (required for Semaphore-hosted Ansible runs)"
-      when: not local_ansible_ssh_key.stat.exists
+        msg: "Missing Ansible SSH private key on control node and Semaphore host (required for Semaphore-hosted Ansible runs)"
+      when:
+        - not (local_ansible_ssh_key.stat.exists | default(false))
+        - not (target_ansible_ssh_key.stat.exists | default(false))
 
   tasks:
     - name: Install base packages
@@ -216,6 +224,7 @@
         owner: root
         group: semaphore
         mode: "0640"
+      when: local_ansible_ssh_key.stat.exists | default(false)
 
     - name: Install helper wrapper for stack runs on Semaphore host
       ansible.builtin.copy:

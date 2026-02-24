@@ -227,7 +227,23 @@ for s in "${stacks[@]}"; do
     [[ -f "$inv" ]] || { echo "ERROR: missing inventory: $inv" >&2; exit 1; }
 
     if [[ "$AUTO_APPLY" == "1" ]]; then
-      ansible-playbook -i "$inv" playbook.yml
+      play_output=""
+      played=0
+      for attempt in $(seq 1 12); do
+        if play_output="$(ansible-playbook -i "$inv" playbook.yml 2>&1)"; then
+          printf '%s\n' "$play_output"
+          played=1
+          break
+        fi
+        printf '%s\n' "$play_output"
+        if grep -q 'UNREACHABLE!' <<<"$play_output" && grep -Eq 'Connection timed out|Connection refused|No route to host' <<<"$play_output"; then
+          echo "[runner] Playbook unreachable on attempt ${attempt}; retrying after 5s"
+          sleep 5
+          continue
+        fi
+        exit 1
+      done
+      [[ "$played" == "1" ]] || exit 1
     else
       echo "[runner] AUTO_APPLY=0 → ansible remote run skipped; running syntax-check only"
       ansible-playbook -i "$inv" --syntax-check playbook.yml

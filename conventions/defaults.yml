@@ -1,0 +1,8 @@
+PROFILE_NAME: generic_home
+NETWORK_CIDR: 10.10.0.0/16
+BASE_DOMAIN: homelab.lan
+CT_HOSTNAME: ralf-bootstrap
+TUI: 0
+NON_INTERACTIVE: 0
+YES: 0
+FORCE: 0

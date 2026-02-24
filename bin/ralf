@@ -1,0 +1,340 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+json_escape() {
+  local s="${1:-}"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
+load_simple_yaml() {
+  local file="$1" prefix="$2"
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    [[ "$line" == *:* ]] || continue
+    local key="${line%%:*}"
+    local val="${line#*:}"
+    key="$(printf '%s' "$key" | sed 's/[[:space:]]//g')"
+    val="$(printf '%s' "$val" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    val="${val%\"}"; val="${val#\"}"
+    val="${val%\'}"; val="${val#\'}"
+    printf -v "${prefix}${key}" '%s' "$val"
+  done <"$file"
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ralf bootstrap [options]
+
+Options:
+  --provisioner proxmox_pct|host|lxd
+  --profile NAME
+  --network-cidr CIDR
+  --base-domain DOMAIN
+  --ct-hostname NAME
+  --tui | --no-tui
+  --non-interactive
+  --yes
+  --force
+  --answers-file PATH
+  --export-answers PATH
+  --apply
+EOF
+}
+
+cmd="${1:-}"
+shift || true
+[[ -n "$cmd" ]] || { usage; exit 2; }
+
+case "$cmd" in
+  bootstrap) ;;
+  -h|--help|help) usage; exit 0 ;;
+  *) echo "unknown command: $cmd" >&2; usage; exit 2 ;;
+esac
+
+PROVISIONER="${PROVISIONER:-}"
+PROFILE="${PROFILE:-generic_home}"
+NETWORK_CIDR="${NETWORK_CIDR:-}"
+BASE_DOMAIN="${BASE_DOMAIN:-}"
+CT_HOSTNAME="${CT_HOSTNAME:-}"
+TUI="${TUI:-0}"
+NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
+YES="${YES:-0}"
+FORCE="${FORCE:-0}"
+ANSWERS_FILE="${ANSWERS_FILE:-}"
+EXPORT_ANSWERS="${EXPORT_ANSWERS:-}"
+APPLY="${APPLY:-0}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --provisioner) PROVISIONER="${2:-}"; shift 2 ;;
+    --profile) PROFILE="${2:-}"; shift 2 ;;
+    --network-cidr) NETWORK_CIDR="${2:-}"; shift 2 ;;
+    --base-domain) BASE_DOMAIN="${2:-}"; shift 2 ;;
+    --ct-hostname) CT_HOSTNAME="${2:-}"; shift 2 ;;
+    --tui) TUI=1; shift ;;
+    --no-tui) TUI=0; shift ;;
+    --non-interactive) NON_INTERACTIVE=1; shift ;;
+    --yes) YES=1; shift ;;
+    --force) FORCE=1; shift ;;
+    --answers-file) ANSWERS_FILE="${2:-}"; shift 2 ;;
+    --export-answers) EXPORT_ANSWERS="${2:-}"; shift 2 ;;
+    --apply) APPLY=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+outputs_dir="${repo_root}/outputs"
+mkdir -p "$outputs_dir"
+
+phase_probe="pending"
+phase_config_merge="pending"
+phase_policy="pending"
+phase_provisioner="pending"
+phase_artifacts="pending"
+phase_apply_trigger="pending"
+overall_status="ok"
+exit_code=0
+warnings=()
+blockers=()
+
+# Phase 1: Probe
+phase_probe="running"
+if [[ -z "$PROVISIONER" ]]; then
+  if command -v pct >/dev/null 2>&1; then
+    PROVISIONER="proxmox_pct"
+  elif command -v lxc >/dev/null 2>&1; then
+    PROVISIONER="lxd"
+  else
+    PROVISIONER="host"
+  fi
+fi
+
+has_pct=0; command -v pct >/dev/null 2>&1 && has_pct=1
+has_lxc=0; command -v lxc >/dev/null 2>&1 && has_lxc=1
+has_git=0; command -v git >/dev/null 2>&1 && has_git=1
+is_tty=0; [[ -t 1 ]] && is_tty=1
+phase_probe="completed"
+
+# Phase 2: Config merge (CLI > profile > conventions/defaults)
+phase_config_merge="running"
+declare -A cfg
+load_simple_yaml "${repo_root}/conventions/defaults.yml" "cfg_"
+load_simple_yaml "${repo_root}/conventions/naming.yml" "cfg_"
+load_simple_yaml "${repo_root}/profiles/${PROFILE}.yml" "cfg_"
+
+cfg[profile]="${PROFILE}"
+cfg[provisioner]="${PROVISIONER}"
+cfg[network_cidr]="${NETWORK_CIDR:-${cfg_NETWORK_CIDR:-}}"
+cfg[base_domain]="${BASE_DOMAIN:-${cfg_BASE_DOMAIN:-}}"
+cfg[ct_hostname]="${CT_HOSTNAME:-${cfg_CT_HOSTNAME:-}}"
+cfg[tui]="${TUI}"
+cfg[non_interactive]="${NON_INTERACTIVE}"
+cfg[yes]="${YES}"
+cfg[force]="${FORCE}"
+cfg[answers_file]="${ANSWERS_FILE}"
+cfg[export_answers]="${EXPORT_ANSWERS}"
+cfg[apply]="${APPLY}"
+phase_config_merge="completed"
+
+# Phase 3: Policy / Gatekeeping
+phase_policy="running"
+case "${cfg[provisioner]}" in
+  proxmox_pct|host|lxd) ;;
+  *)
+    blockers+=("Unsupported provisioner: ${cfg[provisioner]}")
+    ;;
+esac
+
+if [[ "${cfg[non_interactive]}" == "1" ]]; then
+  cfg[tui]=0
+  [[ -n "${cfg[profile]}" ]] || blockers+=("Missing required value: profile")
+fi
+if [[ "${cfg[tui]}" == "1" && "$is_tty" != "1" ]]; then
+  cfg[tui]=0
+  warnings+=("TUI requested but no TTY is available; disabling TUI")
+fi
+
+if [[ "${cfg[provisioner]}" == "host" ]]; then
+  warnings+=("host provisioner is planning-only in current implementation")
+fi
+if [[ "${cfg[provisioner]}" == "lxd" ]]; then
+  warnings+=("lxd provisioner is planning-only in current implementation")
+fi
+
+if [[ ${#blockers[@]} -gt 0 ]]; then
+  overall_status="blocker"
+  exit_code=2
+elif [[ ${#warnings[@]} -gt 0 ]]; then
+  overall_status="warn"
+  exit_code=1
+fi
+phase_policy="completed"
+
+# Phase 4: Provisioner selection (adapter resolution)
+phase_provisioner="running"
+provisioner_adapter=""
+case "${cfg[provisioner]}" in
+  proxmox_pct) provisioner_adapter="${repo_root}/bootstrap/legacy/start_proxmox_pct.sh" ;;
+  host|lxd) provisioner_adapter="" ;;
+esac
+phase_provisioner="completed"
+
+# Phase 5: Artifact generation (always)
+phase_artifacts="running"
+
+cat >"${outputs_dir}/probe_report.json" <<EOF
+{
+  "provisioner_detected": "$(json_escape "${cfg[provisioner]}")",
+  "commands": {
+    "pct": ${has_pct},
+    "lxc": ${has_lxc},
+    "git": ${has_git}
+  },
+  "tty": ${is_tty}
+}
+EOF
+
+cat >"${outputs_dir}/final_config.json" <<EOF
+{
+  "provisioner": "$(json_escape "${cfg[provisioner]}")",
+  "profile": "$(json_escape "${cfg[profile]}")",
+  "network_cidr": "$(json_escape "${cfg[network_cidr]}")",
+  "base_domain": "$(json_escape "${cfg[base_domain]}")",
+  "ct_hostname": "$(json_escape "${cfg[ct_hostname]}")",
+  "tui": ${cfg[tui]},
+  "non_interactive": ${cfg[non_interactive]},
+  "yes": ${cfg[yes]},
+  "force": ${cfg[force]},
+  "apply": ${cfg[apply]}
+}
+EOF
+
+{
+  printf 'profile: %s\n' "${cfg[profile]}"
+  printf 'provisioner: %s\n' "${cfg[provisioner]}"
+  printf 'network_cidr: %s\n' "${cfg[network_cidr]}"
+  printf 'base_domain: %s\n' "${cfg[base_domain]}"
+  printf 'ct_hostname: %s\n' "${cfg[ct_hostname]}"
+} > "${outputs_dir}/answers.yml"
+
+cat >"${outputs_dir}/plan_summary.md" <<EOF
+# RALF Bootstrap Plan Summary
+
+- Provisioner: \`${cfg[provisioner]}\`
+- Profile: \`${cfg[profile]}\`
+- Network CIDR: \`${cfg[network_cidr]:-<unset>}\`
+- Base domain: \`${cfg[base_domain]:-<unset>}\`
+- CT hostname: \`${cfg[ct_hostname]:-<unset>}\`
+- Apply requested: \`${cfg[apply]}\`
+- Overall status: \`${overall_status}\`
+
+## Notes
+EOF
+for w in "${warnings[@]}"; do printf -- '- WARN: %s\n' "$w"; done >> "${outputs_dir}/plan_summary.md"
+for b in "${blockers[@]}"; do printf -- '- BLOCKER: %s\n' "$b"; done >> "${outputs_dir}/plan_summary.md"
+[[ ${#warnings[@]} -eq 0 && ${#blockers[@]} -eq 0 ]] && printf -- '- No warnings or blockers.\n' >> "${outputs_dir}/plan_summary.md"
+
+phase_artifacts="completed"
+
+# Phase 6: Optional apply trigger (only explicit gate)
+phase_apply_trigger="running"
+applied=0
+apply_result="skipped"
+if [[ "${cfg[apply]}" == "1" ]]; then
+  if [[ ${#blockers[@]} -gt 0 ]]; then
+    apply_result="blocked"
+  elif [[ "${cfg[provisioner]}" == "proxmox_pct" ]]; then
+    if [[ -x "$provisioner_adapter" ]]; then
+      # Forward existing env to preserve legacy behavior; export key merged values too.
+      export PROFILE="${cfg[profile]}"
+      [[ -n "${cfg[network_cidr]}" ]] && export NETWORK_CIDR="${cfg[network_cidr]}"
+      [[ -n "${cfg[base_domain]}" ]] && export BASE_DOMAIN="${cfg[base_domain]}"
+      [[ -n "${cfg[ct_hostname]}" ]] && export CT_HOSTNAME="${cfg[ct_hostname]}"
+      if [[ "${cfg[yes]}" == "1" && "${YES:-0}" != "1" ]]; then export YES=1; fi
+      if [[ "${cfg[force]}" == "1" && "${FORCE:-0}" != "1" ]]; then export FORCE=1; fi
+      "$provisioner_adapter"
+      applied=1
+      apply_result="applied"
+    else
+      blockers+=("Missing proxmox_pct adapter: $provisioner_adapter")
+      overall_status="blocker"
+      exit_code=2
+      apply_result="adapter_missing"
+    fi
+  else
+    apply_result="planned_only"
+    if [[ "$overall_status" == "ok" ]]; then
+      overall_status="warn"
+      exit_code=1
+      warnings+=("Apply for ${cfg[provisioner]} not implemented yet; artifacts generated only")
+    fi
+  fi
+fi
+phase_apply_trigger="completed"
+
+cat >"${outputs_dir}/checkpoints.json" <<EOF
+{
+  "phases": [
+    {"name":"probe","status":"${phase_probe}"},
+    {"name":"config_merge","status":"${phase_config_merge}"},
+    {"name":"policy_gatekeeping","status":"${phase_policy}"},
+    {"name":"provisioner","status":"${phase_provisioner}"},
+    {"name":"artifact_generation","status":"${phase_artifacts}"},
+    {"name":"optional_apply_trigger","status":"${phase_apply_trigger}"}
+  ],
+  "apply_result": "$(json_escape "${apply_result}")"
+}
+EOF
+
+warn_json=""
+if [[ ${#warnings[@]} -gt 0 ]]; then
+  warn_json="["
+  for i in "${!warnings[@]}"; do
+    [[ "$i" -gt 0 ]] && warn_json+=","
+    warn_json+="\"$(json_escape "${warnings[$i]}")\""
+  done
+  warn_json+="]"
+else
+  warn_json="[]"
+fi
+
+blocker_json=""
+if [[ ${#blockers[@]} -gt 0 ]]; then
+  blocker_json="["
+  for i in "${!blockers[@]}"; do
+    [[ "$i" -gt 0 ]] && blocker_json+=","
+    blocker_json+="\"$(json_escape "${blockers[$i]}")\""
+  done
+  blocker_json+="]"
+else
+  blocker_json="[]"
+fi
+
+cat >"${outputs_dir}/cli_status.json" <<EOF
+{
+  "command": "bootstrap",
+  "status": "$(json_escape "${overall_status}")",
+  "exit_code": ${exit_code},
+  "applied": ${applied},
+  "warnings": ${warn_json},
+  "blockers": ${blocker_json},
+  "outputs_dir": "$(json_escape "${outputs_dir}")"
+}
+EOF
+
+if [[ -n "$EXPORT_ANSWERS" ]]; then
+  mkdir -p "$(dirname "$EXPORT_ANSWERS")"
+  cp "${outputs_dir}/answers.yml" "$EXPORT_ANSWERS"
+fi
+
+exit "${exit_code}"

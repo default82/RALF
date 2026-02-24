@@ -26,6 +26,33 @@ Danach werden weitere Dienste ueber Semaphore-Tasks ausgerollt (u. a. `Vaultward
 
 ## Einstieg
 
+### Bootstrap One-Liner (Quick Start, unsicher)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+```
+
+### Parametrisierter One-Liner
+
+```bash
+PROVISIONER=host PROFILE=generic_home NETWORK_CIDR=192.168.178.0/24 BASE_DOMAIN=home.lan TUI=1 \
+curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+```
+
+Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
+
+- `PROVISIONER=proxmox_pct|host|lxd` (autodetect: `pct` -> `proxmox_pct`, `lxc` -> `lxd`, sonst `host`)
+- `PROFILE`
+- `NETWORK_CIDR`
+- `BASE_DOMAIN`
+- `CT_HOSTNAME`
+- `TUI=1|0`
+- `NON_INTERACTIVE=1|0`
+- `YES=1|0`
+- `FORCE=1|0`
+- `ANSWERS_FILE`
+- `EXPORT_ANSWERS`
+
 Phase-1-Cleanroom-Test (MinIO -> PostgreSQL -> Gitea -> Semaphore):
 
 ```bash
@@ -47,6 +74,7 @@ Beispiele:
 
 ## Dokumentation
 
+- `bootstrap/README.md` - sichere Startmodi (`SHA256`, `minisign`) und Maintainer-Workflow
 - `bootstrap/RUNBOOK.md` - Bootstrap/Transition (`MinIO -> PostgreSQL -> Gitea -> Semaphore`)
 - `bootstrap/RUNBOOK-SEMAPHORE.md` - Betrieb ab Phase 1 (Semaphore-first)
 - `bootstrap/ARCHITEKTUR.md`, `bootstrap/CHECKS.md`, `bootstrap/VARS.md`

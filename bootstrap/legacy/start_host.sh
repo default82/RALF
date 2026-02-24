@@ -189,6 +189,23 @@ cat > "$host_runner_wrapper" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'USAGE'
+Usage: ralf-host-runner [--check|--run]
+
+  --check   Validate local prerequisites and print derived paths
+  --run     Guarded placeholder for future host execution (requires explicit enable)
+USAGE
+}
+
+mode="check"
+case "\${1:-}" in
+  ""|--check) mode="check" ;;
+  --run) mode="run" ;;
+  -h|--help) usage; exit 0 ;;
+  *) echo "[host-runner] unknown option: \$1" >&2; usage; exit 2 ;;
+esac
+
 HOST_BASE="\${RALF_HOST_BASE:-${host_base}}"
 CFG_FILE="\${RALF_HOST_RUNNER_ENV:-${host_runner_env_file}}"
 
@@ -202,12 +219,45 @@ fi
 export RALF_BASE="\${RALF_BASE:-\$HOST_BASE}"
 export RALF_RUNTIME="\${RALF_RUNTIME:-\$HOST_BASE/runtime}"
 export RALF_REPO="\${RALF_REPO:-${repo_root}}"
+export RALF_OUTPUTS_DIR="\${RALF_OUTPUTS_DIR:-${outputs_dir}}"
 
 echo "[host-runner] repo=\$RALF_REPO"
 echo "[host-runner] runtime=\$RALF_RUNTIME"
-echo "[host-runner] outputs=\${RALF_OUTPUTS_DIR:-${outputs_dir}}"
-echo "[host-runner] This wrapper is a conservative placeholder. It does not run stacks yet."
-echo "[host-runner] Populate \$RALF_RUNTIME/secrets and install tofu/terragrunt/ansible before enabling execution."
+echo "[host-runner] outputs=\$RALF_OUTPUTS_DIR"
+
+missing=0
+for req in bash curl git; do
+  if ! command -v "\$req" >/dev/null 2>&1; then
+    echo "[host-runner] missing required tool: \$req" >&2
+    missing=1
+  fi
+done
+[[ -d "\$RALF_RUNTIME/secrets" ]] || { echo "[host-runner] missing runtime secrets dir: \$RALF_RUNTIME/secrets" >&2; missing=1; }
+[[ -d "\$RALF_REPO" ]] || { echo "[host-runner] missing repo dir: \$RALF_REPO" >&2; missing=1; }
+
+if [[ "\$mode" == "check" ]]; then
+  if [[ "\$missing" -eq 0 ]]; then
+    echo "[host-runner] check: OK"
+    echo "[host-runner] Placeholder wrapper only. No stack execution implemented yet."
+    exit 0
+  fi
+  echo "[host-runner] check: FAILED" >&2
+  exit 2
+fi
+
+if [[ "\${HOST_RUNNER_ENABLE_EXEC:-0}" != "1" ]]; then
+  echo "[host-runner] --run is disabled by default. Set HOST_RUNNER_ENABLE_EXEC=1 to proceed." >&2
+  exit 2
+fi
+
+if [[ "\$missing" -ne 0 ]]; then
+  echo "[host-runner] prerequisites missing; refusing --run" >&2
+  exit 2
+fi
+
+echo "[host-runner] execution mode enabled, but runner integration is not implemented yet." >&2
+echo "[host-runner] Next step: add host-safe runner wiring to bootstrap/runner.sh or a dedicated host runner." >&2
+exit 2
 EOF
 chmod 0755 "$host_runner_wrapper"
 
@@ -223,8 +273,8 @@ Files:
 
 Current behavior:
 
-- prints derived repo/runtime/output paths
-- does **not** execute stacks
+- `--check`: validates local prerequisites and prints derived paths
+- `--run`: guarded placeholder (disabled by default, no stack execution yet)
 
 Next step to make this real:
 

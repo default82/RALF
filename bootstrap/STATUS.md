@@ -10,8 +10,8 @@ Der neue Bootstrap-Pfad ist funktionsfaehig und deutlich verbessert:
 - `ralf bootstrap` = CLI mit Phasen, Outputs, Exitcodes
 - Provisioner:
   - `proxmox_pct`: produktiv (Legacy-Adapter)
-  - `host`: konservativer Minimal-Adapter (idempotent)
-  - `lxd`: konservativer Minimal-Adapter (idempotent, create-if-missing + Metadata-Stamping)
+  - `host`: konservativer Minimal-Adapter (idempotent, Workspace + Artefakte + `ralf-host-runner`)
+  - `lxd`: konservativer Minimal-Adapter (idempotent, create-if-missing + Metadata-Stamping + Plan/Metadata-Artefakte)
 
 ## A) Quick Start (unsafe)
 
@@ -112,11 +112,13 @@ Zusatz:
 
 - `adapter_report_file` in `cli_status.json`
 - `OUTPUTS_DIR` / `--outputs-dir` fuer Run-Isolation
+- `plan_summary.md` listet Adapter-Artefakte (`present` / `missing`)
 
 Offen / Ausbau:
 
 - Vollwertige nicht-Proxmox-Provisioner (host/lxd derzeit konservative Minimal-Adapter)
 - Tieferer Config-Merge (komplexes YAML, nested structures, validation)
+- Host-Runner `--run` ist weiterhin bewusst nur guarded Preflight (keine echte Ausfuehrung)
 
 ## G) TUI (optional)
 
@@ -140,3 +142,4 @@ Offen:
 3. `lxd`-Provisioner um Netzwerk-/Profile-Konfig (konservativ, idempotent) erweitern
 4. Release-Automation fuer `start.sh` + `start.sh.minisig` einfuehren
 5. Legacy-Proxmox-Defaults schrittweise in `profiles/` / `conventions/` ueberfuehren
+6. Optional: Adapter-Artefakt-Discovery standardisieren (schema statt provisioner-spezifische Felder)

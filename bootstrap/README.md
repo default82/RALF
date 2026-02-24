@@ -95,6 +95,7 @@ Local verification helper (optional):
 
 ```bash
 bash bootstrap/release/verify-start.sh --version v1.0.0 --pubkey "<MINISIGN_PUBLIC_KEY_STRING>" --verify-only
+bash bootstrap/release/verify-start.sh --version v1.0.0 --pubkey-file bootstrap/release/minisign.pub --verify-only
 ```
 
 ## Bootstrap Engine Contract

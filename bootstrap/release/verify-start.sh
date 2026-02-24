@@ -12,6 +12,7 @@ ORG="${ORG:-default82}"
 REPO="${REPO:-RALF}"
 VERSION="${VERSION:-}"
 PUBKEY="${PUBKEY:-}"
+PUBKEY_FILE="${PUBKEY_FILE:-}"
 RUN_AFTER_VERIFY="${RUN_AFTER_VERIFY:-1}"
 
 while [[ $# -gt 0 ]]; do
@@ -20,13 +21,14 @@ while [[ $# -gt 0 ]]; do
     --repo) REPO="${2:-}"; shift 2 ;;
     --version) VERSION="${2:-}"; shift 2 ;;
     --pubkey) PUBKEY="${2:-}"; shift 2 ;;
+    --pubkey-file) PUBKEY_FILE="${2:-}"; shift 2 ;;
     --verify-only) RUN_AFTER_VERIFY=0; shift ;;
     -h|--help)
       cat <<'EOF'
-Usage: verify-start.sh --version <tag> --pubkey <minisign_public_key_string> [--verify-only]
+Usage: verify-start.sh --version <tag> (--pubkey <key> | --pubkey-file <file>) [--verify-only]
 
 Env:
-  ORG, REPO, VERSION, PUBKEY, RUN_AFTER_VERIFY=1|0
+  ORG, REPO, VERSION, PUBKEY, PUBKEY_FILE, RUN_AFTER_VERIFY=1|0
 EOF
       exit 0
       ;;
@@ -35,7 +37,21 @@ EOF
 done
 
 [[ -n "$VERSION" ]] || { echo "VERSION is required"; exit 2; }
-[[ -n "$PUBKEY" ]] || { echo "PUBKEY is required"; exit 2; }
+
+if [[ -z "$PUBKEY" ]]; then
+  if [[ -n "$PUBKEY_FILE" ]]; then
+    [[ -f "$PUBKEY_FILE" ]] || { echo "PUBKEY_FILE not found: $PUBKEY_FILE" >&2; exit 2; }
+    PUBKEY="$(awk 'NF && $1 !~ /^untrusted/ {print; exit}' "$PUBKEY_FILE")"
+  else
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    default_pub="${repo_root}/bootstrap/release/minisign.pub"
+    if [[ -f "$default_pub" ]]; then
+      PUBKEY="$(awk 'NF && $1 !~ /^untrusted/ {print; exit}' "$default_pub")"
+      PUBKEY_FILE="$default_pub"
+    fi
+  fi
+fi
+[[ -n "$PUBKEY" ]] || { echo "PUBKEY is required (or provide --pubkey-file / bootstrap/release/minisign.pub)"; exit 2; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

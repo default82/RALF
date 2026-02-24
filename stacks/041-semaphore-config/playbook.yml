@@ -255,9 +255,9 @@
     - name: Render semaphore config
       ansible.builtin.copy:
         dest: "{{ sem_cfg_path }}"
-        owner: root
-        group: root
-        mode: "0600"
+        owner: "{{ sem_user }}"
+        group: "{{ sem_group }}"
+        mode: "0640"
         content: |
           {
             "dialect": "postgres",
@@ -295,7 +295,7 @@
           User={{ sem_user }}
           Group={{ sem_group }}
           WorkingDirectory={{ sem_data_dir }}
-          ExecStart={{ sem_bin }} server --config {{ sem_cfg_path }}
+          ExecStart={{ sem_bin }} --config {{ sem_cfg_path }} server
           Restart=always
           RestartSec=5
 
@@ -376,6 +376,7 @@
         test -f {{ ralf_repo }}/bootstrap/smoke.sh
       args:
         executable: /bin/bash
+      changed_when: false
 
   handlers:
     - name: restart semaphore

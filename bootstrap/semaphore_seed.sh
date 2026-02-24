@@ -133,10 +133,20 @@ ensure_env() {
 infra_env_json="$(jq -nc '{AUTO_APPLY:"1",START_AT:"000",ONLY_STACKS:"030-minio-lxc 020-postgres-lxc 034-gitea-lxc 040-semaphore-lxc"}')"
 config_env_json="$(jq -nc '{AUTO_APPLY:"1",START_AT:"000",ONLY_STACKS:"031-minio-config 021-postgres-config 035-gitea-config 041-semaphore-config"}')"
 smoke_env_json="$(jq -nc '{}')"
+vault_env_json="$(jq -nc '{AUTO_APPLY:"1",START_AT:"000",ONLY_STACKS:"042-vaultwarden-lxc 043-vaultwarden-config"}')"
+automation_env_json="$(jq -nc '{AUTO_APPLY:"1",START_AT:"000",ONLY_STACKS:"044-n8n-lxc 045-n8n-config"}')"
+communication_env_json="$(jq -nc '{AUTO_APPLY:"1",START_AT:"000",ONLY_STACKS:"110-synapse-lxc 111-synapse-config 112-mail-lxc 113-mail-config"}')"
+ai_env_json="$(jq -nc '{AUTO_APPLY:"1",START_AT:"000",ONLY_STACKS:"090-exo-lxc 091-exo-config"}')"
+all_config_env_json="$(jq -nc '{AUTO_APPLY:"1",START_AT:"000",ONLY_STACKS:"031-minio-config 021-postgres-config 035-gitea-config 041-semaphore-config 043-vaultwarden-config 045-n8n-config 111-synapse-config 113-mail-config 091-exo-config"}')"
 
 infra_env_id="$(ensure_env 'RALF Phase1 Infra Env' "$infra_env_json")"
 config_env_id="$(ensure_env 'RALF Phase1 Config Env' "$config_env_json")"
 smoke_env_id="$(ensure_env 'RALF Smoke Env' "$smoke_env_json")"
+vault_env_id="$(ensure_env 'RALF Vault Env' "$vault_env_json")"
+automation_env_id="$(ensure_env 'RALF Automation Env' "$automation_env_json")"
+communication_env_id="$(ensure_env 'RALF Communication Env' "$communication_env_json")"
+ai_env_id="$(ensure_env 'RALF AI Env' "$ai_env_json")"
+all_config_env_id="$(ensure_env 'RALF All Config Env' "$all_config_env_json")"
 
 ensure_template() {
   local tpl_name="$1" playbook="$2" args_json="$3" env_id="$4"
@@ -182,6 +192,11 @@ ensure_template() {
 ensure_template "RALF Phase1 Infra Apply" "/usr/local/bin/ralf-semaphore-run" "[]" "$infra_env_id"
 ensure_template "RALF Phase1 Config Apply" "/usr/local/bin/ralf-semaphore-run" "[]" "$config_env_id"
 ensure_template "RALF Phase1 Smoke" "/usr/local/bin/ralf-semaphore-smoke" "[\"phase1\"]" "$smoke_env_id"
+ensure_template "RALF Vault Apply" "/usr/local/bin/ralf-semaphore-run" "[]" "$vault_env_id"
+ensure_template "RALF Automation Apply" "/usr/local/bin/ralf-semaphore-run" "[]" "$automation_env_id"
+ensure_template "RALF Communication Apply" "/usr/local/bin/ralf-semaphore-run" "[]" "$communication_env_id"
+ensure_template "RALF AI Apply" "/usr/local/bin/ralf-semaphore-run" "[]" "$ai_env_id"
+ensure_template "RALF All Config Apply" "/usr/local/bin/ralf-semaphore-run" "[]" "$all_config_env_id"
 
 echo "PROJECT_ID=${project_id}"
 echo "CHANGED=${changed}"

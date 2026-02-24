@@ -192,26 +192,35 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: ralf-host-runner [--check|--dry-run|--status|--artifacts|--run]
+Usage: ralf-host-runner [MODE] [--json] [--quiet]
 
   --check   Validate local prerequisites and print derived paths
   --dry-run Show the command that a future host runner would execute
   --status  Print a compact status summary from generated artifacts
   --artifacts List generated host bootstrap artifacts
   --run     Guarded placeholder for future host execution (requires explicit enable)
+  --json    Machine-readable output (for --status / --artifacts)
+  --quiet   Suppress contextual header lines where possible
 USAGE
 }
 
 mode="check"
-case "\${1:-}" in
-  ""|--check) mode="check" ;;
-  --dry-run) mode="dry_run" ;;
-  --status) mode="status" ;;
-  --artifacts) mode="artifacts" ;;
-  --run) mode="run" ;;
-  -h|--help) usage; exit 0 ;;
-  *) echo "[host-runner] unknown option: \$1" >&2; usage; exit 2 ;;
-esac
+json=0
+quiet=0
+while [[ \$# -gt 0 ]]; do
+  case "\$1" in
+    --check) mode="check" ;;
+    --dry-run) mode="dry_run" ;;
+    --status) mode="status" ;;
+    --artifacts) mode="artifacts" ;;
+    --run) mode="run" ;;
+    --json) json=1 ;;
+    --quiet) quiet=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "[host-runner] unknown option: \$1" >&2; usage; exit 2 ;;
+  esac
+  shift
+done
 
 HOST_BASE="\${RALF_HOST_BASE:-${host_base}}"
 CFG_FILE="\${RALF_HOST_RUNNER_ENV:-${host_runner_env_file}}"
@@ -231,13 +240,14 @@ export RALF_TOOL_READINESS_FILE="\${RALF_TOOL_READINESS_FILE:-\$HOST_BASE/artifa
 export RALF_HOST_ARTIFACTS_DIR="\${RALF_HOST_ARTIFACTS_DIR:-\$HOST_BASE/artifacts}"
 export RALF_HOST_RUNNER_README="\${RALF_HOST_RUNNER_README:-\$HOST_BASE/artifacts/host-runner.md}"
 
-echo "[host-runner] repo=\$RALF_REPO"
-echo "[host-runner] runtime=\$RALF_RUNTIME"
-echo "[host-runner] outputs=\$RALF_OUTPUTS_DIR"
-echo "[host-runner] readiness=\$RALF_TOOL_READINESS_FILE"
-
-if [[ -f "\$RALF_TOOL_READINESS_FILE" ]] && command -v python3 >/dev/null 2>&1; then
-  python3 - "\$RALF_TOOL_READINESS_FILE" <<'PY'
+show_context_and_readiness() {
+  [[ "\$quiet" == "1" ]] && return 0
+  echo "[host-runner] repo=\$RALF_REPO"
+  echo "[host-runner] runtime=\$RALF_RUNTIME"
+  echo "[host-runner] outputs=\$RALF_OUTPUTS_DIR"
+  echo "[host-runner] readiness=\$RALF_TOOL_READINESS_FILE"
+  if [[ -f "\$RALF_TOOL_READINESS_FILE" ]] && command -v python3 >/dev/null 2>&1; then
+    python3 - "\$RALF_TOOL_READINESS_FILE" <<'PY'
 import json, sys
 p = sys.argv[1]
 try:
@@ -254,6 +264,11 @@ if missing_required:
 if missing_optional:
     print("[host-runner] missing optional tools: " + ", ".join(missing_optional))
 PY
+  fi
+}
+
+if [[ "\$mode" != "status" && "\$mode" != "artifacts" ]] || [[ "\$json" != "1" ]]; then
+  show_context_and_readiness
 fi
 
 missing=0
@@ -267,6 +282,33 @@ done
 [[ -d "\$RALF_REPO" ]] || { echo "[host-runner] missing repo dir: \$RALF_REPO" >&2; missing=1; }
 
 if [[ "\$mode" == "status" ]]; then
+  if [[ "\$json" == "1" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      python3 - "\$RALF_TOOL_READINESS_FILE" "\$RALF_OUTPUTS_DIR/host_apply_report.json" <<'PY'
+import json, os, sys
+rfile, repfile = sys.argv[1], sys.argv[2]
+def load(p):
+    try:
+        return json.load(open(p))
+    except Exception:
+        return {}
+readiness = load(rfile)
+report = load(repfile)
+print(json.dumps({
+    "status": report.get("status", "unknown"),
+    "message": report.get("message", ""),
+    "readiness": readiness.get("status", "unknown"),
+    "missing_required": readiness.get("missing_required", []) or [],
+    "missing_optional": readiness.get("missing_optional", []) or [],
+    "report_file": repfile,
+    "readiness_file": rfile,
+}, indent=2))
+PY
+      exit 0
+    fi
+    echo '{"error":"python3 required for --json status"}'
+    exit 2
+  fi
   if command -v python3 >/dev/null 2>&1 && [[ -f "\$RALF_TOOL_READINESS_FILE" ]]; then
     python3 - "\$RALF_TOOL_READINESS_FILE" "\$RALF_OUTPUTS_DIR/host_apply_report.json" <<'PY'
 import json, os, sys
@@ -295,6 +337,28 @@ PY
 fi
 
 if [[ "\$mode" == "artifacts" ]]; then
+  if [[ "\$json" == "1" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      python3 - "\$RALF_HOST_ARTIFACTS_DIR" "\$RALF_BASE" "\$RALF_HOST_RUNNER_README" <<'PY'
+import json, os, sys
+artifacts_dir, base_dir, runner_readme = sys.argv[1], sys.argv[2], sys.argv[3]
+paths = [
+    os.path.join(artifacts_dir, "tool-manifest.txt"),
+    os.path.join(artifacts_dir, "tool-readiness.json"),
+    os.path.join(artifacts_dir, "host-plan.md"),
+    runner_readme,
+    os.path.join(base_dir, "config", "host-runner.env"),
+    os.path.join(base_dir, "bin", "ralf-host-runner"),
+]
+print(json.dumps({
+    "artifacts": [{"path": p, "exists": os.path.exists(p)} for p in paths]
+}, indent=2))
+PY
+      exit 0
+    fi
+    echo '{"error":"python3 required for --json artifacts"}'
+    exit 2
+  fi
   for p in \\
     "\$RALF_HOST_ARTIFACTS_DIR/tool-manifest.txt" \\
     "\$RALF_HOST_ARTIFACTS_DIR/tool-readiness.json" \\

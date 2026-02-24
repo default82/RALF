@@ -275,6 +275,7 @@ phase_apply_trigger="running"
 applied=0
 apply_result="skipped"
 adapter_report_file=""
+adapter_artifacts_json="[]"
 case "${cfg[provisioner]}" in
   host) adapter_report_file="${outputs_dir}/host_apply_report.json" ;;
   lxd) adapter_report_file="${outputs_dir}/lxd_apply_report.json" ;;
@@ -352,6 +353,43 @@ if [[ -n "$adapter_report_file" ]]; then
 fi
 
 if [[ -n "$adapter_report_file" && -f "$adapter_report_file" && "$(command -v python3 >/dev/null 2>&1; echo $?)" -eq 0 ]]; then
+  adapter_artifacts_json="$(
+    python3 - "$adapter_report_file" <<'PY'
+import json, os, sys
+
+report_path = sys.argv[1]
+try:
+    data = json.load(open(report_path))
+except Exception:
+    print("[]")
+    sys.exit(0)
+
+provisioner = data.get("provisioner")
+keys_by_provisioner = {
+    "host": [
+        "tool_manifest",
+        "tool_readiness_file",
+        "host_plan_file",
+        "host_runner_env_file",
+        "host_runner_wrapper",
+        "host_runner_readme",
+    ],
+    "lxd": [
+        "plan_file",
+        "metadata_preview_file",
+        "metadata_applied_file",
+    ],
+}
+items = []
+for key in keys_by_provisioner.get(provisioner, []):
+    p = data.get(key, "")
+    if not p:
+        continue
+    items.append({"key": key, "path": p, "exists": os.path.exists(p)})
+print(json.dumps(items))
+PY
+  )"
+
   python3 - "$adapter_report_file" >> "${outputs_dir}/plan_summary.md" <<'PY'
 import json, os, sys
 
@@ -462,6 +500,7 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "warnings": ${warn_json},
   "blockers": ${blocker_json},
   "adapter_report_file": "$(json_escape "${adapter_report_file}")",
+  "adapter_artifacts": ${adapter_artifacts_json},
   "outputs_dir": "$(json_escape "${outputs_dir}")"
 }
 EOF

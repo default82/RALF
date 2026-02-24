@@ -74,6 +74,7 @@
       ansible.builtin.apt:
         update_cache: true
         name:
+          - curl
           - nginx
           - openssl
           - git

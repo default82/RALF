@@ -57,7 +57,7 @@ Provisioner-Status aktuell:
 
 - `proxmox_pct`: produktiv (delegiert an Legacy-Proxmox-Bootstrap)
 - `host`: konservativer No-Op-Adapter (Artefakte + Gatekeeping, keine Host-Aenderungen)
-- `lxd`: konservativer No-Op-Adapter (Artefakte + Gatekeeping, validiert `lxc`)
+- `lxd`: konservativer Minimal-Adapter (Artefakte + Gatekeeping, erstellt LXD-Instanz falls fehlend)
 
 Phase-1-Cleanroom-Test (MinIO -> PostgreSQL -> Gitea -> Semaphore):
 

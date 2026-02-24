@@ -181,7 +181,7 @@ if [[ "${cfg[provisioner]}" == "host" ]]; then
   warnings+=("host provisioner uses a conservative no-op adapter (artifacts only)")
 fi
 if [[ "${cfg[provisioner]}" == "lxd" ]]; then
-  warnings+=("lxd provisioner uses a conservative no-op adapter (artifacts only)")
+  warnings+=("lxd provisioner uses a conservative minimal adapter (create-if-missing)")
 fi
 
 if [[ ${#blockers[@]} -gt 0 ]]; then

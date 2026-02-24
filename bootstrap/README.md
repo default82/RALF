@@ -81,6 +81,21 @@ The CLI always writes:
 - `adapter_report_file` (main adapter report path, if any)
 - `adapter_artifacts` (machine-readable artifact list with `exists=true|false`)
 
+Example (`cli_status.json` excerpt):
+
+```json
+{
+  "adapter_report_file": "/tmp/ralf-run/host_apply_report.json",
+  "adapter_artifacts": [
+    {
+      "key": "host_runner_wrapper",
+      "path": "/path/to/.ralf-host/bin/ralf-host-runner",
+      "exists": true
+    }
+  ]
+}
+```
+
 Optional:
 
 - `OUTPUTS_DIR` / `--outputs-dir` to isolate outputs per run (useful for sequential comparisons)

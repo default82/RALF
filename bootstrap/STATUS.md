@@ -114,6 +114,7 @@ Zusatz:
 - `adapter_artifacts` in `cli_status.json` (maschinenlesbare Artefaktliste mit `exists`)
 - `OUTPUTS_DIR` / `--outputs-dir` fuer Run-Isolation
 - `plan_summary.md` listet Adapter-Artefakte (`present` / `missing`)
+- `host`-Wrapper `--status --json` spiegelt Host-Artefakte ebenfalls maschinenlesbar
 
 Offen / Ausbau:
 

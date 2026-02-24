@@ -70,6 +70,9 @@ if command -v git >/dev/null 2>&1; then
     echo "failed to fetch repository ref: ${REF}" >&2
     exit 2
   fi
+  if resolved_commit="$(git -C "$work" rev-parse HEAD 2>/dev/null || true)" && [[ -n "$resolved_commit" ]]; then
+    log "Resolved git checkout to commit ${resolved_commit}"
+  fi
 else
   need tar
   log "Fetching repository via tarball (${TARBALL_URL}; ref_kind=${ref_kind})"
@@ -79,6 +82,7 @@ else
   src_dir="$(find "$tmp/extract" -mindepth 1 -maxdepth 1 -type d | head -n1)"
   [[ -n "$src_dir" ]] || { echo "failed to extract repository tarball" >&2; exit 2; }
   cp -a "$src_dir"/. "$work"/
+  log "Resolved tarball source directory: $(basename "$src_dir")"
 fi
 
 [[ -x "$work/bin/ralf" ]] || chmod +x "$work/bin/ralf" 2>/dev/null || true

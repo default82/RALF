@@ -11,7 +11,7 @@ Der neue Bootstrap-Pfad ist funktionsfaehig und deutlich verbessert:
 - Provisioner:
   - `proxmox_pct`: produktiv (Legacy-Adapter)
   - `host`: konservativer Minimal-Adapter (idempotent, Workspace + Artefakte + `ralf-host-runner`)
-  - `lxd`: konservativer Minimal-Adapter (idempotent, create-if-missing + Metadata-Stamping + Plan/Metadata-Artefakte)
+  - `lxd`: konservativer Minimal-Adapter (idempotent, create-if-missing + Profile-Validierung + Metadata-Stamping + Plan/Metadata-Artefakte)
 
 ## A) Quick Start (unsafe)
 

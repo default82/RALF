@@ -25,6 +25,7 @@ metadata_applied_file="${artifacts_dir}/lxd-metadata-applied.json"
 plan_file="${artifacts_dir}/lxd-plan.md"
 instance_state="unknown"
 metadata_diff_json='{}'
+profile_exists="unknown"
 
 write_artifacts() {
   cat > "$metadata_preview_file" <<EOF
@@ -99,6 +100,7 @@ write_report() {
   "instance_name": "$(json_escape "$name")",
   "image": "$(json_escape "$image")",
   "profile": "$(json_escape "$lxd_profile")",
+  "profile_exists": "$(json_escape "$profile_exists")",
   "artifacts_dir": "$(json_escape "$artifacts_dir")",
   "metadata_preview_file": "$(json_escape "$metadata_preview_file")",
   "metadata_applied_file": "$(json_escape "$metadata_applied_file")",
@@ -134,6 +136,16 @@ if ! lxc info >/dev/null 2>&1; then
   echo "[lxd-adapter] lxc client is present but LXD is not reachable" >&2
   write_artifacts
   write_report "error" "lxc present but LXD is not reachable" "false" "false" "$lxc_version"
+  exit 2
+fi
+
+if lxc profile show "$lxd_profile" >/dev/null 2>&1; then
+  profile_exists="true"
+else
+  profile_exists="false"
+  echo "[lxd-adapter] requested LXD profile not found: $lxd_profile" >&2
+  write_artifacts
+  write_report "error" "requested LXD profile not found: $lxd_profile" "false" "false" "$lxc_version"
   exit 2
 fi
 

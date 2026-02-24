@@ -500,6 +500,7 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "warnings": ${warn_json},
   "blockers": ${blocker_json},
   "adapter_report_file": "$(json_escape "${adapter_report_file}")",
+  "adapter_report_exists": $( [[ -n "$adapter_report_file" && -f "$adapter_report_file" ]] && printf 'true' || printf 'false' ),
   "adapter_artifacts": ${adapter_artifacts_json},
   "outputs_dir": "$(json_escape "${outputs_dir}")"
 }

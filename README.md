@@ -61,6 +61,10 @@ Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
 - `EXPORT_ANSWERS`
 - `OUTPUTS_DIR`
 
+Beispiel fuer Answers-Datei:
+
+- `bootstrap/examples/answers.generic_home.yml`
+
 Provisioner-Status aktuell:
 
 - `proxmox_pct`: produktiv (delegiert an Legacy-Proxmox-Bootstrap)

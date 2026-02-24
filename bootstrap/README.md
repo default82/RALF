@@ -147,11 +147,13 @@ Example (`cli_status.json` excerpt):
 Optional:
 
 - `OUTPUTS_DIR` / `--outputs-dir` to isolate outputs per run (useful for sequential comparisons)
+- example answers file: `bootstrap/examples/answers.generic_home.yml`
 
 Example:
 
 ```bash
 OUTPUTS_DIR=/tmp/ralf-bootstrap-run1 ./ralf bootstrap --provisioner host --apply --yes
+./ralf bootstrap --provisioner host --answers-file bootstrap/examples/answers.generic_home.yml
 ```
 
 Exit codes:

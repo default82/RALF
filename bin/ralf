@@ -106,6 +106,7 @@ overall_status="ok"
 exit_code=0
 warnings=()
 blockers=()
+warnings_accepted=0
 
 # Phase 1: Probe
 phase_probe="running"
@@ -131,12 +132,20 @@ declare -A cfg
 load_simple_yaml "${repo_root}/conventions/defaults.yml" "cfg_"
 load_simple_yaml "${repo_root}/conventions/naming.yml" "cfg_"
 load_simple_yaml "${repo_root}/profiles/${PROFILE}.yml" "cfg_"
+if [[ -n "$ANSWERS_FILE" ]]; then
+  load_simple_yaml "$ANSWERS_FILE" "ans_"
+fi
 
-cfg[profile]="${PROFILE}"
+ans_profile="${ans_profile:-${ans_PROFILE:-}}"
+ans_network_cidr="${ans_network_cidr:-${ans_NETWORK_CIDR:-}}"
+ans_base_domain="${ans_base_domain:-${ans_BASE_DOMAIN:-}}"
+ans_ct_hostname="${ans_ct_hostname:-${ans_CT_HOSTNAME:-}}"
+
+cfg[profile]="${PROFILE:-${ans_profile:-${cfg_PROFILE_NAME:-generic_home}}}"
 cfg[provisioner]="${PROVISIONER}"
-cfg[network_cidr]="${NETWORK_CIDR:-${cfg_NETWORK_CIDR:-}}"
-cfg[base_domain]="${BASE_DOMAIN:-${cfg_BASE_DOMAIN:-}}"
-cfg[ct_hostname]="${CT_HOSTNAME:-${cfg_CT_HOSTNAME:-}}"
+cfg[network_cidr]="${NETWORK_CIDR:-${ans_network_cidr:-${cfg_NETWORK_CIDR:-}}}"
+cfg[base_domain]="${BASE_DOMAIN:-${ans_base_domain:-${cfg_BASE_DOMAIN:-}}}"
+cfg[ct_hostname]="${CT_HOSTNAME:-${ans_ct_hostname:-${cfg_CT_HOSTNAME:-}}}"
 cfg[tui]="${TUI}"
 cfg[non_interactive]="${NON_INTERACTIVE}"
 cfg[yes]="${YES}"
@@ -156,12 +165,16 @@ case "${cfg[provisioner]}" in
 esac
 
 if [[ "${cfg[non_interactive]}" == "1" ]]; then
+  [[ "${cfg[tui]}" == "1" ]] && warnings+=("NON_INTERACTIVE=1 disables TUI")
   cfg[tui]=0
   [[ -n "${cfg[profile]}" ]] || blockers+=("Missing required value: profile")
 fi
 if [[ "${cfg[tui]}" == "1" && "$is_tty" != "1" ]]; then
   cfg[tui]=0
   warnings+=("TUI requested but no TTY is available; disabling TUI")
+fi
+if [[ -n "${cfg[answers_file]}" && ! -f "${cfg[answers_file]}" ]]; then
+  blockers+=("ANSWERS_FILE not found: ${cfg[answers_file]}")
 fi
 
 if [[ "${cfg[provisioner]}" == "host" ]]; then
@@ -175,8 +188,14 @@ if [[ ${#blockers[@]} -gt 0 ]]; then
   overall_status="blocker"
   exit_code=2
 elif [[ ${#warnings[@]} -gt 0 ]]; then
-  overall_status="warn"
-  exit_code=1
+  if [[ "${cfg[yes]}" == "1" ]]; then
+    warnings_accepted=1
+    overall_status="ok"
+    exit_code=0
+  else
+    overall_status="warn"
+    exit_code=1
+  fi
 fi
 phase_policy="completed"
 
@@ -262,9 +281,19 @@ if [[ "${cfg[apply]}" == "1" ]]; then
       [[ -n "${cfg[ct_hostname]}" ]] && export CT_HOSTNAME="${cfg[ct_hostname]}"
       if [[ "${cfg[yes]}" == "1" && "${YES:-0}" != "1" ]]; then export YES=1; fi
       if [[ "${cfg[force]}" == "1" && "${FORCE:-0}" != "1" ]]; then export FORCE=1; fi
+      set +e
       "$provisioner_adapter"
-      applied=1
-      apply_result="applied"
+      adapter_rc=$?
+      set -e
+      if [[ "$adapter_rc" -eq 0 ]]; then
+        applied=1
+        apply_result="applied"
+      else
+        blockers+=("proxmox_pct adapter failed with exit code ${adapter_rc}")
+        overall_status="blocker"
+        exit_code=2
+        apply_result="adapter_failed"
+      fi
     else
       blockers+=("Missing proxmox_pct adapter: $provisioner_adapter")
       overall_status="blocker"
@@ -326,6 +355,7 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "status": "$(json_escape "${overall_status}")",
   "exit_code": ${exit_code},
   "applied": ${applied},
+  "warnings_accepted": ${warnings_accepted},
   "warnings": ${warn_json},
   "blockers": ${blocker_json},
   "outputs_dir": "$(json_escape "${outputs_dir}")"

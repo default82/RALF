@@ -1,0 +1,58 @@
+name: Bootstrap Start Release Artifacts
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sign-start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install minisign
+        run: sudo apt-get update && sudo apt-get install -y minisign
+
+      - name: Write minisign secret key
+        env:
+          MINISIGN_SECRET_KEY_B64: ${{ secrets.MINISIGN_SECRET_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${MINISIGN_SECRET_KEY_B64:-}" || { echo "Missing secret MINISIGN_SECRET_KEY_B64"; exit 1; }
+          mkdir -p .ci-secrets
+          printf '%s' "$MINISIGN_SECRET_KEY_B64" | base64 -d > .ci-secrets/minisign.key
+          chmod 600 .ci-secrets/minisign.key
+
+      - name: Build bootstrap release artifacts
+        env:
+          MINISIGN_SECRET_KEY: ${{ github.workspace }}/.ci-secrets/minisign.key
+        run: |
+          set -euo pipefail
+          chmod +x bootstrap/release/sign-start.sh
+          bootstrap/release/sign-start.sh --out-dir dist/bootstrap-release
+
+      - name: Upload artifacts to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" \
+            dist/bootstrap-release/start.sh \
+            dist/bootstrap-release/start.sh.minisig \
+            dist/bootstrap-release/start.sh.sha256 \
+            dist/bootstrap-release/manifest.txt \
+            --clobber
+
+      - name: Upload workflow artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-release
+          path: dist/bootstrap-release/

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TEMPLATE_NAME="${1:-}"
+TEMPLATE_NAME=""
+LIST_ONLY=0
 PROJECT_ID="${PROJECT_ID:-1}"
 SEMAPHORE_BASE_URL="${SEMAPHORE_BASE_URL:-https://10.10.40.10}"
 BOOTSTRAP_CT="${BOOTSTRAP_CT:-10010}"
@@ -12,7 +13,9 @@ OUTPUT_TAIL_LINES="${OUTPUT_TAIL_LINES:-120}"
 
 usage() {
   cat >&2 <<'EOF'
-usage: bootstrap/sem-run-template.sh "Template Name"
+usage:
+  bootstrap/sem-run-template.sh [--project-id N] "Template Name"
+  bootstrap/sem-run-template.sh [--project-id N] --list
 
 Optional env vars:
   PROJECT_ID=1
@@ -28,10 +31,47 @@ EOF
 log() { printf '[sem-run] %s\n' "$*"; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 1; }; }
 
-[[ -n "$TEMPLATE_NAME" ]] || usage
 need curl
 need jq
 need pct
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --list)
+      LIST_ONLY=1
+      shift
+      ;;
+    --project-id)
+      [[ $# -ge 2 ]] || usage
+      PROJECT_ID="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "unknown option: $1" >&2
+      usage
+      ;;
+    *)
+      if [[ -z "$TEMPLATE_NAME" ]]; then
+        TEMPLATE_NAME="$1"
+        shift
+      else
+        echo "unexpected extra argument: $1" >&2
+        usage
+      fi
+      ;;
+  esac
+done
+
+if [[ $LIST_ONLY -eq 0 && -z "$TEMPLATE_NAME" ]]; then
+  usage
+fi
 
 get_admin_from_bootstrap() {
   pct exec "$BOOTSTRAP_CT" -- bash -lc \
@@ -74,8 +114,14 @@ curl -kfsS -c "$cookies" -X POST \
   -d "$login_payload" \
   "${SEMAPHORE_BASE_URL}/api/auth/login" >/dev/null
 
-log "Resolve template '${TEMPLATE_NAME}' (project ${PROJECT_ID})"
 templates_json="$(api GET "/api/project/${PROJECT_ID}/templates")"
+if [[ $LIST_ONLY -eq 1 ]]; then
+  log "Templates in project ${PROJECT_ID}"
+  jq -r '.[] | [.id, .name] | @tsv' <<<"$templates_json" | sort -n | awk -F'\t' '{printf "%s\t%s\n",$1,$2}'
+  exit 0
+fi
+
+log "Resolve template '${TEMPLATE_NAME}' (project ${PROJECT_ID})"
 template_id="$(jq -r --arg n "$TEMPLATE_NAME" '.[] | select(.name==$n) | .id' <<<"$templates_json" | head -n1)"
 [[ -n "$template_id" ]] || { echo "template not found: ${TEMPLATE_NAME}" >&2; exit 1; }
 

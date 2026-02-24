@@ -191,9 +191,10 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: ralf-host-runner [--check|--run]
+Usage: ralf-host-runner [--check|--dry-run|--run]
 
   --check   Validate local prerequisites and print derived paths
+  --dry-run Show the command that a future host runner would execute
   --run     Guarded placeholder for future host execution (requires explicit enable)
 USAGE
 }
@@ -201,6 +202,7 @@ USAGE
 mode="check"
 case "\${1:-}" in
   ""|--check) mode="check" ;;
+  --dry-run) mode="dry_run" ;;
   --run) mode="run" ;;
   -h|--help) usage; exit 0 ;;
   *) echo "[host-runner] unknown option: \$1" >&2; usage; exit 2 ;;
@@ -243,6 +245,26 @@ if [[ "\$mode" == "check" ]]; then
   fi
   echo "[host-runner] check: FAILED" >&2
   exit 2
+fi
+
+if [[ "\$mode" == "dry_run" ]]; then
+  runner_script="\$RALF_REPO/bootstrap/runner.sh"
+  echo "[host-runner] dry-run: placeholder preview"
+  echo "[host-runner] would export:"
+  echo "  RALF_BASE=\$RALF_BASE"
+  echo "  RALF_RUNTIME=\$RALF_RUNTIME"
+  echo "  RALF_REPO=\$RALF_REPO"
+  echo "  AUTO_APPLY=\${AUTO_APPLY:-0}"
+  echo "  RUN_STACKS=\${RUN_STACKS:-0}"
+  echo "  START_AT=\${START_AT:-}"
+  echo "  ONLY_STACKS=\${ONLY_STACKS:-}"
+  echo "[host-runner] would run:"
+  echo "  bash \$runner_script"
+  if [[ ! -f "\$runner_script" ]]; then
+    echo "[host-runner] warning: runner script not found at \$runner_script" >&2
+    exit 1
+  fi
+  exit 0
 fi
 
 if [[ "\${HOST_RUNNER_ENABLE_EXEC:-0}" != "1" ]]; then

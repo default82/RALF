@@ -64,6 +64,7 @@ Erfuellt:
 - Doku fuer Maintainer (Keygen/Sign) vorhanden
 - CI-Workflow vorhanden fuer Release-/Dispatch-Signierung und Upload der Release-Artefakte
 - `bootstrap/release/sign-start.sh` vorhanden fuer reproduzierbare lokale/CI-Signierung
+- `bootstrap/release/print-start-integrity.sh` vorhanden fuer Commit+SHA256 Ausgabe (Danger-Zone Flow)
 - separater CI-Selfcheck-Workflow fuer Launcher/CLI/Adapter-Grundpfade vorhanden
 
 Offen:

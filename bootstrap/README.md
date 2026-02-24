@@ -23,6 +23,7 @@ Maintainer hash generation:
 ```bash
 sha256sum bootstrap/start.sh
 git show <COMMIT_SHA>:bootstrap/start.sh | sha256sum
+bash bootstrap/release/print-start-integrity.sh --commit <COMMIT_SHA>
 ```
 
 ### 3) Production-ish (best): GitHub Release + minisign verify
@@ -66,6 +67,7 @@ The repo now includes:
 - `.github/workflows/bootstrap-start-release.yml`
 - `.github/workflows/bootstrap-selfcheck.yml`
 - `bootstrap/release/sign-start.sh`
+- `bootstrap/release/print-start-integrity.sh`
 
 Workflow behavior:
 

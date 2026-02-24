@@ -46,4 +46,13 @@ resource "proxmox_virtual_environment_container" "gitea" {
     template_file_id = var.lxc_template_id
     type             = "ubuntu"
   }
+
+  # Imported legacy CTs can miss provider-state fields and force replacements.
+  # Ignore immutable/create-time blocks during migration to Semaphore-managed runs.
+  lifecycle {
+    ignore_changes = [
+      initialization,
+      operating_system,
+    ]
+  }
 }

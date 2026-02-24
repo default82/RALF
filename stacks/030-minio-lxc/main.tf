@@ -46,4 +46,13 @@ resource "proxmox_virtual_environment_container" "minio" {
     template_file_id = "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
     type             = "ubuntu"
   }
+
+  # Imported legacy CTs can miss provider-state fields and force replacements.
+  # Ignore immutable/create-time blocks during migration to Semaphore-managed runs.
+  lifecycle {
+    ignore_changes = [
+      initialization,
+      operating_system,
+    ]
+  }
 }

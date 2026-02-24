@@ -47,12 +47,12 @@ resource "proxmox_virtual_environment_container" "vaultwarden" {
     type             = "ubuntu"
   }
 
-  # Imported legacy CTs can miss provider-state fields (template_file_id, user_account).
-  # Ignore these to avoid forced replacement during migration to Semaphore-managed runs.
+  # Imported legacy CTs can miss provider-state fields and force replacements.
+  # Ignore immutable/create-time blocks during migration to Semaphore-managed runs.
   lifecycle {
     ignore_changes = [
-      initialization[0].user_account,
-      operating_system[0].template_file_id,
+      initialization,
+      operating_system,
     ]
   }
 }

@@ -95,6 +95,14 @@
         path: "{{ ralf_runtime_secrets }}/ralf_ed25519"
       register: target_ansible_ssh_key
 
+    - name: Check Ansible SSH public key on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: /root/.ssh/ralf_ed25519.pub
+      register: local_ansible_ssh_pubkey
+      failed_when: false
+
     - name: Fail if no Ansible SSH private key is available
       ansible.builtin.fail:
         msg: "Missing Ansible SSH private key on control node and Semaphore host (required for Semaphore-hosted Ansible runs)"
@@ -226,6 +234,15 @@
         mode: "0640"
       when: local_ansible_ssh_key.stat.exists | default(false)
 
+    - name: Sync Ansible SSH public key to Semaphore host
+      ansible.builtin.copy:
+        src: /root/.ssh/ralf_ed25519.pub
+        dest: "{{ ralf_runtime_secrets }}/ralf_ed25519.pub"
+        owner: root
+        group: semaphore
+        mode: "0640"
+      when: local_ansible_ssh_pubkey.stat.exists | default(false)
+
     - name: Install helper wrapper for stack runs on Semaphore host
       ansible.builtin.copy:
         dest: /usr/local/bin/ralf-semaphore-run
@@ -238,6 +255,9 @@
           export PATH=/usr/local/bin:/usr/bin:/bin
           export HOME={{ sem_data_dir }}
           export ANSIBLE_PRIVATE_KEY_FILE={{ ralf_runtime_secrets }}/ralf_ed25519
+          if [[ -f {{ ralf_runtime_secrets }}/ralf_ed25519.pub ]]; then
+            export TF_VAR_ssh_public_key="$(head -n1 {{ ralf_runtime_secrets }}/ralf_ed25519.pub)"
+          fi
           export ANSIBLE_LOCAL_TEMP=/tmp/ansible-local
           export ANSIBLE_REMOTE_TEMP=/tmp
           mkdir -p "${ANSIBLE_LOCAL_TEMP}"
@@ -265,6 +285,9 @@
           export PATH=/usr/local/bin:/usr/bin:/bin
           export HOME={{ sem_data_dir }}
           export ANSIBLE_PRIVATE_KEY_FILE={{ ralf_runtime_secrets }}/ralf_ed25519
+          if [[ -f {{ ralf_runtime_secrets }}/ralf_ed25519.pub ]]; then
+            export TF_VAR_ssh_public_key="$(head -n1 {{ ralf_runtime_secrets }}/ralf_ed25519.pub)"
+          fi
           export ANSIBLE_LOCAL_TEMP=/tmp/ansible-local
           export ANSIBLE_REMOTE_TEMP=/tmp
           mkdir -p "${ANSIBLE_LOCAL_TEMP}"

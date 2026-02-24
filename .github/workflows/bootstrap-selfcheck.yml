@@ -91,3 +91,22 @@ jobs:
           assert len(d.get("adapter_artifacts", [])) >= 1, d
           print("bootstrap launcher selfcheck ok")
           PY
+
+      - name: Launcher selfcheck (tag ref)
+        run: |
+          set -euo pipefail
+          tag="ci-bootstrap-selfcheck-tag"
+          git tag -f "$tag" >/dev/null
+          trap 'git tag -d "$tag" >/dev/null 2>&1 || true' EXIT
+          out=/tmp/ralf-launch-selfcheck-tag
+          rm -rf "$out"
+          OUTPUTS_DIR="$out" PROVISIONER=host YES=1 APPLY=1 \
+            RALF_REPO_URL="file://${GITHUB_WORKSPACE}" RALF_REF="$tag" \
+            bash bootstrap/start.sh >/dev/null
+
+          python3 - <<'PY'
+          import json
+          d = json.load(open("/tmp/ralf-launch-selfcheck-tag/cli_status.json"))
+          assert d["status"] == "ok", d
+          print("bootstrap launcher tag selfcheck ok")
+          PY

@@ -86,6 +86,7 @@ Additionally, `bootstrap-selfcheck.yml` validates:
 - TUI policy behavior (`TUI=1` + `NON_INTERACTIVE=1`)
 - `ANSWERS_FILE` merge using `bootstrap/examples/answers.generic_home.yml`
 - launcher end-to-end path using local `file://` repo checkout
+- launcher ref handling checks including local tag ref
 
 Required repository secret:
 

@@ -116,6 +116,34 @@ jobs:
           print("bootstrap launcher selfcheck ok")
           PY
 
+      - name: Launcher selfcheck (relative path args)
+        run: |
+          set -euo pipefail
+          ref="$(git rev-parse --short HEAD)"
+          work=/tmp/ralf-launch-relative-args
+          rm -rf "$work"
+          mkdir -p "$work"
+          cp bootstrap/examples/answers.generic_home.yml "$work/answers.yml"
+          (
+            cd "$work"
+            PROVISIONER=host YES=1 APPLY=1 \
+              ANSWERS_FILE=answers.yml \
+              EXPORT_ANSWERS=exported/answers.out.yml \
+              OUTPUTS_DIR=outs \
+              RALF_REPO_URL="file://${GITHUB_WORKSPACE}" RALF_REF="$ref" \
+              bash "${GITHUB_WORKSPACE}/bootstrap/start.sh" >/dev/null
+          )
+
+          python3 - <<'PY'
+          import json, os
+          base = "/tmp/ralf-launch-relative-args"
+          d = json.load(open(base + "/outs/cli_status.json"))
+          assert d["status"] == "ok", d
+          assert d["outputs_dir"] == base + "/outs", d
+          assert os.path.exists(base + "/exported/answers.out.yml")
+          print("bootstrap launcher relative path args selfcheck ok")
+          PY
+
       - name: Launcher selfcheck (tag ref)
         run: |
           set -euo pipefail

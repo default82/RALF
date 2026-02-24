@@ -88,6 +88,7 @@ Additionally, `bootstrap-selfcheck.yml` validates:
 - launcher end-to-end path using local `file://` repo checkout
 - launcher ref handling checks including local tag ref
 - integrity helper output (`bootstrap/release/print-start-integrity.sh`)
+- launcher relative-path arg handling (`ANSWERS_FILE` / `EXPORT_ANSWERS` / `OUTPUTS_DIR`)
 
 Local equivalent:
 

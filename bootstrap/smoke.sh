@@ -103,8 +103,15 @@ case "$PHASE" in
     "$0" gitea
     "$0" semaphore
     ;;
+  platform)
+    "$0" phase1
+    "$0" vault
+    "$0" automation
+    "$0" communication
+    "$0" ai
+    ;;
   *)
-    echo "usage: $0 [minio|postgres|gitea|semaphore|vaultwarden|n8n|exo|synapse|mail|vault|automation|ai|communication|phase1]" >&2
+    echo "usage: $0 [minio|postgres|gitea|semaphore|vaultwarden|n8n|exo|synapse|mail|vault|automation|ai|communication|phase1|platform]" >&2
     exit 2
     ;;
 esac

@@ -5,6 +5,7 @@ TEMPLATE_NAME=""
 LIST_ONLY=0
 JSON_OUTPUT=0
 RAW_OUTPUT_ON_FAIL=0
+NO_WAIT=0
 PROJECT_ID="${PROJECT_ID:-1}"
 SEMAPHORE_BASE_URL="${SEMAPHORE_BASE_URL:-https://10.10.40.10}"
 BOOTSTRAP_CT="${BOOTSTRAP_CT:-10010}"
@@ -16,7 +17,7 @@ OUTPUT_TAIL_LINES="${OUTPUT_TAIL_LINES:-120}"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  bootstrap/sem-run-template.sh [--project-id N] [--json] [--raw-output] "Template Name"
+  bootstrap/sem-run-template.sh [--project-id N] [--json] [--raw-output] [--no-wait] "Template Name"
   bootstrap/sem-run-template.sh [--project-id N] [--json] --list
 
 Optional env vars:
@@ -56,6 +57,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --raw-output)
       RAW_OUTPUT_ON_FAIL=1
+      shift
+      ;;
+    --no-wait)
+      NO_WAIT=1
       shift
       ;;
     --project-id)
@@ -151,6 +156,20 @@ task_json="$(api POST "/api/project/${PROJECT_ID}/tasks" "$create_payload")"
 task_id="$(jq -r '.id' <<<"$task_json")"
 [[ -n "$task_id" && "$task_id" != "null" ]] || { echo "failed to create task" >&2; echo "$task_json" >&2; exit 1; }
 out "Task created: ${task_id}"
+
+if [[ $NO_WAIT -eq 1 ]]; then
+  if [[ $JSON_OUTPUT -eq 1 ]]; then
+    jq -nc \
+      --argjson project_id "$PROJECT_ID" \
+      --argjson template_id "$template_id" \
+      --argjson task_id "$task_id" \
+      --arg template_name "$TEMPLATE_NAME" \
+      '{ok:true,queued:true,project_id:$project_id,template_id:$template_id,template_name:$template_name,task_id:$task_id}'
+  else
+    log "Task ${task_id} queued (no-wait)"
+  fi
+  exit 0
+fi
 
 deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
 while :; do

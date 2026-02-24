@@ -64,6 +64,7 @@ Publish only the minisign public key.
 The repo now includes:
 
 - `.github/workflows/bootstrap-start-release.yml`
+- `.github/workflows/bootstrap-selfcheck.yml`
 - `bootstrap/release/sign-start.sh`
 
 Workflow behavior:
@@ -75,6 +76,12 @@ Workflow behavior:
   - `start.sh.minisig`
   - `start.sh.sha256`
   - `manifest.txt`
+
+Additionally, `bootstrap-selfcheck.yml` validates:
+
+- shell syntax for launcher/CLI/adapters/release helpers
+- `ralf bootstrap` host/lxd CLI paths (including expected no-`lxc` blocker)
+- launcher end-to-end path using local `file://` repo checkout
 
 Required repository secret:
 

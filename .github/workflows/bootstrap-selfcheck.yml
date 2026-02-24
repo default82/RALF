@@ -1,0 +1,80 @@
+name: Bootstrap Selfcheck
+
+on:
+  push:
+    paths:
+      - "bootstrap/**"
+      - "bin/ralf"
+      - "ralf"
+      - "profiles/**"
+      - "conventions/**"
+      - ".github/workflows/bootstrap-selfcheck.yml"
+  pull_request:
+    paths:
+      - "bootstrap/**"
+      - "bin/ralf"
+      - "ralf"
+      - "profiles/**"
+      - "conventions/**"
+      - ".github/workflows/bootstrap-selfcheck.yml"
+  workflow_dispatch:
+
+jobs:
+  bootstrap-selfcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          bash -n bootstrap/start.sh
+          bash -n bin/ralf
+          bash -n ralf
+          bash -n bootstrap/legacy/start_host.sh
+          bash -n bootstrap/legacy/start_lxd.sh
+          bash -n bootstrap/release/sign-start.sh
+          bash -n bootstrap/release/verify-start.sh
+
+      - name: CLI selfcheck (host/lxd)
+        run: |
+          set -euo pipefail
+          ./ralf bootstrap --provisioner host --outputs-dir /tmp/ralf-host-noapply >/dev/null || test $? -eq 1
+          ./ralf bootstrap --provisioner host --apply --yes --outputs-dir /tmp/ralf-host-apply >/dev/null
+          ./ralf bootstrap --provisioner lxd --outputs-dir /tmp/ralf-lxd-noapply >/dev/null || test $? -eq 1
+          ./ralf bootstrap --provisioner lxd --apply --outputs-dir /tmp/ralf-lxd-apply >/dev/null || test $? -eq 2
+
+          python3 - <<'PY'
+          import json
+          checks = {
+              "host_noapply": ("/tmp/ralf-host-noapply/cli_status.json", "warn", False),
+              "host_apply": ("/tmp/ralf-host-apply/cli_status.json", "ok", True),
+              "lxd_noapply": ("/tmp/ralf-lxd-noapply/cli_status.json", "warn", False),
+              "lxd_apply": ("/tmp/ralf-lxd-apply/cli_status.json", "blocker", True),
+          }
+          for name, (path, expected_status, expected_report_exists) in checks.items():
+              d = json.load(open(path))
+              assert d["status"] == expected_status, (name, d["status"], expected_status)
+              assert d["adapter_report_exists"] == expected_report_exists, (name, d["adapter_report_exists"], expected_report_exists)
+          print("bootstrap cli selfcheck ok")
+          PY
+
+      - name: Launcher selfcheck (host)
+        run: |
+          set -euo pipefail
+          ref="$(git rev-parse --short HEAD)"
+          out=/tmp/ralf-launch-selfcheck
+          rm -rf "$out"
+          OUTPUTS_DIR="$out" PROVISIONER=host YES=1 APPLY=1 \
+            RALF_REPO_URL="file://${GITHUB_WORKSPACE}" RALF_REF="$ref" \
+            bash bootstrap/start.sh >/dev/null
+
+          python3 - <<'PY'
+          import json
+          d = json.load(open("/tmp/ralf-launch-selfcheck/cli_status.json"))
+          assert d["status"] == "ok", d
+          assert d["adapter_report_exists"] is True, d
+          assert len(d.get("adapter_artifacts", [])) >= 1, d
+          print("bootstrap launcher selfcheck ok")
+          PY

@@ -22,8 +22,8 @@ tcp_check() {
 http_check() {
   local url="$1" name="$2"
   local i
-  for i in 1 2 3 4 5 6; do
-    if curl -fsS -m 8 -o /dev/null "$url"; then
+  for i in $(seq 1 15); do
+    if curl -fsS -m 8 -o /dev/null "$url" 2>/dev/null; then
       log "OK http ${name} ${url}"
       return 0
     fi
@@ -36,8 +36,8 @@ http_check() {
 https_check_insecure() {
   local url="$1" name="$2"
   local i
-  for i in 1 2 3 4 5 6; do
-    if curl -kfsS -m 8 -o /dev/null "$url"; then
+  for i in $(seq 1 15); do
+    if curl -kfsS -m 8 -o /dev/null "$url" 2>/dev/null; then
       log "OK https ${name} ${url}"
       return 0
     fi

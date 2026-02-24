@@ -71,6 +71,10 @@ case "$PHASE" in
     tcp_check 10.10.40.30 443 n8n-https
     https_check_insecure https://10.10.40.30/ n8n-nginx
     ;;
+  dashy)
+    tcp_check 10.10.40.50 443 dashy-https
+    https_check_insecure https://10.10.40.50/ dashy-nginx
+    ;;
   exo)
     tcp_check 10.10.90.10 443 exo-https
     https_check_insecure https://10.10.90.10/ exo-nginx
@@ -90,6 +94,9 @@ case "$PHASE" in
   automation)
     "$0" n8n
     ;;
+  dashboard)
+    "$0" dashy
+    ;;
   ai)
     "$0" exo
     ;;
@@ -107,11 +114,12 @@ case "$PHASE" in
     "$0" phase1
     "$0" vault
     "$0" automation
+    "$0" dashboard
     "$0" communication
     "$0" ai
     ;;
   *)
-    echo "usage: $0 [minio|postgres|gitea|semaphore|vaultwarden|n8n|exo|synapse|mail|vault|automation|ai|communication|phase1|platform]" >&2
+    echo "usage: $0 [minio|postgres|gitea|semaphore|vaultwarden|n8n|dashy|exo|synapse|mail|vault|automation|dashboard|ai|communication|phase1|platform]" >&2
     exit 2
     ;;
 esac

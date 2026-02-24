@@ -59,6 +59,33 @@ minisign -S -s minisign.key -m bootstrap/start.sh -x start.sh.minisig
 
 Publish only the minisign public key.
 
+### GitHub Release Automation (CI)
+
+The repo now includes:
+
+- `.github/workflows/bootstrap-start-release.yml`
+- `bootstrap/release/sign-start.sh`
+
+Workflow behavior:
+
+- Trigger on published GitHub releases (and `workflow_dispatch`)
+- Build/sign release artifacts for `bootstrap/start.sh`
+- Upload to the GitHub Release:
+  - `start.sh`
+  - `start.sh.minisig`
+  - `start.sh.sha256`
+  - `manifest.txt`
+
+Required repository secret:
+
+- `MINISIGN_SECRET_KEY_B64` : base64-encoded minisign secret key file contents
+
+Example secret creation:
+
+```bash
+base64 -w0 minisign.key
+```
+
 ## Bootstrap Engine Contract
 
 `bootstrap/start.sh` is a thin launcher. It fetches the repo and delegates to:

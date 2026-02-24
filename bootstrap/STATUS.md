@@ -56,17 +56,19 @@ Status: `ERFUELLT`
 
 ## D) Production-ish (Release + minisign)
 
-Status: `TEILWEISE ERFUELLT (Dokumentation ja, Release-Prozess noch manuell)`
+Status: `WEITGEHEND ERFUELLT`
 
 Erfuellt:
 
 - Doku fuer Nutzerflow vorhanden (`minisign -Vm`)
 - Doku fuer Maintainer (Keygen/Sign) vorhanden
+- CI-Workflow vorhanden fuer Release-/Dispatch-Signierung und Upload der Release-Artefakte
+- `bootstrap/release/sign-start.sh` vorhanden fuer reproduzierbare lokale/CI-Signierung
 
 Offen:
 
-- Kein automatisierter Release-Prozess im Repo (z. B. CI-Workflow fuer Release-Artefakte)
-- Keine publizierte `minisign` Public-Key-Quelle im Repo dokumentiert (nur Template-Platzhalter)
+- Keine publizierte/verbindliche `minisign` Public-Key-Quelle im Repo dokumentiert (nur Template-Platzhalter)
+- CI-Workflow braucht konfiguriertes Secret `MINISIGN_SECRET_KEY_B64`
 
 ## E) start.sh Responsibilities
 
@@ -144,6 +146,6 @@ Offen:
 1. TUI implementieren oder explizit als bewusst verschoben markieren (Roadmap)
 2. `host`-Provisioner von Workspace-Prep Richtung lokalem Runner/Toolchain-Workflow erweitern
 3. `lxd`-Provisioner um Netzwerk-/Profile-Konfig (konservativ, idempotent) erweitern
-4. Release-Automation fuer `start.sh` + `start.sh.minisig` einfuehren
+4. Minisign Public-Key-Verteilung festlegen/dokumentieren (z. B. README + Release Notes + Website)
 5. Legacy-Proxmox-Defaults schrittweise in `profiles/` / `conventions/` ueberfuehren
 6. Optional: Adapter-Artefakt-Discovery standardisieren (schema statt provisioner-spezifische Felder)

@@ -121,6 +121,7 @@ Zusatz:
 - `adapter_report_exists` in `cli_status.json` (explizit fuer no-apply/apply Unterscheidung)
 - `adapter_artifacts` in `cli_status.json` (maschinenlesbare Artefaktliste mit `exists`)
 - `OUTPUTS_DIR` / `--outputs-dir` fuer Run-Isolation
+- Launcher normalisiert relative Pfade fuer `ANSWERS_FILE` / `EXPORT_ANSWERS` / `OUTPUTS_DIR` relativ zum Aufrufverzeichnis
 - `plan_summary.md` listet Adapter-Artefakte (`present` / `missing`)
 - `host`-Wrapper `--status --json` spiegelt Host-Artefakte ebenfalls maschinenlesbar
 - `host`-Wrapper `--run` fuehrt jetzt gated `bootstrap/runner.sh` aus (Default: non-apply; Apply zusaetzlich blockiert ohne Freigabe)

@@ -9,6 +9,7 @@ log() { printf '[start] %s\n' "$*"; }
 
 need bash
 need curl
+start_cwd="$(pwd)"
 
 ORG="${ORG:-default82}"
 REPO="${REPO:-RALF}"
@@ -93,10 +94,26 @@ args=()
 [[ -n "${NETWORK_CIDR:-}" ]] && args+=(--network-cidr "$NETWORK_CIDR")
 [[ -n "${BASE_DOMAIN:-}" ]] && args+=(--base-domain "$BASE_DOMAIN")
 [[ -n "${CT_HOSTNAME:-}" ]] && args+=(--ct-hostname "$CT_HOSTNAME")
-[[ -n "${ANSWERS_FILE:-}" ]] && args+=(--answers-file "$ANSWERS_FILE")
-[[ -n "${EXPORT_ANSWERS:-}" ]] && args+=(--export-answers "$EXPORT_ANSWERS")
-[[ -n "${OUTPUTS_DIR:-}" ]] && args+=(--outputs-dir "$OUTPUTS_DIR")
 
+abspath_from_start_cwd() {
+  local p="$1"
+  [[ -n "$p" ]] || return 0
+  if [[ "$p" = /* ]]; then
+    printf '%s' "$p"
+  else
+    printf '%s/%s' "$start_cwd" "$p"
+  fi
+}
+
+if [[ -n "${ANSWERS_FILE:-}" ]]; then
+  args+=(--answers-file "$(abspath_from_start_cwd "$ANSWERS_FILE")")
+fi
+if [[ -n "${EXPORT_ANSWERS:-}" ]]; then
+  args+=(--export-answers "$(abspath_from_start_cwd "$EXPORT_ANSWERS")")
+fi
+if [[ -n "${OUTPUTS_DIR:-}" ]]; then
+  args+=(--outputs-dir "$(abspath_from_start_cwd "$OUTPUTS_DIR")")
+fi
 if [[ "${APPLY:-0}" == "1" || "${AUTO_APPLY:-0}" == "1" ]]; then
   args+=(--apply)
 fi

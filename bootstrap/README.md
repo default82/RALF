@@ -168,6 +168,7 @@ Optional:
 
 - `OUTPUTS_DIR` / `--outputs-dir` to isolate outputs per run (useful for sequential comparisons)
 - example answers file: `bootstrap/examples/answers.generic_home.yml`
+- launcher resolves relative `ANSWERS_FILE` / `EXPORT_ANSWERS` / `OUTPUTS_DIR` paths against the caller's current directory
 
 Example:
 

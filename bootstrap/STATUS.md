@@ -66,6 +66,7 @@ Erfuellt:
 - `bootstrap/release/sign-start.sh` vorhanden fuer reproduzierbare lokale/CI-Signierung
 - `bootstrap/release/print-start-integrity.sh` vorhanden fuer Commit+SHA256 Ausgabe (Danger-Zone Flow)
 - separater CI-Selfcheck-Workflow fuer Launcher/CLI/Adapter-Grundpfade vorhanden
+- lokales Pendant vorhanden: `bootstrap/selfcheck.sh` (voll/quick)
 
 Offen:
 

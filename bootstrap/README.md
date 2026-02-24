@@ -89,6 +89,13 @@ Additionally, `bootstrap-selfcheck.yml` validates:
 - launcher ref handling checks including local tag ref
 - integrity helper output (`bootstrap/release/print-start-integrity.sh`)
 
+Local equivalent:
+
+```bash
+bash bootstrap/selfcheck.sh
+bash bootstrap/selfcheck.sh --quick
+```
+
 Required repository secret:
 
 - `MINISIGN_SECRET_KEY_B64` : base64-encoded minisign secret key file contents

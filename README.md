@@ -52,6 +52,7 @@ Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
 - `FORCE=1|0`
 - `ANSWERS_FILE`
 - `EXPORT_ANSWERS`
+- `OUTPUTS_DIR`
 
 Provisioner-Status aktuell:
 

@@ -89,6 +89,7 @@ args=()
 [[ -n "${CT_HOSTNAME:-}" ]] && args+=(--ct-hostname "$CT_HOSTNAME")
 [[ -n "${ANSWERS_FILE:-}" ]] && args+=(--answers-file "$ANSWERS_FILE")
 [[ -n "${EXPORT_ANSWERS:-}" ]] && args+=(--export-answers "$EXPORT_ANSWERS")
+[[ -n "${OUTPUTS_DIR:-}" ]] && args+=(--outputs-dir "$OUTPUTS_DIR")
 
 if [[ "${APPLY:-0}" == "1" || "${AUTO_APPLY:-0}" == "1" ]]; then
   args+=(--apply)

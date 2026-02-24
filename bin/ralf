@@ -45,6 +45,7 @@ Options:
   --force
   --answers-file PATH
   --export-answers PATH
+  --outputs-dir PATH
   --apply
 EOF
 }
@@ -70,6 +71,7 @@ YES="${YES:-0}"
 FORCE="${FORCE:-0}"
 ANSWERS_FILE="${ANSWERS_FILE:-}"
 EXPORT_ANSWERS="${EXPORT_ANSWERS:-}"
+OUTPUTS_DIR="${OUTPUTS_DIR:-}"
 APPLY="${APPLY:-0}"
 
 while [[ $# -gt 0 ]]; do
@@ -86,6 +88,7 @@ while [[ $# -gt 0 ]]; do
     --force) FORCE=1; shift ;;
     --answers-file) ANSWERS_FILE="${2:-}"; shift 2 ;;
     --export-answers) EXPORT_ANSWERS="${2:-}"; shift 2 ;;
+    --outputs-dir) OUTPUTS_DIR="${2:-}"; shift 2 ;;
     --apply) APPLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -93,7 +96,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-outputs_dir="${repo_root}/outputs"
+outputs_dir="${OUTPUTS_DIR:-${repo_root}/outputs}"
 mkdir -p "$outputs_dir"
 
 phase_probe="pending"
@@ -152,6 +155,7 @@ cfg[yes]="${YES}"
 cfg[force]="${FORCE}"
 cfg[answers_file]="${ANSWERS_FILE}"
 cfg[export_answers]="${EXPORT_ANSWERS}"
+cfg[outputs_dir]="${OUTPUTS_DIR}"
 cfg[apply]="${APPLY}"
 phase_config_merge="completed"
 

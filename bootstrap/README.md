@@ -76,6 +76,10 @@ The CLI always writes:
 - `outputs/plan_summary.md`
 - `outputs/cli_status.json`
 
+Optional:
+
+- `OUTPUTS_DIR` / `--outputs-dir` to isolate outputs per run (useful for sequential comparisons)
+
 Exit codes:
 
 - `0` ok

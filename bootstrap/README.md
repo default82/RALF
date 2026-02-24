@@ -139,7 +139,7 @@ Current modes:
 - `--dry-run` : print a preview of the future runner invocation
 - `--status` : summarize generated host bootstrap artifacts/readiness
 - `--artifacts` : list generated host bootstrap artifacts
-- `--run` : guarded preflight only (requires `HOST_RUNNER_ENABLE_EXEC=1`, no stack execution yet)
+- `--run` : guarded execution of `bootstrap/runner.sh` (requires `HOST_RUNNER_ENABLE_EXEC=1`; `AUTO_APPLY=1` also requires `HOST_RUNNER_ALLOW_APPLY=1`)
 - `--json` : machine-readable output for `--status` / `--artifacts`
 - `--quiet` : suppress contextual header lines (where applicable)
 
@@ -149,6 +149,7 @@ Examples:
 .ralf-host/bin/ralf-host-runner --status
 .ralf-host/bin/ralf-host-runner --status --json
 .ralf-host/bin/ralf-host-runner --artifacts --json
+HOST_RUNNER_ENABLE_EXEC=1 RUN_STACKS=0 .ralf-host/bin/ralf-host-runner --run
 ```
 
 ### LXD Adapter Artifacts

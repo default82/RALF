@@ -198,7 +198,7 @@ Usage: ralf-host-runner [MODE] [--json] [--quiet]
   --dry-run Show the command that a future host runner would execute
   --status  Print a compact status summary from generated artifacts
   --artifacts List generated host bootstrap artifacts
-  --run     Guarded placeholder for future host execution (requires explicit enable)
+  --run     Guarded runner execution (requires explicit enable; defaults to non-apply)
   --json    Machine-readable output (for --status / --artifacts)
   --quiet   Suppress contextual header lines where possible
 USAGE
@@ -439,12 +439,15 @@ if ! bash -n "\$runner_script" >/dev/null 2>&1; then
   echo "[host-runner] runner syntax check failed: \$runner_script" >&2
   exit 2
 fi
+if [[ "\${AUTO_APPLY:-0}" == "1" && "\${HOST_RUNNER_ALLOW_APPLY:-0}" != "1" ]]; then
+  echo "[host-runner] AUTO_APPLY=1 requested, but apply is blocked by default." >&2
+  echo "[host-runner] Set HOST_RUNNER_ALLOW_APPLY=1 to allow runner apply execution." >&2
+  exit 2
+fi
 
 echo "[host-runner] preflight OK (execution mode enabled)." >&2
-echo "[host-runner] runner script present and syntax-valid: \$runner_script" >&2
-echo "[host-runner] stack execution is still intentionally not implemented in host runner." >&2
-echo "[host-runner] Next step: add host-safe runner wiring to bootstrap/runner.sh or a dedicated host runner." >&2
-exit 2
+echo "[host-runner] executing: bash \$runner_script" >&2
+exec bash "\$runner_script"
 EOF
 chmod 0755 "$host_runner_wrapper"
 

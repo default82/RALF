@@ -116,12 +116,13 @@ Zusatz:
 - `OUTPUTS_DIR` / `--outputs-dir` fuer Run-Isolation
 - `plan_summary.md` listet Adapter-Artefakte (`present` / `missing`)
 - `host`-Wrapper `--status --json` spiegelt Host-Artefakte ebenfalls maschinenlesbar
+- `host`-Wrapper `--run` fuehrt jetzt gated `bootstrap/runner.sh` aus (Default: non-apply; Apply zusaetzlich blockiert ohne Freigabe)
 
 Offen / Ausbau:
 
 - Vollwertige nicht-Proxmox-Provisioner (host/lxd derzeit konservative Minimal-Adapter)
 - Tieferer Config-Merge (komplexes YAML, nested structures, validation)
-- Host-Runner `--run` ist weiterhin bewusst nur guarded Preflight (keine echte Ausfuehrung)
+- Host-Runner fuehrt `bootstrap/runner.sh` gated aus, aber der Host-Pfad bleibt insgesamt konservativ (keine impliziten Applies; Secrets/Tools weiterhin Voraussetzung)
 
 ## G) TUI (optional)
 

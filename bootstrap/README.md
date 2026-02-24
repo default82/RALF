@@ -96,6 +96,8 @@ bash bootstrap/selfcheck.sh
 bash bootstrap/selfcheck.sh --quick
 ```
 
+The CI workflow also runs `bootstrap/selfcheck.sh --quick` to reduce drift between local and CI checks.
+
 Required repository secret:
 
 - `MINISIGN_SECRET_KEY_B64` : base64-encoded minisign secret key file contents

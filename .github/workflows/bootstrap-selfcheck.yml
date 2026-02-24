@@ -37,6 +37,13 @@ jobs:
           bash -n bootstrap/release/sign-start.sh
           bash -n bootstrap/release/verify-start.sh
           bash -n bootstrap/release/print-start-integrity.sh
+          bash -n bootstrap/selfcheck.sh
+
+      - name: Local selfcheck script (quick)
+        run: |
+          set -euo pipefail
+          chmod +x bootstrap/selfcheck.sh
+          bash bootstrap/selfcheck.sh --quick
 
       - name: CLI selfcheck (host/lxd)
         run: |

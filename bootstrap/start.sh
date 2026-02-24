@@ -61,6 +61,8 @@ if command -v git >/dev/null 2>&1; then
   elif [[ "$REPO_URL" =~ ^file:// ]] && resolved_commit="$(git ls-remote "$REPO_URL" | awk -v r="$REF" '$1 ~ "^" r { print $1; exit }')" && [[ -n "$resolved_commit" ]] \
     && git -C "$work" fetch --depth 1 origin "$resolved_commit" >/dev/null 2>&1; then
     git -C "$work" checkout -q FETCH_HEAD
+  elif git -C "$work" fetch --depth 1 origin "refs/tags/${REF}" >/dev/null 2>&1; then
+    git -C "$work" checkout -q FETCH_HEAD
   elif git -C "$work" fetch --depth 1 origin "refs/heads/${REF}" >/dev/null 2>&1; then
     git -C "$work" checkout -q FETCH_HEAD
   else

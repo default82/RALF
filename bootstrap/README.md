@@ -117,6 +117,11 @@ bash bootstrap/release/verify-start.sh --version v1.0.0 --pubkey-file bootstrap/
 ./ralf bootstrap
 ```
 
+Launcher fetch behavior:
+
+- uses `git` when available (with branch/tag/commit fetch fallbacks)
+- otherwise falls back to GitHub tarball download (`branch` / `tag` / `commit` URL patterns)
+
 The CLI always writes:
 
 - `outputs/probe_report.json`

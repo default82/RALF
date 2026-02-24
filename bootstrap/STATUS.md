@@ -87,6 +87,7 @@ Erfuellt:
 Zusatz:
 
 - Tarball-URL-Auswahl ist ref-typ-aware (`branch` / `tag` / `commit`)
+- Git-Fetch-Pfad nutzt zusaetzliche Fallbacks fuer `refs/tags/*` (neben branch/commit-Aufloesung)
 
 Einschraenkung:
 

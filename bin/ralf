@@ -149,6 +149,7 @@ cfg[provisioner]="${PROVISIONER}"
 cfg[network_cidr]="${NETWORK_CIDR:-${ans_network_cidr:-${cfg_NETWORK_CIDR:-}}}"
 cfg[base_domain]="${BASE_DOMAIN:-${ans_base_domain:-${cfg_BASE_DOMAIN:-}}}"
 cfg[ct_hostname]="${CT_HOSTNAME:-${ans_ct_hostname:-${cfg_CT_HOSTNAME:-}}}"
+cfg[tui_requested]="${TUI}"
 cfg[tui]="${TUI}"
 cfg[non_interactive]="${NON_INTERACTIVE}"
 cfg[yes]="${YES}"
@@ -235,6 +236,7 @@ cat >"${outputs_dir}/final_config.json" <<EOF
   "network_cidr": "$(json_escape "${cfg[network_cidr]}")",
   "base_domain": "$(json_escape "${cfg[base_domain]}")",
   "ct_hostname": "$(json_escape "${cfg[ct_hostname]}")",
+  "tui_requested": ${cfg[tui_requested]},
   "tui": ${cfg[tui]},
   "non_interactive": ${cfg[non_interactive]},
   "yes": ${cfg[yes]},
@@ -508,6 +510,8 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "exit_code": ${exit_code},
   "applied": ${applied},
   "warnings_accepted": ${warnings_accepted},
+  "tui_requested": ${cfg[tui_requested]},
+  "tui_effective": ${cfg[tui]},
   "warnings": ${warn_json},
   "blockers": ${blocker_json},
   "adapter_report_file": "$(json_escape "${adapter_report_file}")",

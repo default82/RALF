@@ -148,7 +148,7 @@ skip_credentials_validation = true
 skip_metadata_api_check = true
 skip_requesting_account_id = true
 skip_region_validation = true
-force_path_style = true
+use_path_style = true
 encrypt = true
 EOF
 }
@@ -175,7 +175,7 @@ for s in "${stacks[@]}"; do
       : "${TFSTATE_S3_PREFIX:=ralf}"
       configure_remote_s3_backend "$s" "$dir"
       echo "[runner] Remote S3 backend enabled for $s (${TFSTATE_S3_BUCKET}/${TFSTATE_S3_PREFIX%/}/$s)"
-      tofu init -input=false -reconfigure -backend-config=.ralf_backend.hcl
+      tofu init -input=false -reconfigure -migrate-state -force-copy -backend-config=.ralf_backend.hcl
     else
       tofu init -input=false
     fi

@@ -152,6 +152,7 @@
         mode: "0640"
         content: |
           DATA_FOLDER={{ vw_data_dir }}
+          WEB_VAULT_FOLDER=/usr/share/vaultwarden/web-vault
           DOMAIN={{ vault_env.VAULTWARDEN_DOMAIN }}
           ADMIN_TOKEN={{ vault_env.VAULTWARDEN_ADMIN_TOKEN }}
           ROCKET_ADDRESS=127.0.0.1

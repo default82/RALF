@@ -106,6 +106,7 @@ Provisioner adapter status:
 - `proxmox_pct`: delegates to `bootstrap/legacy/start_proxmox_pct.sh`
 - `host`: delegates to `bootstrap/legacy/start_host.sh` (minimal local apply: workspace prepare, no destructive changes, generates `ralf-host-runner`)
 - `lxd`: delegates to `bootstrap/legacy/start_lxd.sh` (minimal apply: validates `lxc`/LXD, create-if-missing, stamps `user.ralf.*` metadata)
+  - writes LXD adapter artifacts under `OUTPUTS_DIR/lxd/` (`lxd-plan.md`, target/applied metadata JSON)
 
 ### Host Adapter Wrapper (`ralf-host-runner`)
 
@@ -128,3 +129,12 @@ Examples:
 .ralf-host/bin/ralf-host-runner --status --json
 .ralf-host/bin/ralf-host-runner --artifacts --json
 ```
+
+### LXD Adapter Artifacts
+
+When `--provisioner lxd --apply` runs, the adapter writes:
+
+- `lxd_apply_report.json` (main adapter report)
+- `lxd/lxd-plan.md` (conservative LXD action summary)
+- `lxd/lxd-metadata-targets.json` (intended `user.ralf.*` values)
+- `lxd/lxd-metadata-applied.json` (actual values after apply, if LXD apply succeeds)

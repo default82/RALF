@@ -67,6 +67,7 @@ Provisioner-Status aktuell:
 - `host`: konservativer Minimal-Adapter (legt lokales Workspace-Layout an, keine destruktiven Host-Aenderungen)
   - erzeugt `.ralf-host/bin/ralf-host-runner` mit `--check`, `--dry-run`, `--status`, `--artifacts`, `--json`, `--quiet`, guarded `--run`
 - `lxd`: konservativer Minimal-Adapter (Artefakte + Gatekeeping, erstellt LXD-Instanz falls fehlend und stempelt `user.ralf.*` Metadaten)
+  - schreibt zusaetzliche LXD-Artefakte in `OUTPUTS_DIR/lxd/` (Plan + target/applied Metadata)
 
 Phase-1-Cleanroom-Test (MinIO -> PostgreSQL -> Gitea -> Semaphore):
 

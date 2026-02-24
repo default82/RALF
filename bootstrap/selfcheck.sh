@@ -91,6 +91,38 @@ assert len(d["sha256"]) == 64
 print("[selfcheck] integrity helper ok")
 PY
 
+echo "[selfcheck] verify helper (mocked minisign/curl)"
+mockdir=/tmp/ralf-verify-helper-mock
+rm -rf "$mockdir"
+mkdir -p "$mockdir/bin"
+cat > "$mockdir/bin/minisign" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat > "$mockdir/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o) out="${2:-}"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[[ -n "$out" ]] || exit 2
+printf 'dummy' > "$out"
+EOF
+chmod +x "$mockdir/bin/minisign" "$mockdir/bin/curl"
+cat > /tmp/ralf-minisign.pub <<'EOF'
+untrusted comment: test
+RWQTESTKEYSTRING
+EOF
+PATH="$mockdir/bin:$PATH" bash bootstrap/release/verify-start.sh \
+  --version v0 --pubkey-file /tmp/ralf-minisign.pub --verify-only \
+  >/tmp/ralf-verify-helper.out 2>/tmp/ralf-verify-helper.err
+grep -q '\[verify-start\] verified:' /tmp/ralf-verify-helper.out
+echo "[selfcheck] verify helper ok"
+
 if [[ "$mode" != "quick" ]]; then
   echo "[selfcheck] launcher paths"
   ref="$(git rev-parse --short HEAD)"

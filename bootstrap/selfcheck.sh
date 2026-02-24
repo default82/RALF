@@ -86,9 +86,10 @@ if [[ "$mode" != "quick" ]]; then
   ref="$(git rev-parse --short HEAD)"
   out=/tmp/ralf-launch-selfcheck
   rm -rf "$out"
+  logf=/tmp/ralf-launch-selfcheck.log
   OUTPUTS_DIR="$out" PROVISIONER=host YES=1 APPLY=1 \
     RALF_REPO_URL="file://${repo_root}" RALF_REF="$ref" \
-    bash bootstrap/start.sh >/dev/null
+    bash bootstrap/start.sh >"$logf" 2>&1
 
   python3 - <<'PY'
 import json
@@ -98,6 +99,8 @@ assert d["adapter_report_exists"] is True, d
 assert len(d.get("adapter_artifacts", [])) >= 1, d
 print("[selfcheck] launcher host path ok")
 PY
+  grep -q 'Resolved git checkout to commit ' "$logf"
+  echo "[selfcheck] launcher resolved commit log ok"
 
   tag="local-bootstrap-selfcheck-tag"
   git tag -f "$tag" >/dev/null
@@ -112,6 +115,29 @@ import json
 d = json.load(open("/tmp/ralf-launch-selfcheck-tag/cli_status.json"))
 assert d["status"] == "ok", d
 print("[selfcheck] launcher tag path ok")
+PY
+
+  work=/tmp/ralf-launch-relative-args-local-selfcheck
+  rm -rf "$work"
+  mkdir -p "$work"
+  cp bootstrap/examples/answers.generic_home.yml "$work/answers.yml"
+  (
+    cd "$work"
+    PROVISIONER=host YES=1 APPLY=1 \
+      ANSWERS_FILE=answers.yml \
+      EXPORT_ANSWERS=exported/answers.out.yml \
+      OUTPUTS_DIR=outs \
+      RALF_REPO_URL="file://${repo_root}" RALF_REF="$ref" \
+      bash "${repo_root}/bootstrap/start.sh" >/dev/null
+  )
+  python3 - <<'PY'
+import json, os
+base = "/tmp/ralf-launch-relative-args-local-selfcheck"
+d = json.load(open(base + "/outs/cli_status.json"))
+assert d["status"] == "ok", d
+assert d["outputs_dir"] == base + "/outs", d
+assert os.path.exists(base + "/exported/answers.out.yml")
+print("[selfcheck] launcher relative path args ok")
 PY
 fi
 

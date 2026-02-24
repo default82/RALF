@@ -98,6 +98,7 @@ bash bootstrap/selfcheck.sh --quick
 ```
 
 The CI workflow also runs `bootstrap/selfcheck.sh --quick` to reduce drift between local and CI checks.
+The full local selfcheck additionally validates launcher logging (resolved commit) and relative-path argument handling.
 
 Required repository secret:
 

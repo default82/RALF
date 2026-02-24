@@ -12,12 +12,49 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 outputs_dir="${OUTPUTS_DIR:-${repo_root}/outputs}"
 mkdir -p "$outputs_dir"
+artifacts_dir="${outputs_dir}/lxd"
+mkdir -p "$artifacts_dir"
 
 name="${CT_HOSTNAME:-ralf-bootstrap}"
 image="${LXD_IMAGE:-images:ubuntu/24.04}"
 lxd_profile="${LXD_PROFILE:-default}"
 config_changed=0
 config_error=""
+metadata_preview_file="${artifacts_dir}/lxd-metadata-targets.json"
+plan_file="${artifacts_dir}/lxd-plan.md"
+instance_state="unknown"
+
+write_artifacts() {
+  cat > "$metadata_preview_file" <<EOF
+{
+  "instance_name": "$(json_escape "$name")",
+  "image": "$(json_escape "$image")",
+  "profile": "$(json_escape "$lxd_profile")",
+  "metadata": {
+    "user.ralf.profile": "$(json_escape "${PROFILE:-}")",
+    "user.ralf.base_domain": "$(json_escape "${BASE_DOMAIN:-}")",
+    "user.ralf.network_cidr": "$(json_escape "${NETWORK_CIDR:-}")",
+    "user.ralf.managed": "true"
+  }
+}
+EOF
+
+  cat > "$plan_file" <<EOF
+# LXD Bootstrap Plan (Conservative)
+
+- Instance: \`${name}\`
+- Image: \`${image}\`
+- Profile: \`${lxd_profile}\`
+- Outputs dir: \`${outputs_dir}\`
+- Metadata preview: \`${metadata_preview_file}\`
+
+## Behavior
+- Validate \`lxc\` client and LXD reachability
+- Create instance only if missing
+- Stamp \`user.ralf.*\` metadata idempotently
+- No destructive changes
+EOF
+}
 
 json_escape() {
   local s="${1:-}"
@@ -40,9 +77,13 @@ write_report() {
   "exists": ${exists},
   "config_changed": ${config_changed},
   "config_error": "$(json_escape "${config_error}")",
+  "instance_state": "$(json_escape "${instance_state}")",
   "instance_name": "$(json_escape "$name")",
   "image": "$(json_escape "$image")",
   "profile": "$(json_escape "$lxd_profile")",
+  "artifacts_dir": "$(json_escape "$artifacts_dir")",
+  "metadata_preview_file": "$(json_escape "$metadata_preview_file")",
+  "plan_file": "$(json_escape "$plan_file")",
   "lxc_version": "$(json_escape "$lxc_version")",
   "profile_name": "$(json_escape "${PROFILE:-}")",
   "network_cidr": "$(json_escape "${NETWORK_CIDR:-}")",
@@ -62,6 +103,7 @@ ensure_lxd_user_key() {
 
 if ! command -v lxc >/dev/null 2>&1; then
   echo "[lxd-adapter] missing command: lxc" >&2
+  write_artifacts
   write_report "error" "missing command: lxc" "false" "false" ""
   exit 2
 fi
@@ -70,17 +112,22 @@ lxc_version="$(lxc version 2>/dev/null | head -n 1 || true)"
 
 if ! lxc info >/dev/null 2>&1; then
   echo "[lxd-adapter] lxc client is present but LXD is not reachable" >&2
+  write_artifacts
   write_report "error" "lxc present but LXD is not reachable" "false" "false" "$lxc_version"
   exit 2
 fi
 
+write_artifacts
+
 created=false
 if lxc list --format csv -c n | grep -Fxq "$name"; then
   echo "[lxd-adapter] instance exists: $name"
+  instance_state="exists"
 else
   echo "[lxd-adapter] creating instance '$name' from '$image' (profile=$lxd_profile)"
   lxc launch "$image" "$name" -p "$lxd_profile"
   created=true
+  instance_state="created"
 fi
 
 set +e
@@ -96,6 +143,10 @@ set -e
 
 if [[ $rc1 -ne 0 || $rc2 -ne 0 || $rc3 -ne 0 || $rc4 -ne 0 ]]; then
   config_error="failed to stamp one or more user.ralf.* metadata keys"
+fi
+
+if [[ "$instance_state" == "exists" && "$config_changed" -eq 1 ]]; then
+  instance_state="updated"
 fi
 
 if [[ "$created" == "true" ]]; then

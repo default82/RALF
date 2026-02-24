@@ -70,9 +70,21 @@ recover_warning_container_create() {
     return 1
   }
 
-  if ! pct config "$vm_id" >/dev/null 2>&1; then
-    echo "[runner] Warning recovery skipped: CT $vm_id does not exist on host"
-    return 1
+  if command -v pct >/dev/null 2>&1; then
+    if ! pct config "$vm_id" >/dev/null 2>&1; then
+      echo "[runner] Warning recovery skipped: CT $vm_id does not exist on host"
+      return 1
+    fi
+  else
+    local api_base
+    api_base="${PVE_ENDPOINT%/}"
+    api_base="${api_base%/api2/json}"
+    if ! curl -fsS -k \
+      -H "Authorization: PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}" \
+      "${api_base}/api2/json/nodes/${TF_VAR_node_name}/lxc/${vm_id}/status/current" >/dev/null 2>&1; then
+      echo "[runner] Warning recovery skipped: CT $vm_id not found via Proxmox API"
+      return 1
+    fi
   fi
 
   echo "[runner] CT $vm_id exists despite warning; trying tofu import for proxmox_virtual_environment_container.$res_name"

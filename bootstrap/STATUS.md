@@ -111,6 +111,7 @@ Erfuellt:
 Zusatz:
 
 - `adapter_report_file` in `cli_status.json`
+- `adapter_report_exists` in `cli_status.json` (explizit fuer no-apply/apply Unterscheidung)
 - `adapter_artifacts` in `cli_status.json` (maschinenlesbare Artefaktliste mit `exists`)
 - `OUTPUTS_DIR` / `--outputs-dir` fuer Run-Isolation
 - `plan_summary.md` listet Adapter-Artefakte (`present` / `missing`)

@@ -79,6 +79,7 @@ The CLI always writes:
 `cli_status.json` also includes:
 
 - `adapter_report_file` (main adapter report path, if any)
+- `adapter_report_exists` (`true|false`, useful for no-apply runs)
 - `adapter_artifacts` (machine-readable artifact list with `exists=true|false`)
 
 Example (`cli_status.json` excerpt):

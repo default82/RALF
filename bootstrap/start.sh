@@ -14,7 +14,24 @@ ORG="${ORG:-default82}"
 REPO="${REPO:-RALF}"
 REF="${RALF_REF:-main}"
 REPO_URL="${RALF_REPO_URL:-https://github.com/${ORG}/${REPO}.git}"
-TARBALL_URL="${RALF_TARBALL_URL:-https://github.com/${ORG}/${REPO}/archive/${REF}.tar.gz}"
+
+ref_kind="auto"
+if [[ "$REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  ref_kind="commit"
+elif [[ "$REF" =~ ^v?[0-9]+(\.[0-9]+)*([.-][A-Za-z0-9._-]+)?$ ]]; then
+  ref_kind="tag"
+else
+  ref_kind="branch"
+fi
+
+default_tarball_url() {
+  case "$ref_kind" in
+    branch) printf 'https://github.com/%s/%s/archive/refs/heads/%s.tar.gz' "$ORG" "$REPO" "$REF" ;;
+    tag) printf 'https://github.com/%s/%s/archive/refs/tags/%s.tar.gz' "$ORG" "$REPO" "$REF" ;;
+    commit|auto) printf 'https://github.com/%s/%s/archive/%s.tar.gz' "$ORG" "$REPO" "$REF" ;;
+  esac
+}
+TARBALL_URL="${RALF_TARBALL_URL:-$(default_tarball_url)}"
 
 if [[ -z "${PROVISIONER:-}" ]]; then
   if command -v pct >/dev/null 2>&1; then
@@ -48,7 +65,7 @@ if command -v git >/dev/null 2>&1; then
   fi
 else
   need tar
-  log "Fetching repository via tarball (${TARBALL_URL})"
+  log "Fetching repository via tarball (${TARBALL_URL}; ref_kind=${ref_kind})"
   curl -fsSL "$TARBALL_URL" -o "$tmp/repo.tar.gz"
   mkdir -p "$tmp/extract"
   tar -xzf "$tmp/repo.tar.gz" -C "$tmp/extract"

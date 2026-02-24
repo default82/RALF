@@ -53,9 +53,13 @@ mkdir -p "$work"
 
 if command -v git >/dev/null 2>&1; then
   log "Fetching repository via git (${REPO_URL} @ ${REF})"
+  resolved_commit=""
   git init -q "$work"
   git -C "$work" remote add origin "$REPO_URL"
   if git -C "$work" fetch --depth 1 origin "$REF" >/dev/null 2>&1; then
+    git -C "$work" checkout -q FETCH_HEAD
+  elif [[ "$REPO_URL" =~ ^file:// ]] && resolved_commit="$(git ls-remote "$REPO_URL" | awk -v r="$REF" '$1 ~ "^" r { print $1; exit }')" && [[ -n "$resolved_commit" ]] \
+    && git -C "$work" fetch --depth 1 origin "$resolved_commit" >/dev/null 2>&1; then
     git -C "$work" checkout -q FETCH_HEAD
   elif git -C "$work" fetch --depth 1 origin "refs/heads/${REF}" >/dev/null 2>&1; then
     git -C "$work" checkout -q FETCH_HEAD

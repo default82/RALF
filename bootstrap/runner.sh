@@ -58,8 +58,12 @@ recover_warning_container_create() {
   local dir="$1"
   local res_name vm_id
 
-  res_name="$(awk 'match($0, /resource[[:space:]]+"proxmox_virtual_environment_container"[[:space:]]+"([^"]+)"/, m) { print m[1]; exit }' "$dir"/*.tf 2>/dev/null || true)"
-  vm_id="$(awk 'match($0, /vm_id[[:space:]]*=[[:space:]]*([0-9]+)/, m) { print m[1]; exit }' "$dir"/*.tf 2>/dev/null || true)"
+  res_name="$(grep -hE 'resource[[:space:]]+"proxmox_virtual_environment_container"[[:space:]]+"[^"]+"' "$dir"/*.tf 2>/dev/null \
+    | head -n1 \
+    | sed -E 's/.*resource[[:space:]]+"proxmox_virtual_environment_container"[[:space:]]+"([^"]+)".*/\1/' || true)"
+  vm_id="$(grep -hE '^[[:space:]]*vm_id[[:space:]]*=[[:space:]]*[0-9]+' "$dir"/*.tf 2>/dev/null \
+    | head -n1 \
+    | sed -E 's/.*vm_id[[:space:]]*=[[:space:]]*([0-9]+).*/\1/' || true)"
 
   [[ -n "$res_name" && -n "$vm_id" ]] || {
     echo "[runner] Could not detect proxmox container resource/vm_id for warning recovery"

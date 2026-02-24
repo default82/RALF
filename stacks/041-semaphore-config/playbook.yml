@@ -82,6 +82,18 @@
         recurse: false
       register: local_secret_files
 
+    - name: Check Ansible SSH private key on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: /root/.ssh/ralf_ed25519
+      register: local_ansible_ssh_key
+
+    - name: Fail if Ansible SSH private key is missing on control node
+      ansible.builtin.fail:
+        msg: "Missing /root/.ssh/ralf_ed25519 on control node (required for Semaphore-hosted Ansible runs)"
+      when: not local_ansible_ssh_key.stat.exists
+
   tasks:
     - name: Install base packages
       ansible.builtin.apt:
@@ -133,6 +145,14 @@
         - { path: "{{ ralf_runtime }}", owner: root, group: root, mode: "0755" }
         - { path: "{{ ralf_runtime_secrets }}", owner: root, group: root, mode: "0700" }
 
+    - name: Allow semaphore service user to read synced runtime secrets
+      ansible.builtin.file:
+        path: "{{ ralf_runtime_secrets }}"
+        state: directory
+        owner: root
+        group: semaphore
+        mode: "0750"
+
     - name: Install OpenTofu binary
       ansible.builtin.shell: |
         set -euo pipefail
@@ -183,11 +203,19 @@
         src: "{{ item.path }}"
         dest: "{{ ralf_runtime_secrets }}/{{ item.path | basename }}"
         owner: root
-        group: root
-        mode: "0600"
+        group: semaphore
+        mode: "0640"
       loop: "{{ local_secret_files.files }}"
       loop_control:
         label: "{{ item.path | basename }}"
+
+    - name: Sync Ansible SSH private key to Semaphore host
+      ansible.builtin.copy:
+        src: /root/.ssh/ralf_ed25519
+        dest: "{{ ralf_runtime_secrets }}/ralf_ed25519"
+        owner: root
+        group: semaphore
+        mode: "0640"
 
     - name: Install helper wrapper for stack runs on Semaphore host
       ansible.builtin.copy:
@@ -199,12 +227,21 @@
           #!/usr/bin/env bash
           set -euo pipefail
           export PATH=/usr/local/bin:/usr/bin:/bin
+          export HOME={{ sem_data_dir }}
+          export ANSIBLE_PRIVATE_KEY_FILE={{ ralf_runtime_secrets }}/ralf_ed25519
+          export ANSIBLE_LOCAL_TEMP=/tmp/ansible-local
+          export ANSIBLE_REMOTE_TEMP=/tmp/.ansible-tmp
+          mkdir -p "${ANSIBLE_LOCAL_TEMP}" "${ANSIBLE_REMOTE_TEMP}"
           export RALF_BASE={{ ralf_root }}
-          export RALF_REPO={{ ralf_repo }}
+          if [[ -f ./bootstrap/runner.sh ]]; then
+            export RALF_REPO="${PWD}"
+          else
+            export RALF_REPO={{ ralf_repo }}
+          fi
           export RALF_RUNTIME={{ ralf_runtime }}
           export AUTO_APPLY="${AUTO_APPLY:-1}"
           export START_AT="${START_AT:-000}"
-          cd "{{ ralf_repo }}"
+          cd "${RALF_REPO}"
           exec bash bootstrap/runner.sh
 
     - name: Install helper wrapper for smoke tests on Semaphore host
@@ -217,7 +254,16 @@
           #!/usr/bin/env bash
           set -euo pipefail
           export PATH=/usr/local/bin:/usr/bin:/bin
-          cd "{{ ralf_repo }}"
+          export HOME={{ sem_data_dir }}
+          export ANSIBLE_PRIVATE_KEY_FILE={{ ralf_runtime_secrets }}/ralf_ed25519
+          export ANSIBLE_LOCAL_TEMP=/tmp/ansible-local
+          export ANSIBLE_REMOTE_TEMP=/tmp/.ansible-tmp
+          mkdir -p "${ANSIBLE_LOCAL_TEMP}" "${ANSIBLE_REMOTE_TEMP}"
+          if [[ -f ./bootstrap/smoke.sh ]]; then
+            cd "${PWD}"
+          else
+            cd "{{ ralf_repo }}"
+          fi
           exec bash bootstrap/smoke.sh "$@"
 
     - name: Mark local RALF repo as safe for Git operations (system-wide)

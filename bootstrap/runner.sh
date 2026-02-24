@@ -86,6 +86,19 @@ recover_warning_container_create() {
   return 1
 }
 
+recover_container_after_apply_failure() {
+  local dir="$1" apply_output="$2"
+
+  # Known flaky failure modes from the Proxmox provider can leave the CT created
+  # while OpenTofu state was not updated in the current workspace/backend.
+  if grep -Eq "Plugin did not respond|exit code: WARNINGS: 1" <<<"$apply_output"; then
+    recover_warning_container_create "$dir"
+    return $?
+  fi
+
+  return 1
+}
+
 if [[ "${RUN_STACKS}" != "1" ]]; then
   echo "[runner] RUN_STACKS!=1 → exit"
   exit 0
@@ -183,7 +196,7 @@ for s in "${stacks[@]}"; do
       apply_output=""
       if ! apply_output="$(tofu apply -auto-approve -input=false 2>&1)"; then
         printf '%s\n' "$apply_output"
-        if grep -q "exit code: WARNINGS: 1" <<<"$apply_output" && recover_warning_container_create "$dir"; then
+        if recover_container_after_apply_failure "$dir" "$apply_output"; then
           tofu apply -auto-approve -input=false
         else
           exit 1

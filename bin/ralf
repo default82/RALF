@@ -178,10 +178,10 @@ if [[ -n "${cfg[answers_file]}" && ! -f "${cfg[answers_file]}" ]]; then
 fi
 
 if [[ "${cfg[provisioner]}" == "host" ]]; then
-  warnings+=("host provisioner is planning-only in current implementation")
+  warnings+=("host provisioner uses a conservative no-op adapter (artifacts only)")
 fi
 if [[ "${cfg[provisioner]}" == "lxd" ]]; then
-  warnings+=("lxd provisioner is planning-only in current implementation")
+  warnings+=("lxd provisioner uses a conservative no-op adapter (artifacts only)")
 fi
 
 if [[ ${#blockers[@]} -gt 0 ]]; then
@@ -204,7 +204,8 @@ phase_provisioner="running"
 provisioner_adapter=""
 case "${cfg[provisioner]}" in
   proxmox_pct) provisioner_adapter="${repo_root}/bootstrap/legacy/start_proxmox_pct.sh" ;;
-  host|lxd) provisioner_adapter="" ;;
+  host) provisioner_adapter="${repo_root}/bootstrap/legacy/start_host.sh" ;;
+  lxd) provisioner_adapter="${repo_root}/bootstrap/legacy/start_lxd.sh" ;;
 esac
 phase_provisioner="completed"
 
@@ -272,9 +273,9 @@ apply_result="skipped"
 if [[ "${cfg[apply]}" == "1" ]]; then
   if [[ ${#blockers[@]} -gt 0 ]]; then
     apply_result="blocked"
-  elif [[ "${cfg[provisioner]}" == "proxmox_pct" ]]; then
+  elif [[ -n "$provisioner_adapter" ]]; then
     if [[ -x "$provisioner_adapter" ]]; then
-      # Forward existing env to preserve legacy behavior; export key merged values too.
+      # Forward merged values into the provisioner adapter environment.
       export PROFILE="${cfg[profile]}"
       [[ -n "${cfg[network_cidr]}" ]] && export NETWORK_CIDR="${cfg[network_cidr]}"
       [[ -n "${cfg[base_domain]}" ]] && export BASE_DOMAIN="${cfg[base_domain]}"
@@ -289,24 +290,22 @@ if [[ "${cfg[apply]}" == "1" ]]; then
         applied=1
         apply_result="applied"
       else
-        blockers+=("proxmox_pct adapter failed with exit code ${adapter_rc}")
+        blockers+=("${cfg[provisioner]} adapter failed with exit code ${adapter_rc}")
         overall_status="blocker"
         exit_code=2
         apply_result="adapter_failed"
       fi
     else
-      blockers+=("Missing proxmox_pct adapter: $provisioner_adapter")
+      blockers+=("Missing ${cfg[provisioner]} adapter: $provisioner_adapter")
       overall_status="blocker"
       exit_code=2
       apply_result="adapter_missing"
     fi
   else
-    apply_result="planned_only"
-    if [[ "$overall_status" == "ok" ]]; then
-      overall_status="warn"
-      exit_code=1
-      warnings+=("Apply for ${cfg[provisioner]} not implemented yet; artifacts generated only")
-    fi
+    blockers+=("No adapter configured for provisioner: ${cfg[provisioner]}")
+    overall_status="blocker"
+    exit_code=2
+    apply_result="adapter_missing"
   fi
 fi
 phase_apply_trigger="completed"

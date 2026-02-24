@@ -67,6 +67,16 @@ assert answers_cfg["ct_hostname"] == "ralf-bootstrap"
 print("[selfcheck] cli json assertions ok")
 PY
 
+echo "[selfcheck] launcher tui/non-interactive hint"
+ref_now="$(git rev-parse --short HEAD)"
+hint_out=/tmp/ralf-launch-tui-ni-hint
+rm -rf "$hint_out"
+TUI=1 NON_INTERACTIVE=1 PROVISIONER=host OUTPUTS_DIR="$hint_out" \
+  RALF_REPO_URL="file://${repo_root}" RALF_REF="$ref_now" \
+  bash bootstrap/start.sh >/tmp/ralf-launch-tui-ni-hint.log 2>&1 || true
+grep -q 'TUI requested with NON_INTERACTIVE=1; CLI policy will disable TUI' /tmp/ralf-launch-tui-ni-hint.log
+echo "[selfcheck] launcher tui/non-interactive hint ok"
+
 echo "[selfcheck] integrity helper"
 bash bootstrap/release/print-start-integrity.sh --commit HEAD > /tmp/ralf-start-integrity.txt
 bash bootstrap/release/print-start-integrity.sh --json > /tmp/ralf-start-integrity.json

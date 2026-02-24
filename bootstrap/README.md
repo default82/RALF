@@ -89,6 +89,7 @@ Additionally, `bootstrap-selfcheck.yml` validates:
 - launcher ref handling checks including local tag ref
 - integrity helper output (`bootstrap/release/print-start-integrity.sh`)
 - launcher relative-path arg handling (`ANSWERS_FILE` / `EXPORT_ANSWERS` / `OUTPUTS_DIR`)
+- launcher hint logging for `TUI=1` + `NON_INTERACTIVE=1`
 
 Local equivalent:
 

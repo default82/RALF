@@ -144,6 +144,17 @@ jobs:
           print("bootstrap launcher relative path args selfcheck ok")
           PY
 
+      - name: Launcher selfcheck (TUI/non-interactive hint)
+        run: |
+          set -euo pipefail
+          ref="$(git rev-parse --short HEAD)"
+          out=/tmp/ralf-launch-tui-ni-hint
+          rm -rf "$out"
+          TUI=1 NON_INTERACTIVE=1 PROVISIONER=host OUTPUTS_DIR="$out" \
+            RALF_REPO_URL="file://${GITHUB_WORKSPACE}" RALF_REF="$ref" \
+            bash bootstrap/start.sh >/tmp/ralf-launch-tui-ni-hint.log 2>&1 || true
+          grep -q 'TUI requested with NON_INTERACTIVE=1; CLI policy will disable TUI' /tmp/ralf-launch-tui-ni-hint.log
+
       - name: Launcher selfcheck (tag ref)
         run: |
           set -euo pipefail

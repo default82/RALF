@@ -351,6 +351,51 @@ if [[ -n "$adapter_report_file" ]]; then
   } >> "${outputs_dir}/plan_summary.md"
 fi
 
+if [[ -n "$adapter_report_file" && -f "$adapter_report_file" && "$(command -v python3 >/dev/null 2>&1; echo $?)" -eq 0 ]]; then
+  python3 - "$adapter_report_file" >> "${outputs_dir}/plan_summary.md" <<'PY'
+import json, os, sys
+
+report_path = sys.argv[1]
+try:
+    data = json.load(open(report_path))
+except Exception:
+    sys.exit(0)
+
+provisioner = data.get("provisioner")
+keys_by_provisioner = {
+    "host": [
+        "tool_manifest",
+        "tool_readiness_file",
+        "host_plan_file",
+        "host_runner_env_file",
+        "host_runner_wrapper",
+        "host_runner_readme",
+    ],
+    "lxd": [
+        "plan_file",
+        "metadata_preview_file",
+        "metadata_applied_file",
+    ],
+}
+keys = keys_by_provisioner.get(provisioner, [])
+if not keys:
+    sys.exit(0)
+
+print("")
+print("## Adapter Artifacts")
+printed = 0
+for key in keys:
+    p = data.get(key, "")
+    if not p:
+        continue
+    status = "present" if os.path.exists(p) else "missing"
+    print(f"- `{p}` ({status})")
+    printed += 1
+if not printed:
+    print("- No adapter artifacts listed.")
+PY
+fi
+
 tmp_plan="$(mktemp)"
 awk -v s="$overall_status" '
   BEGIN { replaced=0 }

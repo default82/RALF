@@ -192,10 +192,12 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: ralf-host-runner [--check|--dry-run|--run]
+Usage: ralf-host-runner [--check|--dry-run|--status|--artifacts|--run]
 
   --check   Validate local prerequisites and print derived paths
   --dry-run Show the command that a future host runner would execute
+  --status  Print a compact status summary from generated artifacts
+  --artifacts List generated host bootstrap artifacts
   --run     Guarded placeholder for future host execution (requires explicit enable)
 USAGE
 }
@@ -204,6 +206,8 @@ mode="check"
 case "\${1:-}" in
   ""|--check) mode="check" ;;
   --dry-run) mode="dry_run" ;;
+  --status) mode="status" ;;
+  --artifacts) mode="artifacts" ;;
   --run) mode="run" ;;
   -h|--help) usage; exit 0 ;;
   *) echo "[host-runner] unknown option: \$1" >&2; usage; exit 2 ;;
@@ -224,6 +228,8 @@ export RALF_RUNTIME="\${RALF_RUNTIME:-\$HOST_BASE/runtime}"
 export RALF_REPO="\${RALF_REPO:-${repo_root}}"
 export RALF_OUTPUTS_DIR="\${RALF_OUTPUTS_DIR:-${outputs_dir}}"
 export RALF_TOOL_READINESS_FILE="\${RALF_TOOL_READINESS_FILE:-\$HOST_BASE/artifacts/tool-readiness.json}"
+export RALF_HOST_ARTIFACTS_DIR="\${RALF_HOST_ARTIFACTS_DIR:-\$HOST_BASE/artifacts}"
+export RALF_HOST_RUNNER_README="\${RALF_HOST_RUNNER_README:-\$HOST_BASE/artifacts/host-runner.md}"
 
 echo "[host-runner] repo=\$RALF_REPO"
 echo "[host-runner] runtime=\$RALF_RUNTIME"
@@ -259,6 +265,51 @@ for req in bash curl git; do
 done
 [[ -d "\$RALF_RUNTIME/secrets" ]] || { echo "[host-runner] missing runtime secrets dir: \$RALF_RUNTIME/secrets" >&2; missing=1; }
 [[ -d "\$RALF_REPO" ]] || { echo "[host-runner] missing repo dir: \$RALF_REPO" >&2; missing=1; }
+
+if [[ "\$mode" == "status" ]]; then
+  if command -v python3 >/dev/null 2>&1 && [[ -f "\$RALF_TOOL_READINESS_FILE" ]]; then
+    python3 - "\$RALF_TOOL_READINESS_FILE" "\$RALF_OUTPUTS_DIR/host_apply_report.json" <<'PY'
+import json, os, sys
+r = sys.argv[1]
+rep = sys.argv[2]
+try:
+    readiness = json.load(open(r))
+except Exception as e:
+    print(f"[host-runner] readiness parse error: {e}", file=sys.stderr)
+    readiness = {}
+try:
+    report = json.load(open(rep))
+except Exception:
+    report = {}
+print(f"[host-runner] status: {report.get('status','unknown')}")
+print(f"[host-runner] message: {report.get('message','')}")
+print(f"[host-runner] readiness: {readiness.get('status','unknown')}")
+missing_opt = readiness.get('missing_optional', []) or []
+if missing_opt:
+    print("[host-runner] missing optional tools: " + ", ".join(missing_opt))
+PY
+  else
+    echo "[host-runner] status mode requires python3 and readiness file for rich output"
+  fi
+  exit 0
+fi
+
+if [[ "\$mode" == "artifacts" ]]; then
+  for p in \\
+    "\$RALF_HOST_ARTIFACTS_DIR/tool-manifest.txt" \\
+    "\$RALF_HOST_ARTIFACTS_DIR/tool-readiness.json" \\
+    "\$RALF_HOST_ARTIFACTS_DIR/host-plan.md" \\
+    "\$RALF_HOST_RUNNER_README" \\
+    "\$RALF_BASE/config/host-runner.env" \\
+    "\$RALF_BASE/bin/ralf-host-runner"; do
+    if [[ -e "\$p" ]]; then
+      echo "[host-runner] artifact: \$p"
+    else
+      echo "[host-runner] artifact missing: \$p"
+    fi
+  done
+  exit 0
+fi
 
 if [[ "\$mode" == "check" ]]; then
   if [[ "\$missing" -eq 0 ]]; then

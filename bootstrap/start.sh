@@ -25,6 +25,10 @@ else
   ref_kind="branch"
 fi
 
+if [[ "${NON_INTERACTIVE:-0}" == "1" && "${TUI:-0}" == "1" ]]; then
+  log "TUI requested with NON_INTERACTIVE=1; CLI policy will disable TUI"
+fi
+
 default_tarball_url() {
   case "$ref_kind" in
     branch) printf 'https://github.com/%s/%s/archive/refs/heads/%s.tar.gz' "$ORG" "$REPO" "$REF" ;;

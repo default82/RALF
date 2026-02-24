@@ -135,6 +135,7 @@ Launcher fetch behavior:
 - uses `git` when available (with branch/tag/commit fetch fallbacks)
 - otherwise falls back to GitHub tarball download (`branch` / `tag` / `commit` URL patterns)
 - logs the resolved git commit (or extracted tarball directory) for traceability
+- logs an early note when `TUI=1` and `NON_INTERACTIVE=1` are both set (before CLI gating disables TUI)
 
 The CLI always writes:
 

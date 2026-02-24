@@ -102,10 +102,11 @@ jobs:
           set -euo pipefail
           ref="$(git rev-parse --short HEAD)"
           out=/tmp/ralf-launch-selfcheck
+          logf=/tmp/ralf-launch-selfcheck.log
           rm -rf "$out"
           OUTPUTS_DIR="$out" PROVISIONER=host YES=1 APPLY=1 \
             RALF_REPO_URL="file://${GITHUB_WORKSPACE}" RALF_REF="$ref" \
-            bash bootstrap/start.sh >/dev/null
+            bash bootstrap/start.sh >"$logf" 2>&1
 
           python3 - <<'PY'
           import json
@@ -115,6 +116,7 @@ jobs:
           assert len(d.get("adapter_artifacts", [])) >= 1, d
           print("bootstrap launcher selfcheck ok")
           PY
+          grep -q 'Resolved git checkout to commit ' "$logf"
 
       - name: Launcher selfcheck (relative path args)
         run: |

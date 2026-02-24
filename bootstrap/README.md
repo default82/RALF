@@ -76,6 +76,11 @@ The CLI always writes:
 - `outputs/plan_summary.md`
 - `outputs/cli_status.json`
 
+`cli_status.json` also includes:
+
+- `adapter_report_file` (main adapter report path, if any)
+- `adapter_artifacts` (machine-readable artifact list with `exists=true|false`)
+
 Optional:
 
 - `OUTPUTS_DIR` / `--outputs-dir` to isolate outputs per run (useful for sequential comparisons)

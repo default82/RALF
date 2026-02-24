@@ -270,6 +270,12 @@ phase_artifacts="completed"
 phase_apply_trigger="running"
 applied=0
 apply_result="skipped"
+adapter_report_file=""
+case "${cfg[provisioner]}" in
+  host) adapter_report_file="${outputs_dir}/host_apply_report.json" ;;
+  lxd) adapter_report_file="${outputs_dir}/lxd_apply_report.json" ;;
+  proxmox_pct) adapter_report_file="" ;;
+esac
 if [[ "${cfg[apply]}" == "1" ]]; then
   if [[ ${#blockers[@]} -gt 0 ]]; then
     apply_result="blocked"
@@ -309,6 +315,54 @@ if [[ "${cfg[apply]}" == "1" ]]; then
   fi
 fi
 phase_apply_trigger="completed"
+
+# Reconcile final status after apply trigger, because adapter execution can
+# promote warnings to blockers (or add new blockers).
+if [[ ${#blockers[@]} -gt 0 ]]; then
+  overall_status="blocker"
+  exit_code=2
+elif [[ ${#warnings[@]} -gt 0 ]]; then
+  if [[ "${cfg[yes]}" == "1" ]]; then
+    warnings_accepted=1
+    overall_status="ok"
+    exit_code=0
+  else
+    overall_status="warn"
+    exit_code=1
+  fi
+else
+  overall_status="ok"
+  exit_code=0
+fi
+
+if [[ -n "$adapter_report_file" ]]; then
+  {
+    printf '\n## Adapter Report\n'
+    if [[ -f "$adapter_report_file" ]]; then
+      printf -- '- `%s`\n' "${adapter_report_file}"
+    else
+      printf -- '- Expected adapter report (not present): `%s`\n' "${adapter_report_file}"
+    fi
+  } >> "${outputs_dir}/plan_summary.md"
+fi
+
+tmp_plan="$(mktemp)"
+awk -v s="$overall_status" '
+  BEGIN { replaced=0 }
+  /^- Overall status: `/ {
+    print "- Overall status: `" s "`"
+    replaced=1
+    next
+  }
+  { print }
+  END {
+    if (!replaced) {
+      print ""
+      print "- Overall status: `" s "`"
+    }
+  }
+' "${outputs_dir}/plan_summary.md" > "$tmp_plan"
+mv "$tmp_plan" "${outputs_dir}/plan_summary.md"
 
 cat >"${outputs_dir}/checkpoints.json" <<EOF
 {
@@ -357,6 +411,7 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "warnings_accepted": ${warnings_accepted},
   "warnings": ${warn_json},
   "blockers": ${blocker_json},
+  "adapter_report_file": "$(json_escape "${adapter_report_file}")",
   "outputs_dir": "$(json_escape "${outputs_dir}")"
 }
 EOF

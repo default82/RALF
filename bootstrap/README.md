@@ -80,6 +80,12 @@ Optional:
 
 - `OUTPUTS_DIR` / `--outputs-dir` to isolate outputs per run (useful for sequential comparisons)
 
+Example:
+
+```bash
+OUTPUTS_DIR=/tmp/ralf-bootstrap-run1 ./ralf bootstrap --provisioner host --apply --yes
+```
+
 Exit codes:
 
 - `0` ok

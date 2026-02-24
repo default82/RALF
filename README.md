@@ -39,6 +39,13 @@ PROVISIONER=host PROFILE=generic_home NETWORK_CIDR=192.168.178.0/24 BASE_DOMAIN=
 curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
 ```
 
+Mit separatem Output-Verzeichnis (z. B. fuer Vergleiche zwischen Runs):
+
+```bash
+PROVISIONER=host YES=1 APPLY=1 OUTPUTS_DIR=/tmp/ralf-bootstrap-run1 \
+curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+```
+
 Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
 
 - `PROVISIONER=proxmox_pct|host|lxd` (autodetect: `pct` -> `proxmox_pct`, `lxc` -> `lxd`, sonst `host`)

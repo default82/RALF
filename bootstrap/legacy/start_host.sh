@@ -294,12 +294,27 @@ def load(p):
         return {}
 readiness = load(rfile)
 report = load(repfile)
+artifact_keys = [
+    "tool_manifest",
+    "tool_readiness_file",
+    "host_plan_file",
+    "host_runner_env_file",
+    "host_runner_wrapper",
+    "host_runner_readme",
+]
+adapter_artifacts = []
+for k in artifact_keys:
+    p = report.get(k, "")
+    if not p:
+        continue
+    adapter_artifacts.append({"key": k, "path": p, "exists": os.path.exists(p)})
 print(json.dumps({
     "status": report.get("status", "unknown"),
     "message": report.get("message", ""),
     "readiness": readiness.get("status", "unknown"),
     "missing_required": readiness.get("missing_required", []) or [],
     "missing_optional": readiness.get("missing_optional", []) or [],
+    "adapter_artifacts": adapter_artifacts,
     "report_file": repfile,
     "readiness_file": rfile,
 }, indent=2))

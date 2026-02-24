@@ -178,7 +178,7 @@ if [[ -n "${cfg[answers_file]}" && ! -f "${cfg[answers_file]}" ]]; then
 fi
 
 if [[ "${cfg[provisioner]}" == "host" ]]; then
-  warnings+=("host provisioner uses a conservative no-op adapter (artifacts only)")
+  warnings+=("host provisioner uses a conservative minimal adapter (local workspace prepare)")
 fi
 if [[ "${cfg[provisioner]}" == "lxd" ]]; then
   warnings+=("lxd provisioner uses a conservative minimal adapter (create-if-missing)")

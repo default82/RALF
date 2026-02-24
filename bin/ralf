@@ -434,6 +434,17 @@ if not printed:
 PY
 fi
 
+if [[ -n "$adapter_report_file" && ! -f "$adapter_report_file" ]]; then
+  {
+    printf '\n## Adapter Artifacts\n'
+    if [[ "${cfg[apply]}" == "1" ]]; then
+      printf -- '- Adapter report missing; no artifact list available.\n'
+    else
+      printf -- '- Apply not executed; no adapter artifacts were generated.\n'
+    fi
+  } >> "${outputs_dir}/plan_summary.md"
+fi
+
 tmp_plan="$(mktemp)"
 awk -v s="$overall_status" '
   BEGIN { replaced=0 }

@@ -92,15 +92,13 @@ recover_warning_container_create() {
 
 recover_container_after_apply_failure() {
   local dir="$1" apply_output="$2"
+  local _unused="$apply_output"
 
-  # Known flaky failure modes from the Proxmox provider can leave the CT created
-  # while OpenTofu state was not updated in the current workspace/backend.
-  if grep -Eq "Plugin did not respond|exit code: WARNINGS: 1" <<<"$apply_output"; then
-    recover_warning_container_create "$dir"
-    return $?
-  fi
-
-  return 1
+  # Try import-based recovery unconditionally for Proxmox LXC stacks.
+  # If the failure was unrelated, this will simply return non-zero and the
+  # original apply failure is preserved.
+  recover_warning_container_create "$dir" || return 1
+  return 0
 }
 
 if [[ "${RUN_STACKS}" != "1" ]]; then

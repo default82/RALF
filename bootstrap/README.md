@@ -119,6 +119,7 @@ The CLI always writes:
 - `adapter_report_file` (main adapter report path, if any)
 - `adapter_report_exists` (`true|false`, useful for no-apply runs)
 - `adapter_artifacts` (machine-readable artifact list with `exists=true|false`)
+- `tui_requested` / `tui_effective` (requested vs final TUI state after policy/gating)
 
 Example (`cli_status.json` excerpt):
 

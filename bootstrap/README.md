@@ -87,6 +87,7 @@ Additionally, `bootstrap-selfcheck.yml` validates:
 - `ANSWERS_FILE` merge using `bootstrap/examples/answers.generic_home.yml`
 - launcher end-to-end path using local `file://` repo checkout
 - launcher ref handling checks including local tag ref
+- integrity helper output (`bootstrap/release/print-start-integrity.sh`)
 
 Required repository secret:
 

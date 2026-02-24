@@ -36,6 +36,7 @@ jobs:
           bash -n bootstrap/legacy/start_lxd.sh
           bash -n bootstrap/release/sign-start.sh
           bash -n bootstrap/release/verify-start.sh
+          bash -n bootstrap/release/print-start-integrity.sh
 
       - name: CLI selfcheck (host/lxd)
         run: |
@@ -71,6 +72,22 @@ jobs:
           assert answers_cfg["base_domain"] == "home.lan"
           assert answers_cfg["ct_hostname"] == "ralf-bootstrap"
           print("bootstrap cli selfcheck ok")
+          PY
+
+      - name: Integrity helper selfcheck
+        run: |
+          set -euo pipefail
+          bash bootstrap/release/print-start-integrity.sh --commit HEAD > /tmp/ralf-start-integrity.txt
+          bash bootstrap/release/print-start-integrity.sh --json > /tmp/ralf-start-integrity.json
+          grep -q '^COMMIT=' /tmp/ralf-start-integrity.txt
+          grep -q '^SHA256=' /tmp/ralf-start-integrity.txt
+          python3 - <<'PY'
+          import json
+          d = json.load(open("/tmp/ralf-start-integrity.json"))
+          assert len(d["commit"]) == 40, d
+          assert d["file"] == "bootstrap/start.sh", d
+          assert len(d["sha256"]) == 64, d
+          print("integrity helper selfcheck ok")
           PY
 
       - name: Launcher selfcheck (host)

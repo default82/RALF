@@ -644,6 +644,29 @@ EOF
 fi
 "
   ok "Env files ensured"
+
+  pct exec "${CTID}" -- bash -lc "
+set -euo pipefail
+SECRETS_DIR='${RALF_RUNTIME}/secrets'
+MINIO_ENV=\"\$SECRETS_DIR/minio.env\"
+TFSTATE_ENV=\"\$SECRETS_DIR/tfstate.env\"
+set -a
+source \"\$MINIO_ENV\"
+set +a
+if [[ ! -s \"\$TFSTATE_ENV\" ]]; then
+  umask 077
+  cat >\"\$TFSTATE_ENV\" <<EOF
+TFSTATE_ENABLE_REMOTE=1
+TFSTATE_S3_BUCKET=tofu-state
+TFSTATE_S3_PREFIX=ralf
+TFSTATE_S3_REGION=us-east-1
+TFSTATE_S3_ENDPOINT=http://10.10.30.10:9000
+TFSTATE_S3_ACCESS_KEY=\$MINIO_ROOT_USER
+TFSTATE_S3_SECRET_KEY=\$MINIO_ROOT_PASSWORD
+EOF
+fi
+"
+  ok "tfstate.env ensured"
 fi
 
 # --------------------------

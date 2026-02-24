@@ -11,6 +11,7 @@
     gitea_custom_dir: /var/lib/gitea/custom
     gitea_cfg_dir: /etc/gitea
     gitea_cfg_path: /etc/gitea/app.ini
+    gitea_bin: /usr/local/bin/gitea
     gitea_tls_dir: /etc/gitea/tls
     gitea_tls_cert: /etc/gitea/tls/fullchain.pem
     gitea_tls_key: /etc/gitea/tls/privkey.pem
@@ -69,14 +70,29 @@
       when: item | length > 0 and not item.startswith('#')
 
   tasks:
-    - name: Install gitea and dependencies
+    - name: Install dependencies
       ansible.builtin.apt:
         update_cache: true
         name:
-          - gitea
           - nginx
           - openssl
           - git
+        state: present
+
+    - name: Ensure gitea group exists
+      ansible.builtin.group:
+        name: "{{ gitea_group }}"
+        system: true
+        state: present
+
+    - name: Ensure gitea user exists
+      ansible.builtin.user:
+        name: "{{ gitea_user }}"
+        group: "{{ gitea_group }}"
+        system: true
+        home: "{{ gitea_work_dir }}"
+        shell: /bin/bash
+        create_home: false
         state: present
 
     - name: Ensure directories exist
@@ -87,9 +103,27 @@
         group: "{{ item.group }}"
         mode: "{{ item.mode }}"
       loop:
+        - { path: "{{ gitea_work_dir }}", owner: "{{ gitea_user }}", group: "{{ gitea_group }}", mode: "0750" }
+        - { path: "{{ gitea_work_dir }}/custom", owner: "{{ gitea_user }}", group: "{{ gitea_group }}", mode: "0750" }
+        - { path: "{{ gitea_work_dir }}/data", owner: "{{ gitea_user }}", group: "{{ gitea_group }}", mode: "0750" }
+        - { path: "{{ gitea_work_dir }}/log", owner: "{{ gitea_user }}", group: "{{ gitea_group }}", mode: "0750" }
         - { path: "{{ gitea_cfg_dir }}", owner: root, group: "{{ gitea_group }}", mode: "0750" }
         - { path: "{{ gitea_tls_dir }}", owner: root, group: root, mode: "0750" }
         - { path: "/srv/git-mirrors", owner: root, group: root, mode: "0755" }
+
+    - name: Install Gitea binary (latest release)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        tmpdir=$(mktemp -d)
+        trap 'rm -rf "$tmpdir"' EXIT
+        rel=$(curl -fsSL https://api.github.com/repos/go-gitea/gitea/releases/latest | grep '"tag_name"' | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+        ver=${rel#v}
+        url="https://dl.gitea.com/gitea/${ver}/gitea-${ver}-linux-amd64"
+        curl -fsSL "$url" -o "$tmpdir/gitea"
+        install -m 0755 "$tmpdir/gitea" {{ gitea_bin }}
+      args:
+        executable: /bin/bash
+        creates: "{{ gitea_bin }}"
 
     - name: Generate self-signed certificate for Gitea
       ansible.builtin.command:
@@ -129,6 +163,7 @@
           SSH_PORT = {{ gitea_env.GITEA_SSH_PORT }}
           START_SSH_SERVER = true
           OFFLINE_MODE = true
+          APP_DATA_PATH = {{ gitea_work_dir }}/data
 
           [database]
           DB_TYPE = postgres
@@ -149,9 +184,38 @@
 
           [repository]
           DEFAULT_BRANCH = main
+          ROOT = {{ gitea_work_dir }}/data/gitea-repositories
+
+          [log]
+          ROOT_PATH = {{ gitea_work_dir }}/log
 
           [actions]
           ENABLED = false
+      notify: restart gitea
+
+    - name: Create Gitea systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/gitea.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Gitea
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User={{ gitea_user }}
+          Group={{ gitea_group }}
+          WorkingDirectory={{ gitea_work_dir }}
+          Environment=USER={{ gitea_user }} HOME={{ gitea_work_dir }} GITEA_WORK_DIR={{ gitea_work_dir }}
+          ExecStart={{ gitea_bin }} web --config {{ gitea_cfg_path }}
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
       notify: restart gitea
 
     - name: Configure nginx TLS reverse proxy for Gitea

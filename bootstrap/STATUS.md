@@ -67,7 +67,7 @@ Erfuellt:
 
 Offen:
 
-- Keine publizierte/verbindliche `minisign` Public-Key-Quelle im Repo dokumentiert (nur Template-Platzhalter)
+- Reale `bootstrap/release/minisign.pub` noch nicht eingecheckt (nur `.example` Template vorhanden)
 - CI-Workflow braucht konfiguriertes Secret `MINISIGN_SECRET_KEY_B64`
 
 ## E) start.sh Responsibilities

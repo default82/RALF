@@ -80,10 +80,21 @@ Required repository secret:
 
 - `MINISIGN_SECRET_KEY_B64` : base64-encoded minisign secret key file contents
 
+Recommended public key location in repo:
+
+- `bootstrap/release/minisign.pub` (copy from `bootstrap/release/minisign.pub.example` and replace the placeholder)
+- publish the same key in release notes/docs for out-of-band verification
+
 Example secret creation:
 
 ```bash
 base64 -w0 minisign.key
+```
+
+Local verification helper (optional):
+
+```bash
+bash bootstrap/release/verify-start.sh --version v1.0.0 --pubkey "<MINISIGN_PUBLIC_KEY_STRING>" --verify-only
 ```
 
 ## Bootstrap Engine Contract

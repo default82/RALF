@@ -277,7 +277,19 @@ if [[ "\$missing" -ne 0 ]]; then
   exit 2
 fi
 
-echo "[host-runner] execution mode enabled, but runner integration is not implemented yet." >&2
+runner_script="\$RALF_REPO/bootstrap/runner.sh"
+if [[ ! -f "\$runner_script" ]]; then
+  echo "[host-runner] missing runner script: \$runner_script" >&2
+  exit 2
+fi
+if ! bash -n "\$runner_script" >/dev/null 2>&1; then
+  echo "[host-runner] runner syntax check failed: \$runner_script" >&2
+  exit 2
+fi
+
+echo "[host-runner] preflight OK (execution mode enabled)." >&2
+echo "[host-runner] runner script present and syntax-valid: \$runner_script" >&2
+echo "[host-runner] stack execution is still intentionally not implemented in host runner." >&2
 echo "[host-runner] Next step: add host-safe runner wiring to bootstrap/runner.sh or a dedicated host runner." >&2
 exit 2
 EOF

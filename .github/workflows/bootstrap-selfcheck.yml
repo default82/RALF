@@ -42,6 +42,8 @@ jobs:
           set -euo pipefail
           ./ralf bootstrap --provisioner host --outputs-dir /tmp/ralf-host-noapply >/dev/null || test $? -eq 1
           ./ralf bootstrap --provisioner host --apply --yes --outputs-dir /tmp/ralf-host-apply >/dev/null
+          TUI=1 NON_INTERACTIVE=1 ./ralf bootstrap --provisioner host --outputs-dir /tmp/ralf-host-tui-ni >/dev/null || test $? -eq 1
+          ./ralf bootstrap --provisioner host --answers-file bootstrap/examples/answers.generic_home.yml --outputs-dir /tmp/ralf-host-answers >/dev/null || test $? -eq 1
           ./ralf bootstrap --provisioner lxd --outputs-dir /tmp/ralf-lxd-noapply >/dev/null || test $? -eq 1
           ./ralf bootstrap --provisioner lxd --apply --outputs-dir /tmp/ralf-lxd-apply >/dev/null || test $? -eq 2
 
@@ -57,6 +59,17 @@ jobs:
               d = json.load(open(path))
               assert d["status"] == expected_status, (name, d["status"], expected_status)
               assert d["adapter_report_exists"] == expected_report_exists, (name, d["adapter_report_exists"], expected_report_exists)
+
+          tui_cfg = json.load(open("/tmp/ralf-host-tui-ni/final_config.json"))
+          tui_status = json.load(open("/tmp/ralf-host-tui-ni/cli_status.json"))
+          assert tui_cfg["tui_requested"] == 1 and tui_cfg["tui"] == 0 and tui_cfg["non_interactive"] == 1
+          assert tui_status["tui_requested"] == 1 and tui_status["tui_effective"] == 0
+          assert any("disables TUI" in w for w in tui_status["warnings"])
+
+          answers_cfg = json.load(open("/tmp/ralf-host-answers/final_config.json"))
+          assert answers_cfg["network_cidr"] == "192.168.178.0/24"
+          assert answers_cfg["base_domain"] == "home.lan"
+          assert answers_cfg["ct_hostname"] == "ralf-bootstrap"
           print("bootstrap cli selfcheck ok")
           PY
 

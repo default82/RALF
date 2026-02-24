@@ -81,6 +81,8 @@ Additionally, `bootstrap-selfcheck.yml` validates:
 
 - shell syntax for launcher/CLI/adapters/release helpers
 - `ralf bootstrap` host/lxd CLI paths (including expected no-`lxc` blocker)
+- TUI policy behavior (`TUI=1` + `NON_INTERACTIVE=1`)
+- `ANSWERS_FILE` merge using `bootstrap/examples/answers.generic_home.yml`
 - launcher end-to-end path using local `file://` repo checkout
 
 Required repository secret:

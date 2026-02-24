@@ -1,0 +1,250 @@
+---
+- name: Configure Gitea (PostgreSQL backend)
+  hosts: gitea
+  become: true
+  vars:
+    gitea_env_path: /opt/ralf/runtime/secrets/gitea.env
+    pg_env_path: /opt/ralf/runtime/secrets/postgres.env
+    gitea_user: git
+    gitea_group: git
+    gitea_work_dir: /var/lib/gitea
+    gitea_custom_dir: /var/lib/gitea/custom
+    gitea_cfg_dir: /etc/gitea
+    gitea_cfg_path: /etc/gitea/app.ini
+    gitea_tls_dir: /etc/gitea/tls
+    gitea_tls_cert: /etc/gitea/tls/fullchain.pem
+    gitea_tls_key: /etc/gitea/tls/privkey.pem
+    gitea_mirror_dir: /srv/git-mirrors/RALF.git
+
+  pre_tasks:
+    - name: Assert env files exist on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ gitea_env_path }}"
+        - "{{ pg_env_path }}"
+      register: gitea_env_stats
+
+    - name: Fail if env files missing on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.fail:
+        msg: "Missing {{ item.stat.path }} on CT 10010. Create it first."
+      loop: "{{ gitea_env_stats.results }}"
+      when: not item.stat.exists
+
+    - name: Load env files from control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.slurp:
+        src: "{{ item.src }}"
+      loop:
+        - { key: gitea, src: "{{ gitea_env_path }}" }
+        - { key: postgres, src: "{{ pg_env_path }}" }
+      register: gitea_env_raw
+
+    - name: Parse env line arrays
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        gitea_env_lines: "{{ (gitea_env_raw.results[0].content | b64decode).splitlines() }}"
+        pg_env_lines: "{{ (gitea_env_raw.results[1].content | b64decode).splitlines() }}"
+
+    - name: Build gitea env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        gitea_env: "{{ gitea_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ gitea_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+    - name: Build postgres env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        pg_env: "{{ pg_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ pg_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+  tasks:
+    - name: Install gitea and dependencies
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - gitea
+          - nginx
+          - openssl
+          - git
+        state: present
+
+    - name: Ensure directories exist
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ gitea_cfg_dir }}", owner: root, group: "{{ gitea_group }}", mode: "0750" }
+        - { path: "{{ gitea_tls_dir }}", owner: root, group: root, mode: "0750" }
+        - { path: "/srv/git-mirrors", owner: root, group: root, mode: "0755" }
+
+    - name: Generate self-signed certificate for Gitea
+      ansible.builtin.command:
+        cmd: >-
+          openssl req -x509 -nodes -newkey rsa:2048
+          -keyout {{ gitea_tls_key }}
+          -out {{ gitea_tls_cert }}
+          -days 3650
+          -subj /CN={{ gitea_env.GITEA_DOMAIN }}
+      args:
+        creates: "{{ gitea_tls_key }}"
+
+    - name: Set Gitea TLS key permissions
+      ansible.builtin.file:
+        path: "{{ gitea_tls_key }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Render Gitea app.ini
+      ansible.builtin.copy:
+        dest: "{{ gitea_cfg_path }}"
+        owner: root
+        group: "{{ gitea_group }}"
+        mode: "0640"
+        content: |
+          APP_NAME = RALF Gitea
+          RUN_USER = {{ gitea_user }}
+          RUN_MODE = prod
+
+          [server]
+          DOMAIN = {{ gitea_env.GITEA_DOMAIN }}
+          ROOT_URL = {{ gitea_env.GITEA_ROOT_URL }}
+          HTTP_ADDR = 127.0.0.1
+          HTTP_PORT = {{ gitea_env.GITEA_HTTP_PORT }}
+          SSH_DOMAIN = {{ gitea_env.GITEA_DOMAIN }}
+          SSH_PORT = {{ gitea_env.GITEA_SSH_PORT }}
+          START_SSH_SERVER = true
+          OFFLINE_MODE = true
+
+          [database]
+          DB_TYPE = postgres
+          HOST = {{ gitea_env.GITEA_DB_HOST }}:{{ gitea_env.GITEA_DB_PORT }}
+          NAME = {{ pg_env.GITEA_DB_NAME }}
+          USER = {{ pg_env.GITEA_DB_USER }}
+          PASSWD = {{ pg_env.GITEA_DB_PASSWORD }}
+          SSL_MODE = disable
+
+          [security]
+          INSTALL_LOCK = true
+          SECRET_KEY = {{ gitea_env.GITEA_ADMIN_PASSWORD }}
+          INTERNAL_TOKEN = {{ gitea_env.GITEA_ADMIN_PASSWORD }}
+
+          [service]
+          DISABLE_REGISTRATION = true
+          REQUIRE_SIGNIN_VIEW = true
+
+          [repository]
+          DEFAULT_BRANCH = main
+
+          [actions]
+          ENABLED = false
+      notify: restart gitea
+
+    - name: Configure nginx TLS reverse proxy for Gitea
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/gitea.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          map $http_upgrade $connection_upgrade {
+            default upgrade;
+            '' close;
+          }
+
+          server {
+            listen 443 ssl;
+            server_name {{ gitea_env.GITEA_DOMAIN }};
+
+            ssl_certificate {{ gitea_tls_cert }};
+            ssl_certificate_key {{ gitea_tls_key }};
+
+            client_max_body_size 256m;
+
+            location / {
+              proxy_pass http://127.0.0.1:{{ gitea_env.GITEA_HTTP_PORT }};
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto https;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+            }
+          }
+      notify: restart nginx
+
+    - name: Enable gitea nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/gitea.conf
+        dest: /etc/nginx/sites-enabled/gitea.conf
+        state: link
+      notify: restart nginx
+
+    - name: Disable default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: restart nginx
+
+    - name: Ensure services are enabled and started
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - gitea
+        - nginx
+
+    - name: Create Gitea admin user (best effort)
+      become_user: "{{ gitea_user }}"
+      ansible.builtin.command:
+        cmd: >-
+          gitea admin user create
+          --config {{ gitea_cfg_path }}
+          --admin
+          --username {{ gitea_env.GITEA_ADMIN_USER }}
+          --password {{ gitea_env.GITEA_ADMIN_PASSWORD }}
+          --email {{ gitea_env.GITEA_ADMIN_EMAIL }}
+      register: gitea_admin_create
+      changed_when: gitea_admin_create.rc == 0
+      failed_when: false
+
+    - name: Seed local mirror of RALF repo on Gitea host
+      ansible.builtin.shell: |
+        set -euo pipefail
+        if [[ ! -d "{{ gitea_mirror_dir }}" ]]; then
+          git clone --mirror "{{ gitea_env.GITEA_MIRROR_SOURCE_URL }}" "{{ gitea_mirror_dir }}"
+        else
+          git -C "{{ gitea_mirror_dir }}" remote update --prune
+        fi
+      args:
+        executable: /bin/bash
+      register: gitea_mirror_sync
+      changed_when: gitea_mirror_sync.rc == 0
+
+  handlers:
+    - name: restart gitea
+      ansible.builtin.systemd:
+        name: gitea
+        state: restarted
+        daemon_reload: true
+
+    - name: restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

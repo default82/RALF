@@ -228,6 +228,24 @@
         template: template0
         login_unix_socket: "{{ pg_socket_dir }}"
 
+    - name: Ensure gitea database role
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: "{{ pg_env.GITEA_DB_USER }}"
+        password: "{{ pg_env.GITEA_DB_PASSWORD }}"
+        login_unix_socket: "{{ pg_socket_dir }}"
+
+    - name: Ensure gitea database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: "{{ pg_env.GITEA_DB_NAME }}"
+        owner: "{{ pg_env.GITEA_DB_USER }}"
+        encoding: UTF8
+        lc_collate: C
+        lc_ctype: C
+        template: template0
+        login_unix_socket: "{{ pg_socket_dir }}"
+
     - name: Ensure mail database role
       become_user: postgres
       community.postgresql.postgresql_user:

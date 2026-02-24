@@ -5,6 +5,7 @@
   vars:
     semaphore_env_path: /opt/ralf/runtime/secrets/semaphore.env
     pg_env_path: /opt/ralf/runtime/secrets/postgres.env
+    local_runtime_secrets_dir: /opt/ralf/runtime/secrets
     sem_user: semaphore
     sem_group: semaphore
     sem_home: /opt/semaphore
@@ -15,6 +16,10 @@
     sem_tls_cert: /etc/semaphore/tls/fullchain.pem
     sem_tls_key: /etc/semaphore/tls/privkey.pem
     sem_cfg_path: /etc/semaphore/config.json
+    ralf_root: /opt/ralf
+    ralf_repo: /opt/ralf/repo
+    ralf_runtime: /opt/ralf/runtime
+    ralf_runtime_secrets: /opt/ralf/runtime/secrets
 
   pre_tasks:
     - name: Assert env files exist on control node
@@ -68,6 +73,15 @@
       loop: "{{ pg_env_lines }}"
       when: item | length > 0 and not item.startswith('#')
 
+    - name: Discover runtime secret files on control node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.find:
+        paths: "{{ local_runtime_secrets_dir }}"
+        file_type: file
+        recurse: false
+      register: local_secret_files
+
   tasks:
     - name: Install base packages
       ansible.builtin.apt:
@@ -75,7 +89,14 @@
         name:
           - ca-certificates
           - curl
+          - git
+          - jq
           - tar
+          - unzip
+          - python3
+          - python3-pip
+          - python3-venv
+          - ansible
           - openssl
           - nginx
         state: present
@@ -107,6 +128,97 @@
         - { path: "{{ sem_data_dir }}", owner: "{{ sem_user }}", group: "{{ sem_group }}", mode: "0750" }
         - { path: "{{ sem_cfg_dir }}", owner: root, group: root, mode: "0755" }
         - { path: "{{ sem_tls_dir }}", owner: root, group: root, mode: "0750" }
+        - { path: "{{ ralf_root }}", owner: root, group: root, mode: "0755" }
+        - { path: "{{ ralf_repo }}", owner: root, group: root, mode: "0755" }
+        - { path: "{{ ralf_runtime }}", owner: root, group: root, mode: "0755" }
+        - { path: "{{ ralf_runtime_secrets }}", owner: root, group: root, mode: "0700" }
+
+    - name: Install OpenTofu binary
+      ansible.builtin.shell: |
+        set -euo pipefail
+        tmpdir=$(mktemp -d)
+        trap 'rm -rf "$tmpdir"' EXIT
+        arch="$(dpkg --print-architecture)"
+        case "$arch" in
+          amd64) ot_arch=amd64 ;;
+          arm64) ot_arch=arm64 ;;
+          *) echo "unsupported arch: $arch" >&2; exit 1 ;;
+        esac
+        rel="$(curl -fsSL https://api.github.com/repos/opentofu/opentofu/releases/latest | jq -r '.tag_name')"
+        ver="${rel#v}"
+        url="https://github.com/opentofu/opentofu/releases/download/${rel}/tofu_${ver}_linux_${ot_arch}.zip"
+        curl -fsSL "$url" -o "$tmpdir/tofu.zip"
+        unzip -oq "$tmpdir/tofu.zip" -d "$tmpdir"
+        install -m 0755 "$tmpdir/tofu" /usr/local/bin/tofu
+      args:
+        executable: /bin/bash
+        creates: /usr/local/bin/tofu
+
+    - name: Install Terragrunt binary
+      ansible.builtin.shell: |
+        set -euo pipefail
+        arch="$(dpkg --print-architecture)"
+        case "$arch" in
+          amd64) tg_arch=amd64 ;;
+          arm64) tg_arch=arm64 ;;
+          *) echo "unsupported arch: $arch" >&2; exit 1 ;;
+        esac
+        rel="$(curl -fsSL https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest | jq -r '.tag_name')"
+        url="https://github.com/gruntwork-io/terragrunt/releases/download/${rel}/terragrunt_linux_${tg_arch}"
+        curl -fsSL "$url" -o /usr/local/bin/terragrunt
+        chmod 0755 /usr/local/bin/terragrunt
+      args:
+        executable: /bin/bash
+        creates: /usr/local/bin/terragrunt
+
+    - name: Clone or update RALF repo for Semaphore jobs
+      ansible.builtin.git:
+        repo: https://github.com/default82/RALF.git
+        dest: "{{ ralf_repo }}"
+        version: main
+        update: true
+
+    - name: Sync runtime secrets to Semaphore host
+      ansible.builtin.copy:
+        src: "{{ item.path }}"
+        dest: "{{ ralf_runtime_secrets }}/{{ item.path | basename }}"
+        owner: root
+        group: root
+        mode: "0600"
+      loop: "{{ local_secret_files.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+
+    - name: Install helper wrapper for stack runs on Semaphore host
+      ansible.builtin.copy:
+        dest: /usr/local/bin/ralf-semaphore-run
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export PATH=/usr/local/bin:/usr/bin:/bin
+          export RALF_BASE={{ ralf_root }}
+          export RALF_REPO={{ ralf_repo }}
+          export RALF_RUNTIME={{ ralf_runtime }}
+          export AUTO_APPLY="${AUTO_APPLY:-1}"
+          export START_AT="${START_AT:-000}"
+          cd "{{ ralf_repo }}"
+          exec bash bootstrap/runner.sh
+
+    - name: Install helper wrapper for smoke tests on Semaphore host
+      ansible.builtin.copy:
+        dest: /usr/local/bin/ralf-semaphore-smoke
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export PATH=/usr/local/bin:/usr/bin:/bin
+          cd "{{ ralf_repo }}"
+          exec bash bootstrap/smoke.sh "$@"
 
     - name: Install semaphore binary (latest release)
       ansible.builtin.shell: |
@@ -251,6 +363,19 @@
       loop:
         - semaphore
         - nginx
+
+    - name: Verify handover toolchain and wrappers
+      ansible.builtin.shell: |
+        set -euo pipefail
+        tofu version >/dev/null
+        terragrunt --version >/dev/null
+        ansible --version >/dev/null
+        test -x /usr/local/bin/ralf-semaphore-run
+        test -x /usr/local/bin/ralf-semaphore-smoke
+        test -f {{ ralf_repo }}/bootstrap/runner.sh
+        test -f {{ ralf_repo }}/bootstrap/smoke.sh
+      args:
+        executable: /bin/bash
 
   handlers:
     - name: restart semaphore

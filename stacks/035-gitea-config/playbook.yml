@@ -147,7 +147,7 @@
     - name: Render Gitea app.ini
       ansible.builtin.copy:
         dest: "{{ gitea_cfg_path }}"
-        owner: root
+        owner: "{{ gitea_user }}"
         group: "{{ gitea_group }}"
         mode: "0640"
         content: |

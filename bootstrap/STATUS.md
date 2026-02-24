@@ -119,6 +119,7 @@ Zusatz:
 - `plan_summary.md` listet Adapter-Artefakte (`present` / `missing`)
 - `host`-Wrapper `--status --json` spiegelt Host-Artefakte ebenfalls maschinenlesbar
 - `host`-Wrapper `--run` fuehrt jetzt gated `bootstrap/runner.sh` aus (Default: non-apply; Apply zusaetzlich blockiert ohne Freigabe)
+- Volllauf-Guard im Host-Wrapper: `RUN_STACKS=1` ohne `ONLY_STACKS`/`START_AT` blockiert standardmaessig
 - `tui_requested` / `tui_effective` in Outputs fuer transparente TUI-Gating-Entscheidungen
 
 Offen / Ausbau:

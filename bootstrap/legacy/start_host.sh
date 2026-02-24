@@ -444,6 +444,11 @@ if [[ "\${AUTO_APPLY:-0}" == "1" && "\${HOST_RUNNER_ALLOW_APPLY:-0}" != "1" ]]; 
   echo "[host-runner] Set HOST_RUNNER_ALLOW_APPLY=1 to allow runner apply execution." >&2
   exit 2
 fi
+if [[ "\${RUN_STACKS:-1}" == "1" && -z "\${ONLY_STACKS:-}" && -z "\${START_AT:-}" && "\${HOST_RUNNER_ALLOW_ALL_STACKS:-0}" != "1" ]]; then
+  echo "[host-runner] Full stack execution is blocked by default (RUN_STACKS=1 without ONLY_STACKS/START_AT)." >&2
+  echo "[host-runner] Set ONLY_STACKS/START_AT, or export HOST_RUNNER_ALLOW_ALL_STACKS=1 to proceed." >&2
+  exit 2
+fi
 
 echo "[host-runner] preflight OK (execution mode enabled)." >&2
 echo "[host-runner] executing: bash \$runner_script" >&2

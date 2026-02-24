@@ -131,7 +131,7 @@ configure_remote_s3_backend() {
   local stack_name="$1"
   local dir="$2"
 
-  cat > "$dir/.ralf_backend.tf" <<EOF
+  cat > "$dir/zz_ralf_backend.auto.tf" <<EOF
 terraform {
   backend "s3" {}
 }

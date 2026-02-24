@@ -24,6 +24,7 @@ metadata_preview_file="${artifacts_dir}/lxd-metadata-targets.json"
 metadata_applied_file="${artifacts_dir}/lxd-metadata-applied.json"
 plan_file="${artifacts_dir}/lxd-plan.md"
 instance_state="unknown"
+metadata_diff_json='{}'
 
 write_artifacts() {
   cat > "$metadata_preview_file" <<EOF
@@ -101,6 +102,7 @@ write_report() {
   "artifacts_dir": "$(json_escape "$artifacts_dir")",
   "metadata_preview_file": "$(json_escape "$metadata_preview_file")",
   "metadata_applied_file": "$(json_escape "$metadata_applied_file")",
+  "metadata_diff": ${metadata_diff_json},
   "plan_file": "$(json_escape "$plan_file")",
   "lxc_version": "$(json_escape "$lxc_version")",
   "profile_name": "$(json_escape "${PROFILE:-}")",
@@ -169,6 +171,24 @@ fi
 
 if [[ -z "$config_error" ]]; then
   write_applied_metadata
+  metadata_diff_json="$(
+    python3 - "$metadata_preview_file" "$metadata_applied_file" <<'PY'
+import json, sys
+try:
+    target = json.load(open(sys.argv[1])).get("metadata", {})
+    applied = json.load(open(sys.argv[2])).get("metadata", {})
+except Exception:
+    print("{}")
+    sys.exit(0)
+keys = sorted(set(target) | set(applied))
+out = {}
+for k in keys:
+    tv = target.get(k, "")
+    av = applied.get(k, "")
+    out[k] = {"target": tv, "applied": av, "matches": tv == av}
+print(json.dumps(out))
+PY
+  )"
 fi
 
 if [[ "$created" == "true" ]]; then

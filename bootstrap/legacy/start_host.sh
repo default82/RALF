@@ -180,6 +180,7 @@ RALF_REPO=${repo_root}
 RALF_BASE=${host_base}
 RALF_RUNTIME=${runtime_dir}
 RALF_OUTPUTS_DIR=${outputs_dir}
+RALF_TOOL_READINESS_FILE=${readiness_file}
 AUTO_APPLY=0
 RUN_STACKS=0
 EOF
@@ -222,10 +223,32 @@ export RALF_BASE="\${RALF_BASE:-\$HOST_BASE}"
 export RALF_RUNTIME="\${RALF_RUNTIME:-\$HOST_BASE/runtime}"
 export RALF_REPO="\${RALF_REPO:-${repo_root}}"
 export RALF_OUTPUTS_DIR="\${RALF_OUTPUTS_DIR:-${outputs_dir}}"
+export RALF_TOOL_READINESS_FILE="\${RALF_TOOL_READINESS_FILE:-\$HOST_BASE/artifacts/tool-readiness.json}"
 
 echo "[host-runner] repo=\$RALF_REPO"
 echo "[host-runner] runtime=\$RALF_RUNTIME"
 echo "[host-runner] outputs=\$RALF_OUTPUTS_DIR"
+echo "[host-runner] readiness=\$RALF_TOOL_READINESS_FILE"
+
+if [[ -f "\$RALF_TOOL_READINESS_FILE" ]] && command -v python3 >/dev/null 2>&1; then
+  python3 - "\$RALF_TOOL_READINESS_FILE" <<'PY'
+import json, sys
+p = sys.argv[1]
+try:
+    data = json.load(open(p))
+except Exception as e:
+    print(f"[host-runner] warning: could not parse readiness file: {e}", file=sys.stderr)
+    sys.exit(0)
+status = data.get("status", "unknown")
+missing_required = data.get("missing_required", []) or []
+missing_optional = data.get("missing_optional", []) or []
+print(f"[host-runner] readiness status: {status}")
+if missing_required:
+    print("[host-runner] missing required tools: " + ", ".join(missing_required))
+if missing_optional:
+    print("[host-runner] missing optional tools: " + ", ".join(missing_optional))
+PY
+fi
 
 missing=0
 for req in bash curl git; do

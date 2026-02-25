@@ -13,7 +13,7 @@ set -euo pipefail
 #   curl -fsSL "https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh?nocache=$(date +%s)" | bash
 #
 # Runner controls (host side, forwarded into CT):
-#   AUTO_APPLY=1 START_AT=030 ONLY_STACKS="030-minio-lxc 031-minio-config" bash start.sh
+#   AUTO_APPLY=1 START_AT=020 ONLY_STACKS="030-minio-lxc 031-minio-config" bash start.sh
 #
 # Quality-of-life toggles:
 #   NO_TOOLCHAIN=1   # skip apt/tofu/terragrunt install step
@@ -78,7 +78,7 @@ NO_SSHKEY="${NO_SSHKEY:-0}"
 
 # Runner controls (forwarded)
 AUTO_APPLY="${AUTO_APPLY:-0}"
-START_AT="${START_AT:-030}"
+START_AT="${START_AT:-020}"
 ONLY_STACKS="${ONLY_STACKS:-}"
 
 # --------------------------
@@ -826,7 +826,7 @@ else
   pct exec "${CTID}" -- env \
     RUN_STACKS=1 \
     AUTO_APPLY="${AUTO_APPLY:-0}" \
-    START_AT="${START_AT:-030}" \
+    START_AT="${START_AT:-020}" \
     ONLY_STACKS="${ONLY_STACKS:-}" \
     RALF_BASE="${RALF_BASE}" \
     RALF_REPO="${RALF_REPO}" \

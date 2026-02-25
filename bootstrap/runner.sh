@@ -191,7 +191,7 @@ fi
 
 # 4) Skip-Liste (Bootstrap raus)
 SKIP_STACKS_REGEX="${SKIP_STACKS_REGEX:-^(100-bootstrap-lxc)$}"
-REMOTE_STATE_SKIP_REGEX="${REMOTE_STATE_SKIP_REGEX:-^(030-minio-lxc)$}"
+REMOTE_STATE_SKIP_REGEX="${REMOTE_STATE_SKIP_REGEX:-^(020-postgres-lxc|030-minio-lxc)$}"
 
 configure_remote_s3_backend() {
   local stack_name="$1"

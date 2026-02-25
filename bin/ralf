@@ -341,6 +341,12 @@ file_status_label() {
   [[ -f "$p" ]] && printf 'found' || printf 'missing'
 }
 
+path_status_label() {
+  local p="${1:-}"
+  [[ -n "$p" ]] || { printf 'missing'; return; }
+  [[ -e "$p" ]] && printf 'found' || printf 'missing'
+}
+
 ensure_ssh_keypair() {
   local priv="$1" pub="${2:-}"
   [[ -n "$priv" ]] || return 1
@@ -359,8 +365,12 @@ copy_file_into_place() {
   local src="$1" dst="$2" mode="${3:-600}"
   [[ -f "$src" ]] || return 1
   [[ -n "$dst" ]] || return 1
+  if [[ -e "$dst" ]] && [[ "$(readlink -f "$src" 2>/dev/null || printf '%s' "$src")" == "$(readlink -f "$dst" 2>/dev/null || printf '%s' "$dst")" ]]; then
+    chmod "$mode" "$dst" 2>/dev/null || true
+    return 0
+  fi
   mkdir -p "$(dirname "$dst")"
-  cp -f "$src" "$dst"
+  cp -f "$src" "$dst" >/dev/null 2>&1
   chmod "$mode" "$dst" 2>/dev/null || true
 }
 
@@ -392,7 +402,7 @@ prepare_tui_sources_review() {
   cat >"$out" <<EOF
 RALF Bootstrap Quellen / Voraussetzungen
 
-Secrets-Verzeichnis: ${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-<leer>}} [$(file_status_label "${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-}}")]
+Secrets-Verzeichnis: ${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-<leer>}} [$(path_status_label "${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-}}")]
 Proxmox pve.env:     ${cfg[host_pve_env]:-<leer>} [$(file_status_label "${cfg[host_pve_env]:-}")]
 SSH Private Key:     ${cfg[ssh_privkey_file]:-<leer>} [$(file_status_label "${cfg[ssh_privkey_file]:-}")]
 SSH Public Key:      ${cfg[ssh_pubkey_file]:-<leer>} [$(file_status_label "${cfg[ssh_pubkey_file]:-}")]

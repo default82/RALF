@@ -39,6 +39,8 @@ Options:
   --network-cidr CIDR
   --base-domain DOMAIN
   --ct-hostname NAME
+  --owner-name NAME
+  --ralf-name NAME
   --tui | --no-tui
   --non-interactive
   --yes
@@ -65,7 +67,11 @@ PROFILE="${PROFILE:-generic_home}"
 NETWORK_CIDR="${NETWORK_CIDR:-}"
 BASE_DOMAIN="${BASE_DOMAIN:-}"
 CT_HOSTNAME="${CT_HOSTNAME:-}"
-TUI="${TUI:-0}"
+OWNER_NAME="${OWNER_NAME:-}"
+RALF_NAME="${RALF_NAME:-}"
+TUI_SET=0
+if [[ -n "${TUI+x}" ]]; then TUI_SET=1; fi
+TUI="${TUI:-}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 YES="${YES:-0}"
 FORCE="${FORCE:-0}"
@@ -81,8 +87,10 @@ while [[ $# -gt 0 ]]; do
     --network-cidr) NETWORK_CIDR="${2:-}"; shift 2 ;;
     --base-domain) BASE_DOMAIN="${2:-}"; shift 2 ;;
     --ct-hostname) CT_HOSTNAME="${2:-}"; shift 2 ;;
+    --owner-name) OWNER_NAME="${2:-}"; shift 2 ;;
+    --ralf-name) RALF_NAME="${2:-}"; shift 2 ;;
     --tui) TUI=1; shift ;;
-    --no-tui) TUI=0; shift ;;
+    --no-tui) TUI=0; TUI_SET=1; shift ;;
     --non-interactive) NON_INTERACTIVE=1; shift ;;
     --yes) YES=1; shift ;;
     --force) FORCE=1; shift ;;
@@ -127,11 +135,21 @@ has_pct=0; command -v pct >/dev/null 2>&1 && has_pct=1
 has_lxc=0; command -v lxc >/dev/null 2>&1 && has_lxc=1
 has_git=0; command -v git >/dev/null 2>&1 && has_git=1
 is_tty=0; [[ -t 1 ]] && is_tty=1
+if [[ "$TUI_SET" == "0" ]]; then
+  if [[ "$NON_INTERACTIVE" == "1" ]]; then
+    TUI=0
+  elif [[ "$is_tty" == "1" ]]; then
+    TUI=1
+  else
+    TUI=0
+  fi
+fi
 phase_probe="completed"
 
 # Phase 2: Config merge (CLI > profile > conventions/defaults)
 phase_config_merge="running"
 declare -A cfg
+declare -A probe
 load_simple_yaml "${repo_root}/conventions/defaults.yml" "cfg_"
 load_simple_yaml "${repo_root}/conventions/naming.yml" "cfg_"
 load_simple_yaml "${repo_root}/profiles/${PROFILE}.yml" "cfg_"
@@ -143,12 +161,37 @@ ans_profile="${ans_profile:-${ans_PROFILE:-}}"
 ans_network_cidr="${ans_network_cidr:-${ans_NETWORK_CIDR:-}}"
 ans_base_domain="${ans_base_domain:-${ans_BASE_DOMAIN:-}}"
 ans_ct_hostname="${ans_ct_hostname:-${ans_CT_HOSTNAME:-}}"
+ans_owner_name="${ans_owner_name:-${ans_OWNER_NAME:-}}"
+ans_ralf_name="${ans_ralf_name:-${ans_RALF_NAME:-}}"
+
+probe_local_secrets_dir=""
+for cand in "${repo_root}/ralf-secrets" "/root/ralf-secrets" "${HOME:-}/ralf-secrets"; do
+  if [[ -d "$cand" ]]; then
+    probe_local_secrets_dir="$cand"
+    break
+  fi
+done
+if [[ -f "${probe_local_secrets_dir}/mail.env" ]]; then
+  probe[base_domain]="$(awk -F= '/^MAIL_DOMAIN=/{print $2; exit}' "${probe_local_secrets_dir}/mail.env" 2>/dev/null || true)"
+  probe[owner_name]="$(awk -F= '/^MAIL_USERS=/{print $2; exit}' "${probe_local_secrets_dir}/mail.env" 2>/dev/null | awk '{print $1}' || true)"
+fi
+if [[ -z "${probe[owner_name]:-}" && -f "${probe_local_secrets_dir}/semaphore.env" ]]; then
+  probe[owner_name]="$(awk -F= '/^SEMAPHORE_ADMIN_NAME=/{print $2; exit}' "${probe_local_secrets_dir}/semaphore.env" 2>/dev/null || true)"
+fi
+if [[ -f "${repo_root}/outputs/answers.yml" ]]; then
+  load_simple_yaml "${repo_root}/outputs/answers.yml" "prev_"
+fi
+probe[base_domain]="${probe[base_domain]:-${prev_base_domain:-}}"
+probe[owner_name]="${probe[owner_name]:-${prev_owner_name:-}}"
+probe[ralf_name]="${prev_ralf_name:-ralf}"
 
 cfg[profile]="${PROFILE:-${ans_profile:-${cfg_PROFILE_NAME:-generic_home}}}"
 cfg[provisioner]="${PROVISIONER}"
 cfg[network_cidr]="${NETWORK_CIDR:-${ans_network_cidr:-${cfg_NETWORK_CIDR:-}}}"
-cfg[base_domain]="${BASE_DOMAIN:-${ans_base_domain:-${cfg_BASE_DOMAIN:-}}}"
+cfg[base_domain]="${BASE_DOMAIN:-${ans_base_domain:-${probe[base_domain]:-${cfg_BASE_DOMAIN:-}}}}"
 cfg[ct_hostname]="${CT_HOSTNAME:-${ans_ct_hostname:-${cfg_CT_HOSTNAME:-}}}"
+cfg[owner_name]="${OWNER_NAME:-${ans_owner_name:-${probe[owner_name]:-}}}"
+cfg[ralf_name]="${RALF_NAME:-${ans_ralf_name:-${probe[ralf_name]:-ralf}}}"
 cfg[tui_requested]="${TUI}"
 cfg[tui]="${TUI}"
 cfg[non_interactive]="${NON_INTERACTIVE}"
@@ -159,6 +202,31 @@ cfg[export_answers]="${EXPORT_ANSWERS}"
 cfg[outputs_dir]="${OUTPUTS_DIR}"
 cfg[apply]="${APPLY}"
 phase_config_merge="completed"
+
+prompt_with_default() {
+  local prompt="$1" def="${2:-}" out=""
+  if [[ -n "$def" ]]; then
+    read -r -p "$prompt [$def]: " out || true
+    printf '%s' "${out:-$def}"
+  else
+    read -r -p "$prompt: " out || true
+    printf '%s' "$out"
+  fi
+}
+
+if [[ "${cfg[tui]}" == "1" && "${cfg[non_interactive]}" != "1" && "$is_tty" == "1" ]]; then
+  echo
+  echo "RALF Bootstrap TUI (minimal)"
+  [[ -n "$probe_local_secrets_dir" ]] && echo "Gefundene lokale Secrets: $probe_local_secrets_dir"
+  [[ -n "${cfg[base_domain]}" ]] && echo "Erkannte Domain: ${cfg[base_domain]}"
+  [[ -n "${cfg[owner_name]}" ]] && echo "Erkannter Benutzername: ${cfg[owner_name]}"
+  [[ -n "${cfg[ralf_name]}" ]] && echo "Erkannter RALF-Name: ${cfg[ralf_name]}"
+  echo
+  cfg[base_domain]="$(prompt_with_default 'Lab DNS / Base-Domain' "${cfg[base_domain]}")"
+  cfg[owner_name]="$(prompt_with_default 'Dein Name (Primary User)' "${cfg[owner_name]}")"
+  cfg[ralf_name]="$(prompt_with_default 'RALF Name' "${cfg[ralf_name]}")"
+  [[ -n "${cfg[ct_hostname]}" ]] || cfg[ct_hostname]="ralf-bootstrap"
+fi
 
 # Phase 3: Policy / Gatekeeping
 phase_policy="running"
@@ -220,6 +288,12 @@ phase_artifacts="running"
 cat >"${outputs_dir}/probe_report.json" <<EOF
 {
   "provisioner_detected": "$(json_escape "${cfg[provisioner]}")",
+  "existing_info": {
+    "local_secrets_dir": "$(json_escape "${probe_local_secrets_dir}")",
+    "base_domain": "$(json_escape "${probe[base_domain]:-}")",
+    "owner_name": "$(json_escape "${probe[owner_name]:-}")",
+    "ralf_name": "$(json_escape "${probe[ralf_name]:-}")"
+  },
   "commands": {
     "pct": ${has_pct},
     "lxc": ${has_lxc},
@@ -236,6 +310,8 @@ cat >"${outputs_dir}/final_config.json" <<EOF
   "network_cidr": "$(json_escape "${cfg[network_cidr]}")",
   "base_domain": "$(json_escape "${cfg[base_domain]}")",
   "ct_hostname": "$(json_escape "${cfg[ct_hostname]}")",
+  "owner_name": "$(json_escape "${cfg[owner_name]}")",
+  "ralf_name": "$(json_escape "${cfg[ralf_name]}")",
   "tui_requested": ${cfg[tui_requested]},
   "tui": ${cfg[tui]},
   "non_interactive": ${cfg[non_interactive]},
@@ -251,6 +327,8 @@ EOF
   printf 'network_cidr: %s\n' "${cfg[network_cidr]}"
   printf 'base_domain: %s\n' "${cfg[base_domain]}"
   printf 'ct_hostname: %s\n' "${cfg[ct_hostname]}"
+  printf 'owner_name: %s\n' "${cfg[owner_name]}"
+  printf 'ralf_name: %s\n' "${cfg[ralf_name]}"
 } > "${outputs_dir}/answers.yml"
 
 cat >"${outputs_dir}/plan_summary.md" <<EOF
@@ -261,6 +339,8 @@ cat >"${outputs_dir}/plan_summary.md" <<EOF
 - Network CIDR: \`${cfg[network_cidr]:-<unset>}\`
 - Base domain: \`${cfg[base_domain]:-<unset>}\`
 - CT hostname: \`${cfg[ct_hostname]:-<unset>}\`
+- Owner name: \`${cfg[owner_name]:-<unset>}\`
+- RALF name: \`${cfg[ralf_name]:-<unset>}\`
 - Apply requested: \`${cfg[apply]}\`
 - Overall status: \`${overall_status}\`
 
@@ -294,6 +374,8 @@ if [[ "${cfg[apply]}" == "1" ]]; then
       [[ -n "${cfg[network_cidr]}" ]] && export NETWORK_CIDR="${cfg[network_cidr]}"
       [[ -n "${cfg[base_domain]}" ]] && export BASE_DOMAIN="${cfg[base_domain]}"
       [[ -n "${cfg[ct_hostname]}" ]] && export CT_HOSTNAME="${cfg[ct_hostname]}"
+      [[ -n "${cfg[owner_name]}" ]] && export OWNER_NAME="${cfg[owner_name]}"
+      [[ -n "${cfg[ralf_name]}" ]] && export RALF_NAME="${cfg[ralf_name]}"
       if [[ "${cfg[yes]}" == "1" && "${YES:-0}" != "1" ]]; then export YES=1; fi
       if [[ "${cfg[force]}" == "1" && "${FORCE:-0}" != "1" ]]; then export FORCE=1; fi
       set +e
@@ -512,6 +594,8 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "warnings_accepted": ${warnings_accepted},
   "tui_requested": ${cfg[tui_requested]},
   "tui_effective": ${cfg[tui]},
+  "owner_name": "$(json_escape "${cfg[owner_name]}")",
+  "ralf_name": "$(json_escape "${cfg[ralf_name]}")",
   "warnings": ${warn_json},
   "blockers": ${blocker_json},
   "adapter_report_file": "$(json_escape "${adapter_report_file}")",
@@ -521,9 +605,117 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
 }
 EOF
 
+generate_password_summary() {
+  local out_json="$1" out_md="$2"
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 - "$out_json" "$out_md" "$repo_root" <<'PY'
+import json, os, sys
+
+out_json, out_md, repo_root = sys.argv[1], sys.argv[2], sys.argv[3]
+candidates = [
+    os.path.join(repo_root, "ralf-secrets"),
+    "/root/ralf-secrets",
+    os.path.join(os.environ.get("HOME",""), "ralf-secrets"),
+    "/opt/ralf/runtime/secrets",
+]
+secret_dir = next((c for c in candidates if c and os.path.isdir(c)), None)
+
+def read_env(path):
+    d = {}
+    if not path or not os.path.isfile(path):
+        return d
+    with open(path, encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            d[k] = v
+    return d
+
+data = {"secret_dir": secret_dir, "users": {}, "services": {}}
+if secret_dir:
+    sem = read_env(os.path.join(secret_dir, "semaphore.env"))
+    if sem.get("SEMAPHORE_ADMIN_NAME") and sem.get("SEMAPHORE_ADMIN_PASSWORD"):
+        data["services"]["semaphore"] = {"url":"https://10.10.40.10","user":sem["SEMAPHORE_ADMIN_NAME"],"password":sem["SEMAPHORE_ADMIN_PASSWORD"]}
+    g = read_env(os.path.join(secret_dir, "gitea.env"))
+    if g.get("GITEA_ADMIN_USER") and g.get("GITEA_ADMIN_PASSWORD"):
+        data["services"]["gitea"] = {"url":"https://10.10.40.40","user":g["GITEA_ADMIN_USER"],"password":g["GITEA_ADMIN_PASSWORD"]}
+    n = read_env(os.path.join(secret_dir, "n8n.env"))
+    if n.get("N8N_BASIC_AUTH_USER") and n.get("N8N_BASIC_AUTH_PASSWORD"):
+        data["services"]["n8n_basic_auth"] = {"url":"https://10.10.40.30","user":n["N8N_BASIC_AUTH_USER"],"password":n["N8N_BASIC_AUTH_PASSWORD"]}
+    m = read_env(os.path.join(secret_dir, "minio.env"))
+    if m.get("MINIO_ROOT_USER") and m.get("MINIO_ROOT_PASSWORD"):
+        data["services"]["minio"] = {"url":"https://10.10.30.10:9001","user":m["MINIO_ROOT_USER"],"password":m["MINIO_ROOT_PASSWORD"]}
+    v = read_env(os.path.join(secret_dir, "vaultwarden.env"))
+    if v.get("VAULTWARDEN_ADMIN_TOKEN"):
+        data["services"]["vaultwarden_admin"] = {"url":"https://10.10.40.20/admin","admin_token":v["VAULTWARDEN_ADMIN_TOKEN"]}
+    mail = read_env(os.path.join(secret_dir, "mail.env"))
+    if mail:
+        domain = mail.get("MAIL_DOMAIN", "homelab.lan")
+        for k, val in mail.items():
+            if k.startswith("MAIL_PASSWORD_"):
+                user = k.replace("MAIL_PASSWORD_", "").lower()
+                data["users"].setdefault(user, {})["mail"] = {"email": f"{user}@{domain}", "password": val}
+    syn = read_env(os.path.join(secret_dir, "synapse.env"))
+    for k, val in syn.items():
+        if k.startswith("SYNAPSE_ADMIN_PASSWORD_"):
+            user = k.replace("SYNAPSE_ADMIN_PASSWORD_", "").lower()
+            data["users"].setdefault(user, {})["matrix"] = {"user": user, "password": val}
+
+with open(out_json, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+
+lines = ["# Password Summary", ""]
+lines.append(f"- Secret source: `{secret_dir}`" if secret_dir else "- Secret source: `<not found>`")
+lines.append("")
+lines.append("## Users")
+if data["users"]:
+    for user in sorted(data["users"]):
+        lines.append(f"- {user}")
+        for scope, item in data["users"][user].items():
+            if "email" in item:
+                lines.append(f"  - {scope}: `{item['email']}` / `{item['password']}`")
+            else:
+                lines.append(f"  - {scope}: `{item.get('user', user)}` / `{item['password']}`")
+else:
+    lines.append("- none")
+lines.append("")
+lines.append("## Service Admin")
+if data["services"]:
+    for svc in sorted(data["services"]):
+        item = data["services"][svc]
+        if "admin_token" in item:
+            lines.append(f"- {svc}: `{item['url']}` token `{item['admin_token']}`")
+        else:
+            lines.append(f"- {svc}: `{item['url']}` user `{item['user']}` password `{item['password']}`")
+else:
+    lines.append("- none")
+
+with open(out_md, "w", encoding="utf-8") as f:
+    f.write("\n".join(lines) + "\n")
+PY
+}
+
+password_summary_json="${outputs_dir}/password_summary.json"
+password_summary_md="${outputs_dir}/password_summary.md"
+generate_password_summary "$password_summary_json" "$password_summary_md" || true
+if [[ -f "$password_summary_md" ]]; then
+  {
+    printf '\n## Password Summary\n'
+    printf -- '- `%s`\n' "${password_summary_md}"
+  } >> "${outputs_dir}/plan_summary.md"
+fi
+
 if [[ -n "$EXPORT_ANSWERS" ]]; then
   mkdir -p "$(dirname "$EXPORT_ANSWERS")"
   cp "${outputs_dir}/answers.yml" "$EXPORT_ANSWERS"
+fi
+
+if [[ -f "$password_summary_md" ]]; then
+  echo
+  echo "RALF Password Summary"
+  cat "$password_summary_md"
 fi
 
 exit "${exit_code}"

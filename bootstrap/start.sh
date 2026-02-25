@@ -11,6 +11,16 @@ need bash
 need curl
 start_cwd="$(pwd)"
 
+if [[ -z "${TUI+x}" ]]; then
+  if [[ "${NON_INTERACTIVE:-0}" == "1" ]]; then
+    export TUI=0
+  elif [[ -t 1 ]]; then
+    export TUI=1
+  else
+    export TUI=0
+  fi
+fi
+
 ORG="${ORG:-default82}"
 REPO="${REPO:-RALF}"
 REF="${RALF_REF:-main}"
@@ -102,6 +112,8 @@ args=()
 [[ -n "${NETWORK_CIDR:-}" ]] && args+=(--network-cidr "$NETWORK_CIDR")
 [[ -n "${BASE_DOMAIN:-}" ]] && args+=(--base-domain "$BASE_DOMAIN")
 [[ -n "${CT_HOSTNAME:-}" ]] && args+=(--ct-hostname "$CT_HOSTNAME")
+[[ -n "${OWNER_NAME:-}" ]] && args+=(--owner-name "$OWNER_NAME")
+[[ -n "${RALF_NAME:-}" ]] && args+=(--ralf-name "$RALF_NAME")
 
 abspath_from_start_cwd() {
   local p="$1"

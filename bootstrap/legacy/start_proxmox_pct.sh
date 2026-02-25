@@ -534,9 +534,7 @@ EOF
 fi
 # Always keep both core users in Mail bootstrap data.
 if [[ -f \"\$MAIL_ENV\" ]]; then
-  set -a
-  source \"\$MAIL_ENV\"
-  set +a
+  MAIL_USERS=\"\$(awk -F= '/^MAIL_USERS=/{sub(/^MAIL_USERS=/,\"\"); print; exit}' \"\$MAIL_ENV\" 2>/dev/null || true)\"
   mail_users_norm=\" \${MAIL_USERS:-} \"
   [[ \"\$mail_users_norm\" == *\" ralf \"* ]] || MAIL_USERS=\"\${MAIL_USERS:+\$MAIL_USERS }ralf\"
   [[ \" \$MAIL_USERS \" == *\" kolja \"* ]] || MAIL_USERS=\"\${MAIL_USERS:+\$MAIL_USERS }kolja\"
@@ -545,6 +543,9 @@ fi
 
 # Synapse
 SYNAPSE_ENV=\"\$SECRETS_DIR/synapse.env\"
+if [[ -z \"\${MAIL_PASSWORD_RALF:-}\" && -f \"\$MAIL_ENV\" ]]; then
+  MAIL_PASSWORD_RALF=\"\$(awk -F= '/^MAIL_PASSWORD_RALF=/{sub(/^MAIL_PASSWORD_RALF=/,\"\"); print; exit}' \"\$MAIL_ENV\" 2>/dev/null || true)\"
+fi
 if [[ ! -f \"\$SYNAPSE_ENV\" ]]; then
   umask 077
   SYNAPSE_SERVER_NAME=\"\${SYNAPSE_SERVER_NAME:-otta.zone}\"
@@ -591,9 +592,7 @@ EOF
 fi
 # Always keep both core users in Synapse admin bootstrap data.
 if [[ -f \"\$SYNAPSE_ENV\" ]]; then
-  set -a
-  source \"\$SYNAPSE_ENV\"
-  set +a
+  SYNAPSE_ADMIN_USERS=\"\$(awk -F= '/^SYNAPSE_ADMIN_USERS=/{sub(/^SYNAPSE_ADMIN_USERS=/,\"\"); print; exit}' \"\$SYNAPSE_ENV\" 2>/dev/null || true)\"
   syn_users_norm=\" \${SYNAPSE_ADMIN_USERS:-} \"
   [[ \"\$syn_users_norm\" == *\" ralf \"* ]] || SYNAPSE_ADMIN_USERS=\"\${SYNAPSE_ADMIN_USERS:+\$SYNAPSE_ADMIN_USERS }ralf\"
   [[ \" \$SYNAPSE_ADMIN_USERS \" == *\" kolja \"* ]] || SYNAPSE_ADMIN_USERS=\"\${SYNAPSE_ADMIN_USERS:+\$SYNAPSE_ADMIN_USERS }kolja\"

@@ -355,6 +355,38 @@ ensure_ssh_keypair() {
   chmod 644 "$pub" 2>/dev/null || true
 }
 
+copy_file_into_place() {
+  local src="$1" dst="$2" mode="${3:-600}"
+  [[ -f "$src" ]] || return 1
+  [[ -n "$dst" ]] || return 1
+  mkdir -p "$(dirname "$dst")"
+  cp -f "$src" "$dst"
+  chmod "$mode" "$dst" 2>/dev/null || true
+}
+
+choose_source_file_for_import() {
+  local backend="$1" title="$2" default_path="$3"; shift 3
+  local choice="" custom="" selected=""
+  local menu_args=()
+  local idx=1
+  while [[ $# -gt 0 ]]; do
+    menu_args+=("$idx" "$1")
+    shift
+    idx=$((idx+1))
+  done
+  menu_args+=("$idx" "Benutzerdefinierter Pfad")
+  choice="$(tui_menu "$backend" "$title" "Quelldatei waehlen" "${menu_args[@]}")"
+  [[ "$TUI_CANCELLED" == "1" ]] && return 1
+  if [[ "$choice" == "$idx" ]]; then
+    custom="$(tui_input_with_default "$backend" 'Quelldatei Pfad' "$default_path")"
+    [[ "$TUI_CANCELLED" == "1" ]] && return 1
+    selected="$custom"
+  else
+    selected="${menu_args[$(( (choice-1)*2 + 1 ))]}"
+  fi
+  printf '%s' "$selected"
+}
+
 prepare_tui_sources_review() {
   local out="$1"
   cat >"$out" <<EOF
@@ -385,7 +417,10 @@ tui_configure_sources() {
       3 "pve.env Pfad setzen" \
       4 "SSH-Key Pfad waehlen/eingeben" \
       5 "SSH-Key fuer ralf generieren" \
-      6 "Werte (Domain/Namen) bearbeiten")"
+      6 "pve.env Datei importieren/ersetzen" \
+      7 "SSH Private Key importieren/ersetzen" \
+      8 "SSH Public Key importieren/ersetzen" \
+      9 "Werte (Domain/Namen) bearbeiten")"
     [[ "$TUI_CANCELLED" == "1" ]] && break
     case "$choice" in
       1) break ;;
@@ -429,6 +464,53 @@ tui_configure_sources() {
         fi
         ;;
       6)
+        custom="$(choose_source_file_for_import "$backend" "pve.env importieren" "${cfg[host_pve_env]:-${cfg[ralf_secrets_dir]:-/root/ralf-secrets}/pve.env}" \
+          "/root/ralf-secrets/pve.env" \
+          "${cfg[ralf_secrets_dir]:-/root/ralf-secrets}/pve.env")" || true
+        [[ "$TUI_CANCELLED" == "1" ]] && break
+        if [[ -n "$custom" ]]; then
+          local dst_pve="${cfg[host_pve_env]:-${cfg[ralf_secrets_dir]:-/root/ralf-secrets}/pve.env}"
+          if copy_file_into_place "$custom" "$dst_pve" 600; then
+            cfg[host_pve_env]="$dst_pve"
+            tui_show_info "$backend" "Import ok" "pve.env wurde ersetzt:\n$dst_pve"
+          else
+            tui_show_info "$backend" "Import Fehler" "pve.env Import fehlgeschlagen."
+          fi
+        fi
+        ;;
+      7)
+        custom="$(choose_source_file_for_import "$backend" "SSH Private Key importieren" "${cfg[ssh_privkey_file]:-/root/keys/Ralf/ralf_ed25519}" \
+          "/root/keys/Ralf/ralf_ed25519" \
+          "/root/.ssh/ralf_ed25519")" || true
+        [[ "$TUI_CANCELLED" == "1" ]] && break
+        if [[ -n "$custom" ]]; then
+          local dst_priv="${cfg[ssh_privkey_file]:-/root/keys/Ralf/ralf_ed25519}"
+          if copy_file_into_place "$custom" "$dst_priv" 600; then
+            cfg[ssh_privkey_file]="$dst_priv"
+            [[ -n "${cfg[ssh_pubkey_file]}" ]] || cfg[ssh_pubkey_file]="${dst_priv}.pub"
+            [[ -f "${cfg[ssh_pubkey_file]}" ]] || ssh-keygen -y -f "$dst_priv" > "${cfg[ssh_pubkey_file]}" 2>/dev/null || true
+            tui_show_info "$backend" "Import ok" "SSH Private Key wurde ersetzt:\n$dst_priv"
+          else
+            tui_show_info "$backend" "Import Fehler" "SSH Private Key Import fehlgeschlagen."
+          fi
+        fi
+        ;;
+      8)
+        custom="$(choose_source_file_for_import "$backend" "SSH Public Key importieren" "${cfg[ssh_pubkey_file]:-${cfg[ssh_privkey_file]:-/root/keys/Ralf/ralf_ed25519}.pub}" \
+          "/root/keys/Ralf/ralf_ed25519.pub" \
+          "/root/.ssh/ralf_ed25519.pub")" || true
+        [[ "$TUI_CANCELLED" == "1" ]] && break
+        if [[ -n "$custom" ]]; then
+          local dst_pub="${cfg[ssh_pubkey_file]:-${cfg[ssh_privkey_file]:-/root/keys/Ralf/ralf_ed25519}.pub}"
+          if copy_file_into_place "$custom" "$dst_pub" 644; then
+            cfg[ssh_pubkey_file]="$dst_pub"
+            tui_show_info "$backend" "Import ok" "SSH Public Key wurde ersetzt:\n$dst_pub"
+          else
+            tui_show_info "$backend" "Import Fehler" "SSH Public Key Import fehlgeschlagen."
+          fi
+        fi
+        ;;
+      9)
         cfg[base_domain]="$(tui_input_with_default "$backend" 'Lab DNS / Base-Domain' "${cfg[base_domain]}")"
         cfg[owner_name]="$(tui_input_with_default "$backend" 'Dein Name (Primary User)' "${cfg[owner_name]}")"
         cfg[ralf_name]="$(tui_input_with_default "$backend" 'RALF Name' "${cfg[ralf_name]}")"

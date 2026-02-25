@@ -61,6 +61,8 @@ Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
 - `CT_HOSTNAME`
 - `TUI=1|0`
 - Default: `TUI=1`, wenn TTY vorhanden und `NON_INTERACTIVE!=1` (grafische TUI via `dialog`/`whiptail`, sonst Prompt-Fallback)
+- `HOST_PVE_ENV` (Pfad zu Proxmox-API-Secrets auf dem Host)
+- `SSH_PRIVKEY_FILE` / `SSH_PUBKEY_FILE` (Pfade fuer ralf SSH-Key)
 - `NON_INTERACTIVE=1|0`
 - `YES=1|0`
 - `FORCE=1|0`
@@ -75,6 +77,7 @@ Beispiel fuer Answers-Datei:
 Provisioner-Status aktuell:
 
 - `proxmox_pct`: produktiv (delegiert an `bootstrap/adapters/proxmox_pct.sh`)
+  - TUI zeigt Quellen/Pfade (Secrets, `pve.env`, SSH-Key), erlaubt Pfadwahl und SSH-Key-Generierung
 - `host`: konservativer Minimal-Adapter (legt lokales Workspace-Layout an, keine destruktiven Host-Aenderungen)
   - erzeugt `.ralf-host/bin/ralf-host-runner` mit `--check`, `--dry-run`, `--status`, `--artifacts`, `--json`, `--quiet`, guarded `--run` (default non-apply)
 - `lxd`: konservativer Minimal-Adapter (Artefakte + Gatekeeping, erstellt LXD-Instanz falls fehlend und stempelt `user.ralf.*` Metadaten)

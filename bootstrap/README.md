@@ -152,6 +152,8 @@ Launcher fetch behavior:
 - Backend order: `dialog` -> `whiptail` -> prompt fallback
 - `curl | bash` is supported (prompts read from `/dev/tty`)
 - `NON_INTERACTIVE=1` disables TUI and requires all mandatory values via env/answers/profile
+- TUI Quellen-Seite zeigt feste Pfade/Status (`ralf-secrets`, `pve.env`, SSH keys), erlaubt Pfadwahl/Import und SSH-Key-Generierung
+- Password summary is shown masked by default; full reveal is explicit in TUI
 
 The CLI always writes:
 

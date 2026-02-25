@@ -134,6 +134,15 @@ fi
 if [[ -n "${OUTPUTS_DIR:-}" ]]; then
   args+=(--outputs-dir "$(abspath_from_start_cwd "$OUTPUTS_DIR")")
 fi
+if [[ -n "${HOST_PVE_ENV:-}" ]]; then
+  args+=(--host-pve-env "$(abspath_from_start_cwd "$HOST_PVE_ENV")")
+fi
+if [[ -n "${SSH_PRIVKEY_FILE:-}" ]]; then
+  args+=(--ssh-privkey-file "$(abspath_from_start_cwd "$SSH_PRIVKEY_FILE")")
+fi
+if [[ -n "${SSH_PUBKEY_FILE:-}" ]]; then
+  args+=(--ssh-pubkey-file "$(abspath_from_start_cwd "$SSH_PUBKEY_FILE")")
+fi
 if [[ "${APPLY:-0}" == "1" || "${AUTO_APPLY:-0}" == "1" ]]; then
   args+=(--apply)
 fi

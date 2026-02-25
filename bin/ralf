@@ -41,6 +41,9 @@ Options:
   --ct-hostname NAME
   --owner-name NAME
   --ralf-name NAME
+  --host-pve-env PATH
+  --ssh-privkey-file PATH
+  --ssh-pubkey-file PATH
   --tui | --no-tui
   --non-interactive
   --yes
@@ -69,6 +72,9 @@ BASE_DOMAIN="${BASE_DOMAIN:-}"
 CT_HOSTNAME="${CT_HOSTNAME:-}"
 OWNER_NAME="${OWNER_NAME:-}"
 RALF_NAME="${RALF_NAME:-}"
+HOST_PVE_ENV="${HOST_PVE_ENV:-}"
+SSH_PRIVKEY_FILE="${SSH_PRIVKEY_FILE:-}"
+SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-}"
 TUI_SET=0
 if [[ -n "${TUI+x}" ]]; then TUI_SET=1; fi
 TUI="${TUI:-}"
@@ -89,6 +95,9 @@ while [[ $# -gt 0 ]]; do
     --ct-hostname) CT_HOSTNAME="${2:-}"; shift 2 ;;
     --owner-name) OWNER_NAME="${2:-}"; shift 2 ;;
     --ralf-name) RALF_NAME="${2:-}"; shift 2 ;;
+    --host-pve-env) HOST_PVE_ENV="${2:-}"; shift 2 ;;
+    --ssh-privkey-file) SSH_PRIVKEY_FILE="${2:-}"; shift 2 ;;
+    --ssh-pubkey-file) SSH_PUBKEY_FILE="${2:-}"; shift 2 ;;
     --tui) TUI=1; shift ;;
     --no-tui) TUI=0; TUI_SET=1; shift ;;
     --non-interactive) NON_INTERACTIVE=1; shift ;;
@@ -171,6 +180,31 @@ for cand in "${repo_root}/ralf-secrets" "/root/ralf-secrets" "${HOME:-}/ralf-sec
     break
   fi
 done
+probe[ralf_secrets_dir]="$probe_local_secrets_dir"
+for cand in "${HOST_PVE_ENV:-}" "${probe_local_secrets_dir}/pve.env" "/root/ralf-secrets/pve.env"; do
+  [[ -n "${cand:-}" ]] || continue
+  if [[ -f "$cand" ]]; then
+    probe[host_pve_env]="$cand"
+    break
+  fi
+done
+for cand in "${SSH_PRIVKEY_FILE:-}" "/root/keys/Ralf/ralf_ed25519" "/root/.ssh/ralf_ed25519"; do
+  [[ -n "${cand:-}" ]] || continue
+  if [[ -f "$cand" ]]; then
+    probe[ssh_privkey_file]="$cand"
+    break
+  fi
+done
+for cand in "${SSH_PUBKEY_FILE:-}" \
+  "${probe[ssh_privkey_file]:-}.pub" \
+  "/root/keys/Ralf/ralf_ed25519.pub" \
+  "/root/.ssh/ralf_ed25519.pub"; do
+  [[ -n "${cand:-}" ]] || continue
+  if [[ -f "$cand" ]]; then
+    probe[ssh_pubkey_file]="$cand"
+    break
+  fi
+done
 if [[ -f "${probe_local_secrets_dir}/mail.env" ]]; then
   probe[base_domain]="$(awk -F= '/^MAIL_DOMAIN=/{print $2; exit}' "${probe_local_secrets_dir}/mail.env" 2>/dev/null || true)"
   probe[owner_name]="$(awk -F= '/^MAIL_USERS=/{print $2; exit}' "${probe_local_secrets_dir}/mail.env" 2>/dev/null | awk '{print $1}' || true)"
@@ -192,6 +226,11 @@ cfg[base_domain]="${BASE_DOMAIN:-${ans_base_domain:-${probe[base_domain]:-${cfg_
 cfg[ct_hostname]="${CT_HOSTNAME:-${ans_ct_hostname:-${cfg_CT_HOSTNAME:-}}}"
 cfg[owner_name]="${OWNER_NAME:-${ans_owner_name:-${probe[owner_name]:-}}}"
 cfg[ralf_name]="${RALF_NAME:-${ans_ralf_name:-${probe[ralf_name]:-ralf}}}"
+cfg[host_pve_env]="${HOST_PVE_ENV:-${probe[host_pve_env]:-${probe_local_secrets_dir}/pve.env}}"
+cfg[ssh_privkey_file]="${SSH_PRIVKEY_FILE:-${probe[ssh_privkey_file]:-/root/keys/Ralf/ralf_ed25519}}"
+cfg[ssh_pubkey_file]="${SSH_PUBKEY_FILE:-${probe[ssh_pubkey_file]:-${SSH_PUBKEY_FILE:-}}}"
+cfg[ralf_secrets_dir]="${probe_local_secrets_dir:-}"
+[[ -z "${cfg[ssh_pubkey_file]}" && -n "${cfg[ssh_privkey_file]}" ]] && cfg[ssh_pubkey_file]="${cfg[ssh_privkey_file]}.pub"
 cfg[tui_requested]="${TUI}"
 cfg[tui]="${TUI}"
 cfg[non_interactive]="${NON_INTERACTIVE}"
@@ -222,6 +261,181 @@ prompt_with_default() {
     fi
     printf '%s' "$out"
   fi
+}
+
+tui_yesno() {
+  local backend="$1" title="$2" message="$3"
+  case "$backend" in
+    dialog)
+      dialog --title "$title" --yesno "$message" 14 78 </dev/tty >/dev/tty
+      ;;
+    whiptail)
+      whiptail --title "$title" --yesno "$message" 14 78 </dev/tty >/dev/tty 2>&1
+      ;;
+    *)
+      printf '%s [y/N]: ' "$message" >/dev/tty
+      local ans=""
+      read -r ans </dev/tty || true
+      [[ "$ans" =~ ^[Yy]$ ]]
+      ;;
+  esac
+}
+
+tui_menu() {
+  local backend="$1" title="$2" prompt="$3"; shift 3
+  local rc=0 out=""
+  case "$backend" in
+    dialog)
+      out="$(dialog --stdout --title "$title" --menu "$prompt" 20 90 10 "$@" </dev/tty)" || rc=$?
+      ;;
+    whiptail)
+      out="$(whiptail --title "$title" --menu "$prompt" 20 90 10 "$@" 3>&1 1>&2 2>&3 </dev/tty)" || rc=$?
+      ;;
+    *)
+      printf '%s\n' "$prompt" >/dev/tty
+      local i=1
+      while [[ $# -gt 1 ]]; do
+        printf '  %s) %s\n' "$i" "$2" >/dev/tty
+        shift 2; i=$((i+1))
+      done
+      printf 'Auswahl [1]: ' >/dev/tty
+      local ans=""
+      read -r ans </dev/tty || true
+      out="${ans:-1}"
+      ;;
+  esac
+  if [[ "$rc" -ne 0 ]]; then
+    TUI_CANCELLED=1
+    printf ''
+    return
+  fi
+  printf '%s' "$out"
+}
+
+tui_textbox_file() {
+  local backend="$1" title="$2" file="$3"
+  [[ -f "$file" ]] || return 0
+  case "$backend" in
+    dialog)
+      dialog --title "$title" --textbox "$file" 24 100 </dev/tty >/dev/tty || true
+      ;;
+    whiptail)
+      whiptail --title "$title" --textbox "$file" 24 100 </dev/tty >/dev/tty 2>&1 || true
+      ;;
+    *)
+      echo; echo "$title"; cat "$file"; echo
+      ;;
+  esac
+}
+
+mask_value() {
+  local v="${1:-}"
+  local n=${#v}
+  if [[ "$n" -le 4 ]]; then printf '****'; return; fi
+  printf '%s****%s' "${v:0:2}" "${v:n-2:2}"
+}
+
+file_status_label() {
+  local p="${1:-}"
+  [[ -n "$p" ]] || { printf 'missing'; return; }
+  [[ -f "$p" ]] && printf 'found' || printf 'missing'
+}
+
+ensure_ssh_keypair() {
+  local priv="$1" pub="${2:-}"
+  [[ -n "$priv" ]] || return 1
+  [[ -n "$pub" ]] || pub="${priv}.pub"
+  mkdir -p "$(dirname "$priv")"
+  chmod 700 "$(dirname "$priv")" 2>/dev/null || true
+  if [[ ! -f "$priv" ]]; then
+    ssh-keygen -q -t ed25519 -N "" -f "$priv" </dev/null >/dev/null
+  fi
+  [[ -f "$pub" ]] || ssh-keygen -y -f "$priv" > "$pub"
+  chmod 600 "$priv" 2>/dev/null || true
+  chmod 644 "$pub" 2>/dev/null || true
+}
+
+prepare_tui_sources_review() {
+  local out="$1"
+  cat >"$out" <<EOF
+RALF Bootstrap Quellen / Voraussetzungen
+
+Secrets-Verzeichnis: ${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-<leer>}} [$(file_status_label "${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-}}")]
+Proxmox pve.env:     ${cfg[host_pve_env]:-<leer>} [$(file_status_label "${cfg[host_pve_env]:-}")]
+SSH Private Key:     ${cfg[ssh_privkey_file]:-<leer>} [$(file_status_label "${cfg[ssh_privkey_file]:-}")]
+SSH Public Key:      ${cfg[ssh_pubkey_file]:-<leer>} [$(file_status_label "${cfg[ssh_pubkey_file]:-}")]
+
+Erkannte Werte:
+- Domain:      ${cfg[base_domain]:-<leer>}
+- Owner:       ${cfg[owner_name]:-<leer>}
+- RALF Name:   ${cfg[ralf_name]:-<leer>}
+EOF
+}
+
+tui_configure_sources() {
+  local backend="$1" choice custom review_file
+  review_file="$(mktemp)"
+  while true; do
+    [[ -z "${cfg[ssh_pubkey_file]}" && -n "${cfg[ssh_privkey_file]}" ]] && cfg[ssh_pubkey_file]="${cfg[ssh_privkey_file]}.pub"
+    prepare_tui_sources_review "$review_file"
+    tui_textbox_file "$backend" "RALF Quellen" "$review_file"
+    choice="$(tui_menu "$backend" "RALF Quellen" "Aktion waehlen" \
+      1 "Weiter" \
+      2 "Secrets-Verzeichnis Pfad setzen" \
+      3 "pve.env Pfad setzen" \
+      4 "SSH-Key Pfad waehlen/eingeben" \
+      5 "SSH-Key fuer ralf generieren" \
+      6 "Werte (Domain/Namen) bearbeiten")"
+    [[ "$TUI_CANCELLED" == "1" ]] && break
+    case "$choice" in
+      1) break ;;
+      2)
+        custom="$(tui_input_with_default "$backend" 'Pfad zum ralf-secrets Verzeichnis' "${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-/root/ralf-secrets}}")"
+        cfg[ralf_secrets_dir]="$custom"
+        [[ -z "${cfg[host_pve_env]}" && -n "$custom" ]] && cfg[host_pve_env]="$custom/pve.env"
+        ;;
+      3)
+        custom="$(tui_input_with_default "$backend" 'Pfad zur Proxmox pve.env' "${cfg[host_pve_env]:-${cfg[ralf_secrets_dir]:-/root/ralf-secrets}/pve.env}")"
+        cfg[host_pve_env]="$custom"
+        ;;
+      4)
+        choice="$(tui_menu "$backend" "SSH-Key fuer ralf" "Quelle waehlen" \
+          1 "Auto/aktuellen Pfad behalten" \
+          2 "/root/keys/Ralf/ralf_ed25519" \
+          3 "/root/.ssh/ralf_ed25519" \
+          4 "Benutzerdefinierter Pfad")"
+        [[ "$TUI_CANCELLED" == "1" ]] && break
+        case "$choice" in
+          1) ;;
+          2) cfg[ssh_privkey_file]="/root/keys/Ralf/ralf_ed25519"; cfg[ssh_pubkey_file]="/root/keys/Ralf/ralf_ed25519.pub" ;;
+          3) cfg[ssh_privkey_file]="/root/.ssh/ralf_ed25519"; cfg[ssh_pubkey_file]="/root/.ssh/ralf_ed25519.pub" ;;
+          4)
+            custom="$(tui_input_with_default "$backend" 'SSH Private Key Pfad' "${cfg[ssh_privkey_file]:-/root/keys/Ralf/ralf_ed25519}")"
+            cfg[ssh_privkey_file]="$custom"
+            cfg[ssh_pubkey_file]="${custom}.pub"
+            ;;
+        esac
+        custom="$(tui_input_with_default "$backend" 'SSH Public Key Pfad (optional)' "${cfg[ssh_pubkey_file]:-${cfg[ssh_privkey_file]}.pub}")"
+        cfg[ssh_pubkey_file]="$custom"
+        ;;
+      5)
+        custom="$(tui_input_with_default "$backend" 'Zielpfad fuer neuen SSH Private Key' "${cfg[ssh_privkey_file]:-/root/keys/Ralf/ralf_ed25519}")"
+        cfg[ssh_privkey_file]="$custom"
+        cfg[ssh_pubkey_file]="${custom}.pub"
+        if ensure_ssh_keypair "${cfg[ssh_privkey_file]}" "${cfg[ssh_pubkey_file]}"; then
+          tui_show_info "$backend" "SSH-Key erzeugt" "SSH-Keypaar wurde erzeugt:\n${cfg[ssh_privkey_file]}\n${cfg[ssh_pubkey_file]}"
+        else
+          tui_show_info "$backend" "SSH-Key Fehler" "SSH-Key konnte nicht erzeugt werden."
+        fi
+        ;;
+      6)
+        cfg[base_domain]="$(tui_input_with_default "$backend" 'Lab DNS / Base-Domain' "${cfg[base_domain]}")"
+        cfg[owner_name]="$(tui_input_with_default "$backend" 'Dein Name (Primary User)' "${cfg[owner_name]}")"
+        cfg[ralf_name]="$(tui_input_with_default "$backend" 'RALF Name' "${cfg[ralf_name]}")"
+        ;;
+    esac
+  done
+  rm -f "$review_file"
 }
 
 tui_backend_detect() {
@@ -287,11 +501,9 @@ TUI_CANCELLED=0
 tui_backend="none"
 if [[ "${cfg[tui]}" == "1" && "${cfg[non_interactive]}" != "1" && "$is_tty" == "1" ]]; then
   tui_backend="$(tui_backend_detect)"
-  local_info=$'Gefundene lokale Secrets: '"${probe_local_secrets_dir:-<keine>}"$'\n'"Erkannte Domain: ${cfg[base_domain]:-<leer>}"$'\n'"Erkannter Benutzername: ${cfg[owner_name]:-<leer>}"$'\n'"Erkannter RALF-Name: ${cfg[ralf_name]:-ralf}"$'\n\nWerte bestaetigen oder anpassen.'
-  tui_show_info "$tui_backend" "RALF Bootstrap TUI" "$local_info"
-  cfg[base_domain]="$(tui_input_with_default "$tui_backend" 'Lab DNS / Base-Domain' "${cfg[base_domain]}")"
-  cfg[owner_name]="$(tui_input_with_default "$tui_backend" 'Dein Name (Primary User)' "${cfg[owner_name]}")"
-  cfg[ralf_name]="$(tui_input_with_default "$tui_backend" 'RALF Name' "${cfg[ralf_name]}")"
+  cfg[ralf_secrets_dir]="${cfg[ralf_secrets_dir]:-${probe_local_secrets_dir:-}}"
+  tui_configure_sources "$tui_backend"
+  [[ -z "${cfg[ssh_pubkey_file]}" && -n "${cfg[ssh_privkey_file]}" ]] && cfg[ssh_pubkey_file]="${cfg[ssh_privkey_file]}.pub"
   [[ -n "${cfg[ct_hostname]}" ]] || cfg[ct_hostname]="ralf-bootstrap"
 fi
 
@@ -360,6 +572,10 @@ cat >"${outputs_dir}/probe_report.json" <<EOF
   "provisioner_detected": "$(json_escape "${cfg[provisioner]}")",
   "existing_info": {
     "local_secrets_dir": "$(json_escape "${probe_local_secrets_dir}")",
+    "selected_secrets_dir": "$(json_escape "${cfg[ralf_secrets_dir]:-}")",
+    "host_pve_env": "$(json_escape "${probe[host_pve_env]:-}")",
+    "ssh_privkey_file": "$(json_escape "${probe[ssh_privkey_file]:-}")",
+    "ssh_pubkey_file": "$(json_escape "${probe[ssh_pubkey_file]:-}")",
     "base_domain": "$(json_escape "${probe[base_domain]:-}")",
     "owner_name": "$(json_escape "${probe[owner_name]:-}")",
     "ralf_name": "$(json_escape "${probe[ralf_name]:-}")"
@@ -383,6 +599,10 @@ cat >"${outputs_dir}/final_config.json" <<EOF
   "ct_hostname": "$(json_escape "${cfg[ct_hostname]}")",
   "owner_name": "$(json_escape "${cfg[owner_name]}")",
   "ralf_name": "$(json_escape "${cfg[ralf_name]}")",
+  "host_pve_env": "$(json_escape "${cfg[host_pve_env]}")",
+  "ralf_secrets_dir": "$(json_escape "${cfg[ralf_secrets_dir]}")",
+  "ssh_privkey_file": "$(json_escape "${cfg[ssh_privkey_file]}")",
+  "ssh_pubkey_file": "$(json_escape "${cfg[ssh_pubkey_file]}")",
   "tui_requested": ${cfg[tui_requested]},
   "tui": ${cfg[tui]},
   "tui_backend": "$(json_escape "${tui_backend}")",
@@ -401,6 +621,10 @@ EOF
   printf 'ct_hostname: %s\n' "${cfg[ct_hostname]}"
   printf 'owner_name: %s\n' "${cfg[owner_name]}"
   printf 'ralf_name: %s\n' "${cfg[ralf_name]}"
+  printf 'host_pve_env: %s\n' "${cfg[host_pve_env]}"
+  printf 'ralf_secrets_dir: %s\n' "${cfg[ralf_secrets_dir]}"
+  printf 'ssh_privkey_file: %s\n' "${cfg[ssh_privkey_file]}"
+  printf 'ssh_pubkey_file: %s\n' "${cfg[ssh_pubkey_file]}"
 } > "${outputs_dir}/answers.yml"
 
 cat >"${outputs_dir}/plan_summary.md" <<EOF
@@ -448,6 +672,9 @@ if [[ "${cfg[apply]}" == "1" ]]; then
       [[ -n "${cfg[ct_hostname]}" ]] && export CT_HOSTNAME="${cfg[ct_hostname]}"
       [[ -n "${cfg[owner_name]}" ]] && export OWNER_NAME="${cfg[owner_name]}"
       [[ -n "${cfg[ralf_name]}" ]] && export RALF_NAME="${cfg[ralf_name]}"
+      [[ -n "${cfg[host_pve_env]}" ]] && export HOST_PVE_ENV="${cfg[host_pve_env]}"
+      [[ -n "${cfg[ssh_privkey_file]}" ]] && export SSH_PRIVKEY_FILE="${cfg[ssh_privkey_file]}"
+      [[ -n "${cfg[ssh_pubkey_file]}" ]] && export SSH_PUBKEY_FILE="${cfg[ssh_pubkey_file]}"
       if [[ "${cfg[apply]}" == "1" && "${AUTO_APPLY:-0}" != "1" ]]; then export AUTO_APPLY=1; fi
       if [[ "${cfg[yes]}" == "1" && "${YES:-0}" != "1" ]]; then export YES=1; fi
       if [[ "${cfg[force]}" == "1" && "${FORCE:-0}" != "1" ]]; then export FORCE=1; fi
@@ -670,6 +897,10 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "tui_backend": "$(json_escape "${tui_backend}")",
   "owner_name": "$(json_escape "${cfg[owner_name]}")",
   "ralf_name": "$(json_escape "${cfg[ralf_name]}")",
+  "host_pve_env": "$(json_escape "${cfg[host_pve_env]}")",
+  "ralf_secrets_dir": "$(json_escape "${cfg[ralf_secrets_dir]}")",
+  "ssh_privkey_file": "$(json_escape "${cfg[ssh_privkey_file]}")",
+  "ssh_pubkey_file": "$(json_escape "${cfg[ssh_pubkey_file]}")",
   "warnings": ${warn_json},
   "blockers": ${blocker_json},
   "adapter_report_file": "$(json_escape "${adapter_report_file}")",
@@ -680,13 +911,14 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
 EOF
 
 generate_password_summary() {
-  local out_json="$1" out_md="$2"
+  local out_json="$1" out_md="$2" out_masked_md="$3" selected_secret_dir="${4:-}"
   command -v python3 >/dev/null 2>&1 || return 0
-  python3 - "$out_json" "$out_md" "$repo_root" <<'PY'
+  python3 - "$out_json" "$out_md" "$out_masked_md" "$repo_root" "$selected_secret_dir" <<'PY'
 import json, os, sys
 
-out_json, out_md, repo_root = sys.argv[1], sys.argv[2], sys.argv[3]
+out_json, out_md, out_masked_md, repo_root, selected_secret_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 candidates = [
+    selected_secret_dir,
     os.path.join(repo_root, "ralf-secrets"),
     "/root/ralf-secrets",
     os.path.join(os.environ.get("HOME",""), "ralf-secrets"),
@@ -768,12 +1000,49 @@ else:
 
 with open(out_md, "w", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
+
+def mask(v):
+    if not isinstance(v, str):
+        return v
+    if len(v) <= 4:
+        return "****"
+    return v[:2] + "****" + v[-2:]
+
+masked_lines = ["# Password Summary (Masked)", ""]
+masked_lines.append(f"- Secret source: `{secret_dir}`" if secret_dir else "- Secret source: `<not found>`")
+masked_lines.append("")
+masked_lines.append("## Users")
+if data["users"]:
+    for user in sorted(data["users"]):
+        masked_lines.append(f"- {user}")
+        for scope, item in data["users"][user].items():
+            if "email" in item:
+                masked_lines.append(f"  - {scope}: `{item['email']}` / `{mask(item['password'])}`")
+            else:
+                masked_lines.append(f"  - {scope}: `{item.get('user', user)}` / `{mask(item['password'])}`")
+else:
+    masked_lines.append("- none")
+masked_lines.append("")
+masked_lines.append("## Service Admin")
+if data["services"]:
+    for svc in sorted(data["services"]):
+        item = data["services"][svc]
+        if "admin_token" in item:
+            masked_lines.append(f"- {svc}: `{item['url']}` token `{mask(item['admin_token'])}`")
+        else:
+            masked_lines.append(f"- {svc}: `{item['url']}` user `{item['user']}` password `{mask(item['password'])}`")
+else:
+    masked_lines.append("- none")
+
+with open(out_masked_md, "w", encoding="utf-8") as f:
+    f.write("\n".join(masked_lines) + "\n")
 PY
 }
 
 password_summary_json="${outputs_dir}/password_summary.json"
 password_summary_md="${outputs_dir}/password_summary.md"
-generate_password_summary "$password_summary_json" "$password_summary_md" || true
+password_summary_masked_md="${outputs_dir}/password_summary.masked.md"
+generate_password_summary "$password_summary_json" "$password_summary_md" "$password_summary_masked_md" "${cfg[ralf_secrets_dir]:-}" || true
 if [[ -f "$password_summary_md" ]]; then
   {
     printf '\n## Password Summary\n'
@@ -789,7 +1058,16 @@ fi
 if [[ -f "$password_summary_md" ]]; then
   echo
   echo "RALF Password Summary"
-  cat "$password_summary_md"
+  if [[ -f "$password_summary_masked_md" ]]; then
+    cat "$password_summary_masked_md"
+    if [[ "${cfg[tui]}" == "1" && "${cfg[non_interactive]}" != "1" && "$is_tty" == "1" ]]; then
+      if tui_yesno "$tui_backend" "Passwoerter anzeigen" "Klartext-Passwoerter/Secrets jetzt anzeigen?"; then
+        tui_textbox_file "$tui_backend" "RALF Password Summary (Full)" "$password_summary_md"
+      fi
+    fi
+  else
+    cat "$password_summary_md"
+  fi
 fi
 
 exit "${exit_code}"

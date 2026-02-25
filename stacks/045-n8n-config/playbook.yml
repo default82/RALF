@@ -5,6 +5,7 @@
   vars:
     n8n_env_path: /opt/ralf/runtime/secrets/n8n.env
     pg_env_path: /opt/ralf/runtime/secrets/postgres.env
+    synapse_env_path: /opt/ralf/runtime/secrets/synapse.env
     n8n_user: n8n
     n8n_group: n8n
     n8n_data_dir: /var/lib/n8n
@@ -24,6 +25,7 @@
       loop:
         - "{{ n8n_env_path }}"
         - "{{ pg_env_path }}"
+        - "{{ synapse_env_path }}"
       register: n8n_env_stats
 
     - name: Fail if env files missing on control node
@@ -42,6 +44,7 @@
       loop:
         - { key: n8n, src: "{{ n8n_env_path }}" }
         - { key: postgres, src: "{{ pg_env_path }}" }
+        - { key: synapse, src: "{{ synapse_env_path }}" }
       register: n8n_env_raw
 
     - name: Parse env line arrays
@@ -50,6 +53,7 @@
       ansible.builtin.set_fact:
         n8n_env_lines: "{{ (n8n_env_raw.results[0].content | b64decode).splitlines() }}"
         pg_env_lines: "{{ (n8n_env_raw.results[1].content | b64decode).splitlines() }}"
+        synapse_env_lines: "{{ (n8n_env_raw.results[2].content | b64decode).splitlines() }}"
 
     - name: Build n8n env dict
       delegate_to: localhost
@@ -65,6 +69,14 @@
       ansible.builtin.set_fact:
         pg_env: "{{ pg_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
       loop: "{{ pg_env_lines }}"
+      when: item | length > 0 and not item.startswith('#')
+
+    - name: Build synapse env dict
+      delegate_to: localhost
+      become: false
+      ansible.builtin.set_fact:
+        synapse_env: "{{ synapse_env | default({}) | combine({ (item.split('=', 1)[0]): (item.split('=', 1)[1]) }) }}"
+      loop: "{{ synapse_env_lines }}"
       when: item | length > 0 and not item.startswith('#')
 
   tasks:
@@ -276,6 +288,61 @@
       loop:
         - n8n
         - nginx
+
+    - name: Ensure workflow seed directory exists
+      ansible.builtin.file:
+        path: "{{ n8n_data_dir }}/seed-workflows"
+        state: directory
+        owner: "{{ n8n_user }}"
+        group: "{{ n8n_group }}"
+        mode: "0750"
+
+    - name: Render RALF n8n workflow seeds on target
+      ansible.builtin.copy:
+        dest: "{{ n8n_data_dir }}/seed-workflows/{{ item.dest }}"
+        owner: "{{ n8n_user }}"
+        group: "{{ n8n_group }}"
+        mode: "0640"
+        content: >-
+          {{
+            lookup('ansible.builtin.file', item.src)
+            | replace('REPLACE_WITH_RALF_PASSWORD', synapse_env.SYNAPSE_ADMIN_PASSWORD_RALF | default(''))
+          }}
+      loop:
+        - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-create-rooms-and-ping.json", dest: "n8n-matrix-create-rooms-and-ping.json" }
+        - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-exo-ping-pong-room.json", dest: "n8n-matrix-exo-ping-pong-room.json" }
+
+    - name: List existing n8n workflows
+      ansible.builtin.shell: |
+        set -euo pipefail
+        export HOME={{ n8n_data_dir }}
+        export N8N_USER_FOLDER={{ n8n_data_dir }}
+        set -a
+        source {{ n8n_env_file }}
+        set +a
+        su -s /bin/bash -c 'n8n list:workflow || true' {{ n8n_user }}
+      args:
+        executable: /bin/bash
+      register: n8n_workflow_list
+      changed_when: false
+
+    - name: Import seed workflow if missing
+      ansible.builtin.shell: |
+        set -euo pipefail
+        export HOME={{ n8n_data_dir }}
+        export N8N_USER_FOLDER={{ n8n_data_dir }}
+        set -a
+        source {{ n8n_env_file }}
+        set +a
+        su -s /bin/bash -c 'n8n import:workflow --input={{ n8n_data_dir }}/seed-workflows/{{ item.file }}' {{ n8n_user }}
+      args:
+        executable: /bin/bash
+      loop:
+        - { name: "RALF Matrix - Create Rooms and Ping", file: "n8n-matrix-create-rooms-and-ping.json" }
+        - { name: "RALF Matrix EXO Ping Pong (Room Poll)", file: "n8n-matrix-exo-ping-pong-room.json" }
+      when: item.name not in (n8n_workflow_list.stdout | default(''))
+      register: n8n_seed_imports
+      changed_when: true
 
   handlers:
     - name: restart n8n

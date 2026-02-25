@@ -129,6 +129,11 @@ recover_container_after_apply_failure() {
   return 0
 }
 
+is_proxmox_plugin_crash() {
+  local out="$1"
+  grep -q 'Plugin did not respond' <<<"$out"
+}
+
 if [[ "${RUN_STACKS}" != "1" ]]; then
   echo "[runner] RUN_STACKS!=1 → exit"
   exit 0
@@ -228,6 +233,24 @@ for s in "${stacks[@]}"; do
         printf '%s\n' "$apply_output"
         if recover_container_after_apply_failure "$dir" "$apply_output"; then
           tofu apply -auto-approve -input=false
+        elif is_proxmox_plugin_crash "$apply_output"; then
+          recovered=0
+          for retry in 1 2; do
+            echo "[runner] Proxmox provider crash detected for $s; retrying tofu apply (${retry}/2) after 10s"
+            sleep 10
+            if apply_output="$(tofu apply -auto-approve -input=false 2>&1)"; then
+              printf '%s\n' "$apply_output"
+              recovered=1
+              break
+            fi
+            printf '%s\n' "$apply_output"
+            if recover_container_after_apply_failure "$dir" "$apply_output"; then
+              tofu apply -auto-approve -input=false
+              recovered=1
+              break
+            fi
+          done
+          [[ "$recovered" == "1" ]] || exit 1
         else
           exit 1
         fi

@@ -237,6 +237,9 @@
           XDG_CACHE_HOME={{ exo_home }}/.cache
           EXO_DATA_DIR={{ exo_env.EXO_DATA_DIR | default(exo_home ~ '/.local/share/exo') }}
           EXO_API_PORT={{ exo_env.EXO_PORT | default('52415') }}
+          {% if (exo_env.HF_TOKEN | default('') | length) > 0 %}
+          HF_TOKEN={{ exo_env.HF_TOKEN }}
+          {% endif %}
       notify: restart exo
 
     - name: Create exo systemd unit

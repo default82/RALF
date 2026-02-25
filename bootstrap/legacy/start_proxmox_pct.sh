@@ -697,11 +697,17 @@ if [[ ! -f \"\$EXO_ENV\" ]]; then
   EXO_HOST=\"\${EXO_HOST:-0.0.0.0}\"
   EXO_PORT=\"\${EXO_PORT:-8085}\"
   EXO_DATA_DIR=\"\${EXO_DATA_DIR:-/var/lib/exo}\"
+  EXO_HF_TOKEN=\"\${EXO_HF_TOKEN:-\${HF_TOKEN:-}}\"
   cat >\"\$EXO_ENV\" <<EOF
 EXO_HOST=\$EXO_HOST
 EXO_PORT=\$EXO_PORT
 EXO_DATA_DIR=\$EXO_DATA_DIR
+HF_TOKEN=\$EXO_HF_TOKEN
 EOF
+fi
+
+if [[ -f \"\$EXO_ENV\" ]] && ! grep -q '^HF_TOKEN=' \"\$EXO_ENV\"; then
+  printf 'HF_TOKEN=%s\n' \"\${EXO_HF_TOKEN:-\${HF_TOKEN:-}}\" >>\"\$EXO_ENV\"
 fi
 
 # Backfill/create tfstate env for existing installs

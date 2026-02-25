@@ -283,16 +283,121 @@ tui_input_with_default() {
   fi
 }
 
+tui_confirm() {
+  local backend="$1" title="$2" message="$3" default_no="${4:-0}" rc=0
+  case "$backend" in
+    dialog)
+      if [[ "$default_no" == "1" ]]; then
+        dialog --title "$title" --defaultno --yesno "$message" 14 78 </dev/tty >/dev/tty || rc=$?
+      else
+        dialog --title "$title" --yesno "$message" 14 78 </dev/tty >/dev/tty || rc=$?
+      fi
+      ;;
+    whiptail)
+      if [[ "$default_no" == "1" ]]; then
+        whiptail --title "$title" --defaultno --yesno "$message" 14 78 </dev/tty >/dev/tty 2>&1 || rc=$?
+      else
+        whiptail --title "$title" --yesno "$message" 14 78 </dev/tty >/dev/tty 2>&1 || rc=$?
+      fi
+      ;;
+    *)
+      local ans def_prompt="[y/N]"
+      if [[ "$default_no" != "1" ]]; then
+        def_prompt="[Y/n]"
+      fi
+      ans="$(prompt_with_default "$message $def_prompt" "")"
+      ans="${ans,,}"
+      if [[ "$default_no" == "1" ]]; then
+        [[ "$ans" == "y" || "$ans" == "yes" ]] && return 0
+        return 1
+      fi
+      [[ -z "$ans" || "$ans" == "y" || "$ans" == "yes" ]] && return 0
+      return 1
+      ;;
+  esac
+  [[ "$rc" -eq 0 ]]
+}
+
+tui_render_summary() {
+  cat <<EOF
+1) Base-Domain : ${cfg[base_domain]:-<leer>}
+2) Primary User: ${cfg[owner_name]:-<leer>}
+3) RALF Name   : ${cfg[ralf_name]:-<leer>}
+4) CT Hostname : ${cfg[ct_hostname]:-<leer>}
+5) Network CIDR: ${cfg[network_cidr]:-<leer>}
+
+9) Weiter / bestaetigen
+0) Abbrechen
+EOF
+}
+
+tui_run_wizard() {
+  local backend="$1" choice="" rc=0 menu_text=""
+
+  [[ -n "${cfg[ct_hostname]}" ]] || cfg[ct_hostname]="ralf-bootstrap"
+
+  while true; do
+    menu_text="$(tui_render_summary)"
+    case "$backend" in
+      dialog)
+        choice="$(dialog --stdout --title "RALF Bootstrap TUI" --menu "Werte pruefen/anpassen:" 21 90 10           1 "Base-Domain (${cfg[base_domain]:-<leer>})"           2 "Primary User (${cfg[owner_name]:-<leer>})"           3 "RALF Name (${cfg[ralf_name]:-<leer>})"           4 "CT Hostname (${cfg[ct_hostname]:-<leer>})"           5 "Network CIDR (${cfg[network_cidr]:-<leer>})"           9 "Weiter / bestaetigen"           0 "Abbrechen" </dev/tty)" || rc=$?
+        ;;
+      whiptail)
+        choice="$(whiptail --title "RALF Bootstrap TUI" --menu "Werte pruefen/anpassen:" 21 90 10           1 "Base-Domain (${cfg[base_domain]:-<leer>})"           2 "Primary User (${cfg[owner_name]:-<leer>})"           3 "RALF Name (${cfg[ralf_name]:-<leer>})"           4 "CT Hostname (${cfg[ct_hostname]:-<leer>})"           5 "Network CIDR (${cfg[network_cidr]:-<leer>})"           9 "Weiter / bestaetigen"           0 "Abbrechen" 3>&1 1>&2 2>&3 </dev/tty)" || rc=$?
+        ;;
+      *)
+        echo
+        echo "RALF Bootstrap TUI"
+        printf '%s\n' "$menu_text"
+        choice="$(prompt_with_default 'Auswahl' '9')"
+        rc=0
+        ;;
+    esac
+
+    if [[ "$rc" -ne 0 ]]; then
+      TUI_CANCELLED=1
+      return
+    fi
+
+    case "$choice" in
+      1) cfg[base_domain]="$(tui_input_with_default "$backend" 'Lab DNS / Base-Domain' "${cfg[base_domain]}")" ;;
+      2) cfg[owner_name]="$(tui_input_with_default "$backend" 'Dein Name (Primary User)' "${cfg[owner_name]}")" ;;
+      3) cfg[ralf_name]="$(tui_input_with_default "$backend" 'RALF Name' "${cfg[ralf_name]}")" ;;
+      4) cfg[ct_hostname]="$(tui_input_with_default "$backend" 'CT Hostname' "${cfg[ct_hostname]}")" ;;
+      5) cfg[network_cidr]="$(tui_input_with_default "$backend" 'Network CIDR' "${cfg[network_cidr]}")" ;;
+      9)
+        if tui_confirm "$backend" "RALF Bootstrap" "Mit diesen Werten fortfahren?" 0; then
+          return
+        fi
+        ;;
+      0)
+        if tui_confirm "$backend" "RALF Bootstrap" "Bootstrap wirklich abbrechen?" 1; then
+          TUI_CANCELLED=1
+          return
+        fi
+        ;;
+      *)
+        # No-op for invalid selection in prompt fallback.
+        ;;
+    esac
+  done
+}
+
 TUI_CANCELLED=0
 tui_backend="none"
 if [[ "${cfg[tui]}" == "1" && "${cfg[non_interactive]}" != "1" && "$is_tty" == "1" ]]; then
   tui_backend="$(tui_backend_detect)"
-  local_info=$'Gefundene lokale Secrets: '"${probe_local_secrets_dir:-<keine>}"$'\n'"Erkannte Domain: ${cfg[base_domain]:-<leer>}"$'\n'"Erkannter Benutzername: ${cfg[owner_name]:-<leer>}"$'\n'"Erkannter RALF-Name: ${cfg[ralf_name]:-ralf}"$'\n\nWerte bestaetigen oder anpassen.'
+  local_info=$(cat <<EOF
+Gefundene lokale Secrets: ${probe_local_secrets_dir:-<keine>}
+Erkannte Domain: ${cfg[base_domain]:-<leer>}
+Erkannter Benutzername: ${cfg[owner_name]:-<leer>}
+Erkannter RALF-Name: ${cfg[ralf_name]:-ralf}
+
+Werte bestaetigen oder anpassen.
+EOF
+)
   tui_show_info "$tui_backend" "RALF Bootstrap TUI" "$local_info"
-  cfg[base_domain]="$(tui_input_with_default "$tui_backend" 'Lab DNS / Base-Domain' "${cfg[base_domain]}")"
-  cfg[owner_name]="$(tui_input_with_default "$tui_backend" 'Dein Name (Primary User)' "${cfg[owner_name]}")"
-  cfg[ralf_name]="$(tui_input_with_default "$tui_backend" 'RALF Name' "${cfg[ralf_name]}")"
-  [[ -n "${cfg[ct_hostname]}" ]] || cfg[ct_hostname]="ralf-bootstrap"
+  tui_run_wizard "$tui_backend"
 fi
 
 # Phase 3: Policy / Gatekeeping

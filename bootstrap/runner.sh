@@ -70,21 +70,37 @@ recover_warning_container_create() {
     return 1
   }
 
-  if command -v pct >/dev/null 2>&1; then
-    if ! pct config "$vm_id" >/dev/null 2>&1; then
-      echo "[runner] Warning recovery skipped: CT $vm_id does not exist on host"
+  wait_for_ct_existence() {
+    local retries="${1:-12}" delay="${2:-5}"
+    local api_base
+    local i
+
+    if command -v pct >/dev/null 2>&1; then
+      for i in $(seq 1 "$retries"); do
+        if pct config "$vm_id" >/dev/null 2>&1; then
+          return 0
+        fi
+        sleep "$delay"
+      done
       return 1
     fi
-  else
-    local api_base
+
     api_base="${PVE_ENDPOINT%/}"
     api_base="${api_base%/api2/json}"
-    if ! curl -fsS -k \
-      -H "Authorization: PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}" \
-      "${api_base}/api2/json/nodes/${TF_VAR_node_name}/lxc/${vm_id}/status/current" >/dev/null 2>&1; then
-      echo "[runner] Warning recovery skipped: CT $vm_id not found via Proxmox API"
-      return 1
-    fi
+    for i in $(seq 1 "$retries"); do
+      if curl -fsS -k \
+        -H "Authorization: PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}" \
+        "${api_base}/api2/json/nodes/${TF_VAR_node_name}/lxc/${vm_id}/status/current" >/dev/null 2>&1; then
+        return 0
+      fi
+      sleep "$delay"
+    done
+    return 1
+  }
+
+  if ! wait_for_ct_existence 18 5; then
+    echo "[runner] Warning recovery skipped: CT $vm_id not found after waiting for async Proxmox create"
+    return 1
   fi
 
   echo "[runner] CT $vm_id exists despite warning; trying tofu import for proxmox_virtual_environment_container.$res_name"

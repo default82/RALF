@@ -28,6 +28,11 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 # Config (safe defaults)
 # --------------------------
 CT_HOSTNAME="${CT_HOSTNAME:-ralf-bootstrap}"   # IMPORTANT: don't use HOSTNAME (env var collision)
+BASE_DOMAIN="${BASE_DOMAIN:-homelab.lan}"
+OWNER_NAME="${OWNER_NAME:-Kolja}"
+RALF_NAME="${RALF_NAME:-RALF}"
+RALF_NAME_SLUG="$(printf '%s' "$RALF_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')"
+RALF_NAME_SLUG="${RALF_NAME_SLUG:-ralf}"
 
 IP_CIDR="${IP_CIDR:-10.10.100.10/16}"
 GW="${GW:-10.10.0.1}"
@@ -471,7 +476,7 @@ if [[ ! -f \"\$SEMAPHORE_ENV\" ]]; then
   SEMAPHORE_DB_HOST=\"\${SEMAPHORE_DB_HOST:-10.10.20.10}\"
   SEMAPHORE_DB_PORT=\"\${SEMAPHORE_DB_PORT:-5432}\"
   SEMAPHORE_ADMIN_NAME=\"\${SEMAPHORE_ADMIN_NAME:-ralf}\"
-  SEMAPHORE_ADMIN_EMAIL=\"\${SEMAPHORE_ADMIN_EMAIL:-ralf@homelab.lan}\"
+  SEMAPHORE_ADMIN_EMAIL=\"\${SEMAPHORE_ADMIN_EMAIL:-ralf@${BASE_DOMAIN}}\"
   SEMAPHORE_ADMIN_PASSWORD=\"\${SEMAPHORE_ADMIN_PASSWORD:-\$(rand)}\"
   SEMAPHORE_ENCRYPTION_KEY=\"\${SEMAPHORE_ENCRYPTION_KEY:-\$(rand)}\"
   cat >\"\$SEMAPHORE_ENV\" <<EOF
@@ -496,7 +501,7 @@ if [[ ! -f \"\$TFSTATE_ENV\" ]]; then
   umask 077
   TFSTATE_ENABLE_REMOTE=\"\${TFSTATE_ENABLE_REMOTE:-1}\"
   TFSTATE_S3_BUCKET=\"\${TFSTATE_S3_BUCKET:-tofu-state}\"
-  TFSTATE_S3_PREFIX=\"\${TFSTATE_S3_PREFIX:-ralf}\"
+  TFSTATE_S3_PREFIX=\"\${TFSTATE_S3_PREFIX:-${RALF_NAME_SLUG}}\"
   TFSTATE_S3_REGION=\"\${TFSTATE_S3_REGION:-us-east-1}\"
   TFSTATE_S3_ENDPOINT=\"\${TFSTATE_S3_ENDPOINT:-http://10.10.30.10:9000}\"
   cat >\"\$TFSTATE_ENV\" <<EOF
@@ -514,8 +519,8 @@ fi
 MAIL_ENV=\"\$SECRETS_DIR/mail.env\"
 if [[ ! -f \"\$MAIL_ENV\" ]]; then
   umask 077
-  MAIL_DOMAIN=\"\${MAIL_DOMAIN:-homelab.lan}\"
-  MAIL_HOSTNAME=\"\${MAIL_HOSTNAME:-mail.homelab.lan}\"
+  MAIL_DOMAIN=\"\${MAIL_DOMAIN:-${BASE_DOMAIN}}\"
+  MAIL_HOSTNAME=\"\${MAIL_HOSTNAME:-mail.${BASE_DOMAIN}}\"
   MAIL_USERS=\"\${MAIL_USERS:-ralf kolja}\"
   MAIL_PASSWORD_RALF=\"\${MAIL_PASSWORD_RALF:-\$(rand)}\"
   MAIL_PASSWORD_KOLJA=\"\${MAIL_PASSWORD_KOLJA:-\$(rand)}\"
@@ -526,6 +531,16 @@ MAIL_USERS=\$MAIL_USERS
 MAIL_PASSWORD_RALF=\$MAIL_PASSWORD_RALF
 MAIL_PASSWORD_KOLJA=\$MAIL_PASSWORD_KOLJA
 EOF
+fi
+# Always keep both core users in Mail bootstrap data.
+if [[ -f \"\$MAIL_ENV\" ]]; then
+  set -a
+  source \"\$MAIL_ENV\"
+  set +a
+  mail_users_norm=\" \${MAIL_USERS:-} \"
+  [[ \"\$mail_users_norm\" == *\" ralf \"* ]] || MAIL_USERS=\"\${MAIL_USERS:+\$MAIL_USERS }ralf\"
+  [[ \" \$MAIL_USERS \" == *\" kolja \"* ]] || MAIL_USERS=\"\${MAIL_USERS:+\$MAIL_USERS }kolja\"
+  sed -i \"s/^MAIL_USERS=.*/MAIL_USERS=\$MAIL_USERS/\" \"\$MAIL_ENV\"
 fi
 
 # Synapse
@@ -549,7 +564,7 @@ if [[ ! -f \"\$SYNAPSE_ENV\" ]]; then
   SYNAPSE_SMTP_PORT=\"\${SYNAPSE_SMTP_PORT:-587}\"
   SYNAPSE_SMTP_USER=\"\${SYNAPSE_SMTP_USER:-ralf}\"
   SYNAPSE_SMTP_PASSWORD=\"\${SYNAPSE_SMTP_PASSWORD:-\$MAIL_PASSWORD_RALF}\"
-  SYNAPSE_SMTP_FROM=\"\${SYNAPSE_SMTP_FROM:-matrix@homelab.lan}\"
+  SYNAPSE_SMTP_FROM=\"\${SYNAPSE_SMTP_FROM:-matrix@${BASE_DOMAIN}}\"
   cat >\"\$SYNAPSE_ENV\" <<EOF
 SYNAPSE_SERVER_NAME=\$SYNAPSE_SERVER_NAME
 SYNAPSE_PUBLIC_BASEURL=\$SYNAPSE_PUBLIC_BASEURL
@@ -574,12 +589,22 @@ SYNAPSE_SMTP_PASSWORD=\$SYNAPSE_SMTP_PASSWORD
 SYNAPSE_SMTP_FROM=\$SYNAPSE_SMTP_FROM
 EOF
 fi
+# Always keep both core users in Synapse admin bootstrap data.
+if [[ -f \"\$SYNAPSE_ENV\" ]]; then
+  set -a
+  source \"\$SYNAPSE_ENV\"
+  set +a
+  syn_users_norm=\" \${SYNAPSE_ADMIN_USERS:-} \"
+  [[ \"\$syn_users_norm\" == *\" ralf \"* ]] || SYNAPSE_ADMIN_USERS=\"\${SYNAPSE_ADMIN_USERS:+\$SYNAPSE_ADMIN_USERS }ralf\"
+  [[ \" \$SYNAPSE_ADMIN_USERS \" == *\" kolja \"* ]] || SYNAPSE_ADMIN_USERS=\"\${SYNAPSE_ADMIN_USERS:+\$SYNAPSE_ADMIN_USERS }kolja\"
+  sed -i \"s/^SYNAPSE_ADMIN_USERS=.*/SYNAPSE_ADMIN_USERS=\$SYNAPSE_ADMIN_USERS/\" \"\$SYNAPSE_ENV\"
+fi
 
 # Vaultwarden
 VAULTWARDEN_ENV=\"\$SECRETS_DIR/vaultwarden.env\"
 if [[ ! -f \"\$VAULTWARDEN_ENV\" ]]; then
   umask 077
-  VAULTWARDEN_DOMAIN=\"\${VAULTWARDEN_DOMAIN:-https://vaultwarden.homelab.lan}\"
+  VAULTWARDEN_DOMAIN=\"\${VAULTWARDEN_DOMAIN:-https://vaultwarden.${BASE_DOMAIN}}\"
   VAULTWARDEN_ADMIN_TOKEN=\"\${VAULTWARDEN_ADMIN_TOKEN:-\$(rand)}\"
   VAULTWARDEN_PORT=\"\${VAULTWARDEN_PORT:-8080}\"
   VAULTWARDEN_DB_HOST=\"\${VAULTWARDEN_DB_HOST:-10.10.20.10}\"
@@ -600,7 +625,7 @@ fi
 N8N_ENV=\"\$SECRETS_DIR/n8n.env\"
 if [[ ! -s \"\$N8N_ENV\" ]]; then
   umask 077
-  N8N_HOSTNAME=\"\${N8N_HOSTNAME:-n8n.homelab.lan}\"
+  N8N_HOSTNAME=\"\${N8N_HOSTNAME:-n8n.${BASE_DOMAIN}}\"
   N8N_PROTOCOL=\"\${N8N_PROTOCOL:-https}\"
   N8N_PORT=\"\${N8N_PORT:-5678}\"
   N8N_DB_HOST=\"\${N8N_DB_HOST:-10.10.20.10}\"
@@ -627,7 +652,7 @@ fi
 DASHY_ENV=\"\$SECRETS_DIR/dashy.env\"
 if [[ ! -s \"\$DASHY_ENV\" ]]; then
   umask 077
-  DASHY_HOSTNAME=\"\${DASHY_HOSTNAME:-dashy.homelab.lan}\"
+  DASHY_HOSTNAME=\"\${DASHY_HOSTNAME:-dashy.${BASE_DOMAIN}}\"
   DASHY_PORT=\"\${DASHY_PORT:-8080}\"
   cat >\"\$DASHY_ENV\" <<EOF
 DASHY_HOSTNAME=\$DASHY_HOSTNAME
@@ -639,14 +664,14 @@ fi
 GITEA_ENV=\"\$SECRETS_DIR/gitea.env\"
 if [[ ! -s \"\$GITEA_ENV\" ]]; then
   umask 077
-  GITEA_DOMAIN=\"\${GITEA_DOMAIN:-gitea.homelab.lan}\"
-  GITEA_ROOT_URL=\"\${GITEA_ROOT_URL:-https://gitea.homelab.lan/}\"
+  GITEA_DOMAIN=\"\${GITEA_DOMAIN:-gitea.${BASE_DOMAIN}}\"
+  GITEA_ROOT_URL=\"\${GITEA_ROOT_URL:-https://gitea.${BASE_DOMAIN}/}\"
   GITEA_HTTP_PORT=\"\${GITEA_HTTP_PORT:-3000}\"
   GITEA_SSH_PORT=\"\${GITEA_SSH_PORT:-2222}\"
   GITEA_DB_HOST=\"\${GITEA_DB_HOST:-10.10.20.10}\"
   GITEA_DB_PORT=\"\${GITEA_DB_PORT:-5432}\"
   GITEA_ADMIN_USER=\"\${GITEA_ADMIN_USER:-ralf}\"
-  GITEA_ADMIN_EMAIL=\"\${GITEA_ADMIN_EMAIL:-ralf@homelab.lan}\"
+  GITEA_ADMIN_EMAIL=\"\${GITEA_ADMIN_EMAIL:-ralf@${BASE_DOMAIN}}\"
   GITEA_ADMIN_PASSWORD=\"\${GITEA_ADMIN_PASSWORD:-\$(rand)}\"
   GITEA_MIRROR_SOURCE_URL=\"\${GITEA_MIRROR_SOURCE_URL:-https://github.com/default82/RALF.git}\"
   cat >\"\$GITEA_ENV\" <<EOF
@@ -715,7 +740,7 @@ if [[ ! -s \"\$TFSTATE_ENV\" ]]; then
   cat >\"\$TFSTATE_ENV\" <<EOF
 TFSTATE_ENABLE_REMOTE=1
 TFSTATE_S3_BUCKET=tofu-state
-TFSTATE_S3_PREFIX=ralf
+TFSTATE_S3_PREFIX=${RALF_NAME_SLUG}
 TFSTATE_S3_REGION=us-east-1
 TFSTATE_S3_ENDPOINT=http://10.10.30.10:9000
 TFSTATE_S3_ACCESS_KEY=\$MINIO_ROOT_USER
@@ -749,8 +774,8 @@ grep -q '^GITEA_DB_NAME=' \"\$POSTGRES_ENV\" || printf 'GITEA_DB_NAME=%s\n' \"\$
 if [[ ! -s \"\$GITEA_ENV\" ]]; then
   umask 077
   cat >\"\$GITEA_ENV\" <<EOF
-GITEA_DOMAIN=gitea.homelab.lan
-GITEA_ROOT_URL=https://gitea.homelab.lan/
+GITEA_DOMAIN=gitea.${BASE_DOMAIN}
+GITEA_ROOT_URL=https://gitea.${BASE_DOMAIN}/
 GITEA_HTTP_PORT=3000
 GITEA_SSH_PORT=2222
 GITEA_DB_HOST=10.10.20.10
@@ -759,7 +784,7 @@ GITEA_DB_NAME=\$GITEA_DB_NAME
 GITEA_DB_USER=\$GITEA_DB_USER
 GITEA_DB_PASSWORD=\$GITEA_DB_PASSWORD
 GITEA_ADMIN_USER=ralf
-GITEA_ADMIN_EMAIL=ralf@homelab.lan
+GITEA_ADMIN_EMAIL=ralf@${BASE_DOMAIN}
 GITEA_ADMIN_PASSWORD=\$(rand)
 GITEA_MIRROR_SOURCE_URL=https://github.com/default82/RALF.git
 EOF

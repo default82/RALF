@@ -258,7 +258,7 @@
           WorkingDirectory={{ exo_repo_dir }}
           EnvironmentFile={{ exo_env_file }}
           Environment=PATH={{ exo_home }}/.cargo/bin:/usr/local/bin:/usr/bin:/bin
-          ExecStart=/usr/local/bin/uv run exo --no-worker --no-downloads --api-port ${EXO_API_PORT}
+          ExecStart=/usr/local/bin/uv run exo --api-port ${EXO_API_PORT}
           Restart=always
           RestartSec=5
 

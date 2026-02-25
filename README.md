@@ -32,18 +32,24 @@ Danach werden weitere Dienste ueber Semaphore-Tasks ausgerollt (u. a. `Vaultward
 curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
 ```
 
+Fuer interaktive TUI-Runs (empfohlen bei Erststart) funktioniert auch `| bash`, robuster ist aber:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh)"
+```
+
 ### Parametrisierter One-Liner
 
 ```bash
 PROVISIONER=host PROFILE=generic_home NETWORK_CIDR=192.168.178.0/24 BASE_DOMAIN=home.lan TUI=1 \
-curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh)"
 ```
 
 Mit separatem Output-Verzeichnis (z. B. fuer Vergleiche zwischen Runs):
 
 ```bash
 PROVISIONER=host YES=1 APPLY=1 OUTPUTS_DIR=/tmp/ralf-bootstrap-run1 \
-curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh)"
 ```
 
 Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
@@ -54,6 +60,7 @@ Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
 - `BASE_DOMAIN`
 - `CT_HOSTNAME`
 - `TUI=1|0`
+- Default: `TUI=1`, wenn TTY vorhanden und `NON_INTERACTIVE!=1` (grafische TUI via `dialog`/`whiptail`, sonst Prompt-Fallback)
 - `NON_INTERACTIVE=1|0`
 - `YES=1|0`
 - `FORCE=1|0`

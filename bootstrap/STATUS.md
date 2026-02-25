@@ -32,6 +32,8 @@ Unterstuetzt:
 - `NETWORK_CIDR`
 - `BASE_DOMAIN`
 - `CT_HOSTNAME`
+- `OWNER_NAME`
+- `RALF_NAME`
 - `TUI`
 - `NON_INTERACTIVE`
 - `YES`
@@ -126,7 +128,7 @@ Zusatz:
 - `host`-Wrapper `--status --json` spiegelt Host-Artefakte ebenfalls maschinenlesbar
 - `host`-Wrapper `--run` fuehrt jetzt gated `bootstrap/runner.sh` aus (Default: non-apply; Apply zusaetzlich blockiert ohne Freigabe)
 - Volllauf-Guard im Host-Wrapper: `RUN_STACKS=1` ohne `ONLY_STACKS`/`START_AT` blockiert standardmaessig
-- `tui_requested` / `tui_effective` in Outputs fuer transparente TUI-Gating-Entscheidungen
+- `tui_requested` / `tui_effective` / `tui_backend` in Outputs fuer transparente TUI-Gating-Entscheidungen
 - Beispiel-Answers-Datei fuer `ANSWERS_FILE` vorhanden (`bootstrap/examples/answers.generic_home.yml`)
 
 Offen / Ausbau:
@@ -137,7 +139,7 @@ Offen / Ausbau:
 
 ## G) TUI (optional)
 
-Status: `TEILWEISE ERFUELLT (Policy/Flags ja, UI nein)`
+Status: `WEITGEHEND ERFUELLT`
 
 Erfuellt:
 
@@ -145,14 +147,21 @@ Erfuellt:
 - `--no-tui`
 - `NON_INTERACTIVE=1` deaktiviert TUI
 - Gatekeeping/Warnings fuer TTY/NON_INTERACTIVE
+- TUI default aktiv bei TTY (wenn nicht explizit deaktiviert)
+- Backend-Reihenfolge: `dialog` -> `whiptail` -> Prompt-Fallback
+- `curl | bash` TUI-Prompts lesen von `/dev/tty`
+- Bestandsprobe fuer lokale Secrets/Domain/Namen
+- Interaktive Eingaben fuer Domain / Owner / RALF Name
+- Passwort-Summary (`password_summary.md` / `.json`) wird erzeugt und ausgegeben
 
 Offen:
 
-- Keine echte TUI-Implementierung (nur Schalter/Gating)
+- Keine mehrstufige Review-/Wizard-TUI mit finaler Bestaetigungsseite vor Apply
+- Passwort-Summary ist aktuell Ausgabe/Artefakt, aber keine separate interaktive Abschlussansicht im TUI-Dialogfluss
 
 ## Aktuelle naechste sinnvolle Schritte
 
-1. TUI implementieren oder explizit als bewusst verschoben markieren (Roadmap)
+1. Mehrstufige TUI-Review/Confirm vor Apply (optional) ergänzen
 2. `host`-Provisioner von Workspace-Prep Richtung lokalem Runner/Toolchain-Workflow erweitern
 3. `lxd`-Provisioner um Netzwerk-/Profile-Konfig (konservativ, idempotent) erweitern
 4. Minisign Public-Key-Verteilung festlegen/dokumentieren (z. B. README + Release Notes + Website)

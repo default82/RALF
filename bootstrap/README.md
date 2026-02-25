@@ -6,6 +6,12 @@
 curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
 ```
 
+Interaktive TUI-Runs (empfohlen) können auch so gestartet werden:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh)"
+```
+
 ### 2) Danger Zone (recommended): pinned commit + SHA256 verify
 
 ```bash
@@ -138,6 +144,14 @@ Launcher fetch behavior:
 - otherwise falls back to GitHub tarball download (`branch` / `tag` / `commit` URL patterns)
 - logs the resolved git commit (or extracted tarball directory) for traceability
 - logs an early note when `TUI=1` and `NON_INTERACTIVE=1` are both set (before CLI gating disables TUI)
+- forwards TUI defaults (`TUI=1` on TTY, otherwise `0`) unless explicitly set
+
+### TUI behavior
+
+- Default: TUI is enabled when a TTY is present and `NON_INTERACTIVE!=1`
+- Backend order: `dialog` -> `whiptail` -> prompt fallback
+- `curl | bash` is supported (prompts read from `/dev/tty`)
+- `NON_INTERACTIVE=1` disables TUI and requires all mandatory values via env/answers/profile
 
 The CLI always writes:
 

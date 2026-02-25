@@ -224,17 +224,74 @@ prompt_with_default() {
   fi
 }
 
+tui_backend_detect() {
+  if [[ "$is_tty" != "1" || "${cfg[non_interactive]}" == "1" || "${cfg[tui]}" != "1" ]]; then
+    printf 'none'
+    return
+  fi
+  if command -v dialog >/dev/null 2>&1 && [[ -r /dev/tty ]]; then
+    printf 'dialog'
+    return
+  fi
+  if command -v whiptail >/dev/null 2>&1 && [[ -r /dev/tty ]]; then
+    printf 'whiptail'
+    return
+  fi
+  printf 'prompt'
+}
+
+tui_show_info() {
+  local backend="$1" title="$2" message="$3"
+  case "$backend" in
+    dialog)
+      dialog --stdout --title "$title" --msgbox "$message" 16 78 </dev/tty >/dev/tty || true
+      ;;
+    whiptail)
+      whiptail --title "$title" --msgbox "$message" 16 78 </dev/tty >/dev/tty 2>&1 || true
+      ;;
+    *)
+      echo
+      echo "$title"
+      printf '%s\n' "$message"
+      echo
+      ;;
+  esac
+}
+
+tui_input_with_default() {
+  local backend="$1" label="$2" def="${3:-}" out="" rc=0
+  case "$backend" in
+    dialog)
+      out="$(dialog --stdout --title "RALF Bootstrap" --inputbox "$label" 10 78 "$def" </dev/tty)" || rc=$?
+      ;;
+    whiptail)
+      out="$(whiptail --title "RALF Bootstrap" --inputbox "$label" 10 78 "$def" 3>&1 1>&2 2>&3 </dev/tty)" || rc=$?
+      ;;
+    *)
+      out="$(prompt_with_default "$label" "$def")" || true
+      ;;
+  esac
+  if [[ "$rc" -ne 0 ]]; then
+    TUI_CANCELLED=1
+    printf '%s' "$def"
+    return
+  fi
+  if [[ -z "$out" && -n "$def" ]]; then
+    printf '%s' "$def"
+  else
+    printf '%s' "$out"
+  fi
+}
+
+TUI_CANCELLED=0
+tui_backend="none"
 if [[ "${cfg[tui]}" == "1" && "${cfg[non_interactive]}" != "1" && "$is_tty" == "1" ]]; then
-  echo
-  echo "RALF Bootstrap TUI (minimal)"
-  [[ -n "$probe_local_secrets_dir" ]] && echo "Gefundene lokale Secrets: $probe_local_secrets_dir"
-  [[ -n "${cfg[base_domain]}" ]] && echo "Erkannte Domain: ${cfg[base_domain]}"
-  [[ -n "${cfg[owner_name]}" ]] && echo "Erkannter Benutzername: ${cfg[owner_name]}"
-  [[ -n "${cfg[ralf_name]}" ]] && echo "Erkannter RALF-Name: ${cfg[ralf_name]}"
-  echo
-  cfg[base_domain]="$(prompt_with_default 'Lab DNS / Base-Domain' "${cfg[base_domain]}")"
-  cfg[owner_name]="$(prompt_with_default 'Dein Name (Primary User)' "${cfg[owner_name]}")"
-  cfg[ralf_name]="$(prompt_with_default 'RALF Name' "${cfg[ralf_name]}")"
+  tui_backend="$(tui_backend_detect)"
+  local_info=$'Gefundene lokale Secrets: '"${probe_local_secrets_dir:-<keine>}"$'\n'"Erkannte Domain: ${cfg[base_domain]:-<leer>}"$'\n'"Erkannter Benutzername: ${cfg[owner_name]:-<leer>}"$'\n'"Erkannter RALF-Name: ${cfg[ralf_name]:-ralf}"$'\n\nWerte bestaetigen oder anpassen.'
+  tui_show_info "$tui_backend" "RALF Bootstrap TUI" "$local_info"
+  cfg[base_domain]="$(tui_input_with_default "$tui_backend" 'Lab DNS / Base-Domain' "${cfg[base_domain]}")"
+  cfg[owner_name]="$(tui_input_with_default "$tui_backend" 'Dein Name (Primary User)' "${cfg[owner_name]}")"
+  cfg[ralf_name]="$(tui_input_with_default "$tui_backend" 'RALF Name' "${cfg[ralf_name]}")"
   [[ -n "${cfg[ct_hostname]}" ]] || cfg[ct_hostname]="ralf-bootstrap"
 fi
 
@@ -255,6 +312,9 @@ fi
 if [[ "${cfg[tui]}" == "1" && "$is_tty" != "1" ]]; then
   cfg[tui]=0
   warnings+=("TUI requested but no TTY is available; disabling TUI")
+fi
+if [[ "$TUI_CANCELLED" == "1" ]]; then
+  blockers+=("TUI canceled by user")
 fi
 if [[ -n "${cfg[answers_file]}" && ! -f "${cfg[answers_file]}" ]]; then
   blockers+=("ANSWERS_FILE not found: ${cfg[answers_file]}")
@@ -310,6 +370,7 @@ cat >"${outputs_dir}/probe_report.json" <<EOF
     "git": ${has_git}
   },
   "tty": ${is_tty}
+  ,"tui_backend": "$(json_escape "${tui_backend}")"
 }
 EOF
 
@@ -324,6 +385,7 @@ cat >"${outputs_dir}/final_config.json" <<EOF
   "ralf_name": "$(json_escape "${cfg[ralf_name]}")",
   "tui_requested": ${cfg[tui_requested]},
   "tui": ${cfg[tui]},
+  "tui_backend": "$(json_escape "${tui_backend}")",
   "non_interactive": ${cfg[non_interactive]},
   "yes": ${cfg[yes]},
   "force": ${cfg[force]},
@@ -604,6 +666,7 @@ cat >"${outputs_dir}/cli_status.json" <<EOF
   "warnings_accepted": ${warnings_accepted},
   "tui_requested": ${cfg[tui_requested]},
   "tui_effective": ${cfg[tui]},
+  "tui_backend": "$(json_escape "${tui_backend}")",
   "owner_name": "$(json_escape "${cfg[owner_name]}")",
   "ralf_name": "$(json_escape "${cfg[ralf_name]}")",
   "warnings": ${warn_json},

@@ -6,6 +6,8 @@ set -euo pipefail
 #
 # One-liner:
 #   curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh | bash
+#   # TUI-friendly alternative:
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh)"
 #
 # Cache-bust:
 #   curl -fsSL "https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh?nocache=$(date +%s)" | bash

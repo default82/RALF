@@ -309,7 +309,6 @@
             | replace('REPLACE_WITH_RALF_PASSWORD', synapse_env.SYNAPSE_ADMIN_PASSWORD_RALF | default(''))
           }}
       loop:
-        - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-create-rooms-and-ping.json", dest: "n8n-matrix-create-rooms-and-ping.json" }
         - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-exo-ping-pong-room.json", dest: "n8n-matrix-exo-ping-pong-room.json" }
 
     - name: List existing n8n workflows
@@ -338,7 +337,6 @@
       args:
         executable: /bin/bash
       loop:
-        - { name: "RALF Matrix - Create Rooms and Ping", file: "n8n-matrix-create-rooms-and-ping.json" }
         - { name: "RALF Matrix Ping Pong (Room Poll)", file: "n8n-matrix-exo-ping-pong-room.json" }
       when: item.name not in (n8n_workflow_list.stdout | default(''))
       register: n8n_seed_imports

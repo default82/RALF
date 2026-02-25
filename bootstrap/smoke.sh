@@ -82,6 +82,8 @@ case "$PHASE" in
   synapse)
     tcp_check 10.10.110.10 8008 synapse-http
     http_check http://10.10.110.10:8008/_matrix/client/versions synapse-client-versions
+    tcp_check 10.10.110.10 443 synapse-webclient-https
+    https_check_insecure https://10.10.110.10/ synapse-webclient
     ;;
   mail)
     tcp_check 10.10.110.20 25 mail-smtp

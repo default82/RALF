@@ -32,6 +32,9 @@ jobs:
           bash -n bootstrap/start.sh
           bash -n bin/ralf
           bash -n ralf
+          bash -n bootstrap/adapters/proxmox_pct.sh
+          bash -n bootstrap/adapters/host.sh
+          bash -n bootstrap/adapters/lxd.sh
           bash -n bootstrap/legacy/start_host.sh
           bash -n bootstrap/legacy/start_lxd.sh
           bash -n bootstrap/release/sign-start.sh

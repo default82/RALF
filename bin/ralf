@@ -346,9 +346,9 @@ phase_policy="completed"
 phase_provisioner="running"
 provisioner_adapter=""
 case "${cfg[provisioner]}" in
-  proxmox_pct) provisioner_adapter="${repo_root}/bootstrap/legacy/start_proxmox_pct.sh" ;;
-  host) provisioner_adapter="${repo_root}/bootstrap/legacy/start_host.sh" ;;
-  lxd) provisioner_adapter="${repo_root}/bootstrap/legacy/start_lxd.sh" ;;
+  proxmox_pct) provisioner_adapter="${repo_root}/bootstrap/adapters/proxmox_pct.sh" ;;
+  host) provisioner_adapter="${repo_root}/bootstrap/adapters/host.sh" ;;
+  lxd) provisioner_adapter="${repo_root}/bootstrap/adapters/lxd.sh" ;;
 esac
 phase_provisioner="completed"
 

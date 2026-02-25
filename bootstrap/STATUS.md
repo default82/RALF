@@ -9,7 +9,7 @@ Der neue Bootstrap-Pfad ist funktionsfaehig und deutlich verbessert:
 - `bootstrap/start.sh` = thin launcher (GitHub one-liner geeignet)
 - `ralf bootstrap` = CLI mit Phasen, Outputs, Exitcodes
 - Provisioner:
-  - `proxmox_pct`: produktiv (Legacy-Adapter)
+  - `proxmox_pct`: produktiv (Adapter)
   - `host`: konservativer Minimal-Adapter (idempotent, Workspace + Artefakte + `ralf-host-runner`)
   - `lxd`: konservativer Minimal-Adapter (idempotent, create-if-missing + Profile-Validierung + Metadata-Stamping + Plan/Metadata-Artefakte)
 
@@ -95,7 +95,7 @@ Zusatz:
 
 Einschraenkung:
 
-- Der Legacy-Proxmox-Adapter bleibt intern noch historisch spezialisiert (alte Defaults/Topologie), d. h. nicht alles ist bereits vollstaendig in `profiles/` + `conventions/` ueberfuehrt.
+- Der Proxmox-Adapter bleibt intern noch historisch spezialisiert (alte Defaults/Topologie), d. h. nicht alles ist bereits vollstaendig in `profiles/` + `conventions/` ueberfuehrt.
 
 ## F) Bootstrap Engine (CLI Contract)
 
@@ -165,5 +165,5 @@ Offen:
 2. `host`-Provisioner von Workspace-Prep Richtung lokalem Runner/Toolchain-Workflow erweitern
 3. `lxd`-Provisioner um Netzwerk-/Profile-Konfig (konservativ, idempotent) erweitern
 4. Minisign Public-Key-Verteilung festlegen/dokumentieren (z. B. README + Release Notes + Website)
-5. Legacy-Proxmox-Defaults schrittweise in `profiles/` / `conventions/` ueberfuehren
+5. Proxmox-Defaults schrittweise in `profiles/` / `conventions/` ueberfuehren
 6. Optional: Adapter-Artefakt-Discovery standardisieren (schema statt provisioner-spezifische Felder)

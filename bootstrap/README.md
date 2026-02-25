@@ -214,9 +214,9 @@ Bootstrap phases:
 
 Provisioner adapter status:
 
-- `proxmox_pct`: delegates to `bootstrap/legacy/start_proxmox_pct.sh`
-- `host`: delegates to `bootstrap/legacy/start_host.sh` (minimal local apply: workspace prepare, no destructive changes, generates `ralf-host-runner`)
-- `lxd`: delegates to `bootstrap/legacy/start_lxd.sh` (minimal apply: validates `lxc`/LXD, create-if-missing, stamps `user.ralf.*` metadata)
+- `proxmox_pct`: delegates to `bootstrap/adapters/proxmox_pct.sh`
+- `host`: delegates to `bootstrap/adapters/host.sh` (minimal local apply: workspace prepare, no destructive changes, generates `ralf-host-runner`)
+- `lxd`: delegates to `bootstrap/adapters/lxd.sh` (minimal apply: validates `lxc`/LXD, create-if-missing, stamps `user.ralf.*` metadata)
   - validates requested `LXD_PROFILE` before create/apply
   - writes LXD adapter artifacts under `OUTPUTS_DIR/lxd/` (`lxd-plan.md`, target/applied metadata JSON)
 

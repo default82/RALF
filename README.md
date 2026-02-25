@@ -74,7 +74,7 @@ Beispiel fuer Answers-Datei:
 
 Provisioner-Status aktuell:
 
-- `proxmox_pct`: produktiv (delegiert an Legacy-Proxmox-Bootstrap)
+- `proxmox_pct`: produktiv (delegiert an `bootstrap/adapters/proxmox_pct.sh`)
 - `host`: konservativer Minimal-Adapter (legt lokales Workspace-Layout an, keine destruktiven Host-Aenderungen)
   - erzeugt `.ralf-host/bin/ralf-host-runner` mit `--check`, `--dry-run`, `--status`, `--artifacts`, `--json`, `--quiet`, guarded `--run` (default non-apply)
 - `lxd`: konservativer Minimal-Adapter (Artefakte + Gatekeeping, erstellt LXD-Instanz falls fehlend und stempelt `user.ralf.*` Metadaten)

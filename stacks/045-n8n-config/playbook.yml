@@ -339,7 +339,7 @@
         executable: /bin/bash
       loop:
         - { name: "RALF Matrix - Create Rooms and Ping", file: "n8n-matrix-create-rooms-and-ping.json" }
-        - { name: "RALF Matrix EXO Ping Pong (Room Poll)", file: "n8n-matrix-exo-ping-pong-room.json" }
+        - { name: "RALF Matrix Ping Pong (Room Poll)", file: "n8n-matrix-exo-ping-pong-room.json" }
       when: item.name not in (n8n_workflow_list.stdout | default(''))
       register: n8n_seed_imports
       changed_when: true

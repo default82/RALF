@@ -1,12 +1,21 @@
 {
-  "name": "RALF Matrix EXO Ping Pong (Room Poll)",
+  "name": "RALF Matrix Ping Pong (Room Poll)",
   "nodes": [
     {
-      "parameters": {},
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 10
+            }
+          ]
+        }
+      },
       "id": "manual-trigger",
-      "name": "Manual Trigger",
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
+      "name": "Poll Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
       "position": [
         240,
         300
@@ -14,7 +23,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {\n  matrixBaseUrl: 'http://10.10.110.10:8008',\n  exoBaseUrl: 'http://10.10.90.10:8085',\n  roomId: '!zgNJyJDjjaRfUYAUQZ:otta.zone',\n  user: 'ralf',\n  password: 'REPLACE_WITH_RALF_PASSWORD',\n  exoModel: 'mlx-community/Llama-3.2-1B-Instruct-4bit',\n};\n\nasync function jfetch(url, options = {}) {\n  const res = await fetch(url, options);\n  let body = null;\n  try { body = await res.json(); } catch { body = {}; }\n  return { res, body };\n}\n\nconst login = await jfetch(`${cfg.matrixBaseUrl}/_matrix/client/v3/login`, {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    type: 'm.login.password',\n    identifier: { type: 'm.id.user', user: cfg.user },\n    password: cfg.password,\n  }),\n});\nif (!login.res.ok || !login.body.access_token) {\n  throw new Error(`Matrix login failed: ${JSON.stringify(login.body)}`);\n}\nconst token = login.body.access_token;\n\nconst sync = await jfetch(`${cfg.matrixBaseUrl}/_matrix/client/v3/sync?timeout=1`, {\n  headers: { Authorization: `Bearer ${token}` },\n});\nif (!sync.res.ok) {\n  throw new Error(`Matrix sync failed: ${JSON.stringify(sync.body)}`);\n}\n\nconst room = sync.body.rooms?.join?.[cfg.roomId];\nconst events = room?.timeline?.events || [];\nconst latestPing = [...events].reverse().find((e) => e.type === 'm.room.message' && e.content?.body === '!ping');\n\nif (!latestPing) {\n  return [{ json: { status: 'no_ping', roomId: cfg.roomId, checkedEvents: events.length } }];\n}\n\nlet reply = 'pong';\nlet exoStatus = 'fallback';\n\nconst exoResp = await jfetch(`${cfg.exoBaseUrl}/v1/chat/completions`, {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    model: cfg.exoModel,\n    messages: [{ role: 'user', content: 'Reply with exactly pong' }],\n    max_tokens: 8,\n  }),\n});\n\nif (exoResp.res.ok) {\n  const exoText = exoResp.body?.choices?.[0]?.message?.content?.trim();\n  if (exoText) {\n    reply = exoText;\n    exoStatus = 'ok';\n  }\n} else {\n  exoStatus = `error_${exoResp.res.status}`;\n}\n\nconst eventId = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;\nconst send = await jfetch(`${cfg.matrixBaseUrl}/_matrix/client/v3/rooms/${encodeURIComponent(cfg.roomId)}/send/m.room.message/${eventId}`, {\n  method: 'PUT',\n  headers: {\n    Authorization: `Bearer ${token}`,\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify({\n    msgtype: 'm.text',\n    body: reply,\n  }),\n});\n\nif (!send.res.ok) {\n  throw new Error(`Matrix send failed: ${JSON.stringify(send.body)}`);\n}\n\nreturn [{ json: {\n  status: 'sent',\n  roomId: cfg.roomId,\n  triggerEventId: latestPing.event_id,\n  exoStatus,\n  reply,\n  sendResponse: send.body,\n  note: 'Wenn exo noch keinen Worker / kein Modell geladen hat, wird pong als Fallback gesendet.'\n} }];"
+        "jsCode": "const cfg = {\n  matrixBaseUrl: 'http://10.10.110.10:8008',\n  roomId: '!zgNJyJDjjaRfUYAUQZ:otta.zone',\n  user: 'ralf',\n  password: 'REPLACE_WITH_RALF_PASSWORD',\n};\n\nasync function jfetch(url, options = {}) {\n  const res = await fetch(url, options);\n  let body = null;\n  try { body = await res.json(); } catch { body = {}; }\n  return { res, body };\n}\n\nconst staticData = getWorkflowStaticData('global');\n\nconst login = await jfetch(`${cfg.matrixBaseUrl}/_matrix/client/v3/login`, {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    type: 'm.login.password',\n    identifier: { type: 'm.id.user', user: cfg.user },\n    password: cfg.password,\n  }),\n});\nif (!login.res.ok || !login.body.access_token) {\n  throw new Error(`Matrix login failed: ${JSON.stringify(login.body)}`);\n}\nconst token = login.body.access_token;\n\nconst qs = new URLSearchParams({ timeout: '1' });\nif (staticData.nextBatch) qs.set('since', staticData.nextBatch);\nconst sync = await jfetch(`${cfg.matrixBaseUrl}/_matrix/client/v3/sync?${qs.toString()}`, {\n  headers: { Authorization: `Bearer ${token}` },\n});\nif (!sync.res.ok) {\n  throw new Error(`Matrix sync failed: ${JSON.stringify(sync.body)}`);\n}\nif (sync.body.next_batch) staticData.nextBatch = sync.body.next_batch;\n\nconst room = sync.body.rooms?.join?.[cfg.roomId];\nconst events = room?.timeline?.events || [];\nconst pings = events.filter((e) => e.type === 'm.room.message' && e.content?.body === '!ping');\nif (!pings.length) {\n  return [{ json: { status: 'no_ping', roomId: cfg.roomId, checkedEvents: events.length } }];\n}\n\nconst results = [];\nfor (const ev of pings) {\n  const eventId = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;\n  const send = await jfetch(`${cfg.matrixBaseUrl}/_matrix/client/v3/rooms/${encodeURIComponent(cfg.roomId)}/send/m.room.message/${eventId}`, {\n    method: 'PUT',\n    headers: {\n      Authorization: `Bearer ${token}`,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify({\n      msgtype: 'm.text',\n      body: '!pong',\n      'm.relates_to': {\n        'm.in_reply_to': { event_id: ev.event_id }\n      }\n    }),\n  });\n\n  if (!send.res.ok) {\n    throw new Error(`Matrix send failed: ${JSON.stringify(send.body)}`);\n  }\n\n  results.push({ triggerEventId: ev.event_id, sendResponse: send.body });\n}\n\nreturn [{ json: {\n  status: 'sent',\n  roomId: cfg.roomId,\n  repliesSent: results.length,\n  replies: results,\n  note: 'Antwortet auf !ping mit !pong im gepollten Raum.'\n} }];"
       },
       "id": "matrix-exo-ping-pong",
       "name": "Poll Room and Reply",
@@ -27,7 +36,7 @@
     }
   ],
   "connections": {
-    "Manual Trigger": {
+    "Poll Trigger": {
       "main": [
         [
           {

@@ -463,6 +463,13 @@
         - semaphore
         - nginx
 
+    - name: Wait for local Semaphore API listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 3000
+        delay: 1
+        timeout: 60
+
     - name: Verify handover toolchain and wrappers
       ansible.builtin.shell: |
         set -euo pipefail
@@ -485,6 +492,9 @@
         RALF_REPO: "{{ ralf_repo }}"
         RALF_RUNTIME: "{{ ralf_runtime }}"
       register: semaphore_seed
+      retries: 5
+      delay: 3
+      until: semaphore_seed.rc == 0
       changed_when: "'CHANGED=1' in semaphore_seed.stdout"
 
   handlers:

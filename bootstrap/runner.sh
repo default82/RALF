@@ -281,13 +281,15 @@ for s in "${stacks[@]}"; do
 
   elif [[ -f "playbook.yml" || -f "playbook.yaml" ]]; then
     inv="$RALF_REPO/inventory/hosts.ini"
+    playbook_file="playbook.yml"
+    [[ -f "playbook.yaml" && ! -f "playbook.yml" ]] && playbook_file="playbook.yaml"
     [[ -f "$inv" ]] || { echo "ERROR: missing inventory: $inv" >&2; exit 1; }
 
     if [[ "$AUTO_APPLY" == "1" ]]; then
       play_output=""
       played=0
       for attempt in $(seq 1 12); do
-        if play_output="$(ansible-playbook -i "$inv" playbook.yml 2>&1)"; then
+        if play_output="$(ansible-playbook -i "$inv" "$playbook_file" 2>&1)"; then
           printf '%s\n' "$play_output"
           played=1
           break
@@ -303,7 +305,7 @@ for s in "${stacks[@]}"; do
       [[ "$played" == "1" ]] || exit 1
     else
       echo "[runner] AUTO_APPLY=0 → ansible remote run skipped; running syntax-check only"
-      ansible-playbook -i "$inv" --syntax-check playbook.yml
+      ansible-playbook -i "$inv" --syntax-check "$playbook_file"
     fi
 
   else

@@ -205,11 +205,21 @@ phase_config_merge="completed"
 
 prompt_with_default() {
   local prompt="$1" def="${2:-}" out=""
+  local tty_in=0
+  [[ -r /dev/tty ]] && tty_in=1
   if [[ -n "$def" ]]; then
-    read -r -p "$prompt [$def]: " out || true
+    if [[ "$tty_in" == "1" ]]; then
+      read -r -p "$prompt [$def]: " out </dev/tty || true
+    else
+      read -r -p "$prompt [$def]: " out || true
+    fi
     printf '%s' "${out:-$def}"
   else
-    read -r -p "$prompt: " out || true
+    if [[ "$tty_in" == "1" ]]; then
+      read -r -p "$prompt: " out </dev/tty || true
+    else
+      read -r -p "$prompt: " out || true
+    fi
     printf '%s' "$out"
   fi
 }

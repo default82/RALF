@@ -448,6 +448,7 @@ if [[ "${cfg[apply]}" == "1" ]]; then
       [[ -n "${cfg[ct_hostname]}" ]] && export CT_HOSTNAME="${cfg[ct_hostname]}"
       [[ -n "${cfg[owner_name]}" ]] && export OWNER_NAME="${cfg[owner_name]}"
       [[ -n "${cfg[ralf_name]}" ]] && export RALF_NAME="${cfg[ralf_name]}"
+      if [[ "${cfg[apply]}" == "1" && "${AUTO_APPLY:-0}" != "1" ]]; then export AUTO_APPLY=1; fi
       if [[ "${cfg[yes]}" == "1" && "${YES:-0}" != "1" ]]; then export YES=1; fi
       if [[ "${cfg[force]}" == "1" && "${FORCE:-0}" != "1" ]]; then export FORCE=1; fi
       set +e

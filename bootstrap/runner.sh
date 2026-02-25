@@ -38,10 +38,28 @@ export TF_VAR_pm_api_url="${PVE_ENDPOINT}"
 export TF_VAR_pm_api_token_id="${PVE_TOKEN_ID}"
 export TF_VAR_pm_api_token_secret="${PVE_TOKEN_SECRET}"
 export TF_VAR_node_name="${PVE_NODE}"
-export TF_VAR_ssh_public_key="$(awk 'NR==1{print;exit}' /root/.ssh/authorized_keys 2>/dev/null || true)"
 if [[ -f /root/.ssh/ralf_ed25519 ]]; then
   export ANSIBLE_PRIVATE_KEY_FILE="/root/.ssh/ralf_ed25519"
 fi
+
+if [[ -z "${TF_VAR_ssh_public_key:-}" ]]; then
+  ssh_pub="$(awk 'NR==1{print;exit}' /root/.ssh/authorized_keys 2>/dev/null || true)"
+  if [[ -n "$ssh_pub" ]]; then
+    export TF_VAR_ssh_public_key="$ssh_pub"
+  fi
+fi
+
+if [[ -z "${TF_VAR_ssh_public_key:-}" && -n "${ANSIBLE_PRIVATE_KEY_FILE:-}" && -f "${ANSIBLE_PRIVATE_KEY_FILE}" ]]; then
+  if command -v ssh-keygen >/dev/null 2>&1; then
+    ssh_pub="$(ssh-keygen -y -f "${ANSIBLE_PRIVATE_KEY_FILE}" 2>/dev/null | head -n1 || true)"
+    if [[ -n "$ssh_pub" ]]; then
+      export TF_VAR_ssh_public_key="$ssh_pub"
+      echo "[runner] Derived TF_VAR_ssh_public_key from ANSIBLE_PRIVATE_KEY_FILE"
+    fi
+  fi
+fi
+
+: "${TF_VAR_ssh_public_key:?missing ssh public key (set TF_VAR_ssh_public_key or provide authorized_keys / ANSIBLE_PRIVATE_KEY_FILE)}"
 
 TFSTATE_REMOTE_ENABLED=0
 if [[ -f "$TFSTATE_ENV" ]]; then

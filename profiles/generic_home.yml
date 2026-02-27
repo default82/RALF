@@ -1,4 +1,0 @@
-PROFILE_NAME: generic_home
-NETWORK_CIDR: 192.168.178.0/24
-BASE_DOMAIN: home.lan
-CT_HOSTNAME: ralf-bootstrap

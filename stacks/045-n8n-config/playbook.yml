@@ -310,6 +310,8 @@
           }}
       loop:
         - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-exo-ping-pong-room.json", dest: "n8n-matrix-exo-ping-pong-room.json" }
+        - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-qa-responder.json", dest: "n8n-matrix-qa-responder.json" }
+        - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-plan-draft.json", dest: "n8n-matrix-plan-draft.json" }
 
     - name: List existing n8n workflows
       ansible.builtin.shell: |
@@ -338,6 +340,8 @@
         executable: /bin/bash
       loop:
         - { name: "RALF Matrix Ping Pong (All Rooms Poll)", file: "n8n-matrix-exo-ping-pong-room.json" }
+        - { name: "RALF Matrix Q&A Responder (All Rooms Poll)", file: "n8n-matrix-qa-responder.json" }
+        - { name: "RALF Matrix Plan Draft (Gatekeeper Poll)", file: "n8n-matrix-plan-draft.json" }
       when: item.name not in (n8n_workflow_list.stdout | default(''))
       register: n8n_seed_imports
       changed_when: true

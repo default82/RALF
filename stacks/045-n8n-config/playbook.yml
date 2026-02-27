@@ -312,6 +312,7 @@
         - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-exo-ping-pong-room.json", dest: "n8n-matrix-exo-ping-pong-room.json" }
         - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-qa-responder.json", dest: "n8n-matrix-qa-responder.json" }
         - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-plan-draft.json", dest: "n8n-matrix-plan-draft.json" }
+        - { src: "{{ playbook_dir }}/../../bootstrap/examples/n8n-matrix-modular-bot.json", dest: "n8n-matrix-modular-bot.json" }
 
     - name: List existing n8n workflows
       ansible.builtin.shell: |
@@ -342,8 +343,39 @@
         - { name: "RALF Matrix Ping Pong (All Rooms Poll)", file: "n8n-matrix-exo-ping-pong-room.json" }
         - { name: "RALF Matrix Q&A Responder (All Rooms Poll)", file: "n8n-matrix-qa-responder.json" }
         - { name: "RALF Matrix Plan Draft (Gatekeeper Poll)", file: "n8n-matrix-plan-draft.json" }
+        - { name: "RALF Matrix Modular Bot (Ingest+Router+Responder)", file: "n8n-matrix-modular-bot.json" }
       when: item.name not in (n8n_workflow_list.stdout | default(''))
       register: n8n_seed_imports
+      changed_when: true
+
+    - name: Publish modular workflow
+      ansible.builtin.shell: |
+        set -euo pipefail
+        export HOME={{ n8n_data_dir }}
+        export N8N_USER_FOLDER={{ n8n_data_dir }}
+        set -a
+        source {{ n8n_env_file }}
+        set +a
+        su -s /bin/bash -c 'n8n publish:workflow --id=6f8f25ae-6d89-4a5f-bf8f-4d55f6200010' {{ n8n_user }}
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Unpublish legacy matrix workflows
+      ansible.builtin.shell: |
+        set -euo pipefail
+        export HOME={{ n8n_data_dir }}
+        export N8N_USER_FOLDER={{ n8n_data_dir }}
+        set -a
+        source {{ n8n_env_file }}
+        set +a
+        su -s /bin/bash -c 'n8n unpublish:workflow --id={{ item }} || true' {{ n8n_user }}
+      args:
+        executable: /bin/bash
+      loop:
+        - 6f8f25ae-6d89-4a5f-bf8f-4d55f6200002
+        - 6f8f25ae-6d89-4a5f-bf8f-4d55f6200003
+        - 6f8f25ae-6d89-4a5f-bf8f-4d55f6200004
       changed_when: true
 
   handlers:

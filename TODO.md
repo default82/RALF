@@ -1,33 +1,32 @@
-# TODO – RALF Umsetzungsplan
+# TODO – RALF MVP
 
-## Phase 0 – Governance einfrieren
+## Phase 0 – Governance
 
-- [ ] Charta, Zielbild und Betriebsverfassung als Version 1.1 bestätigen
-- [ ] Änderungsprozess für kanonische Dokumente verbindlich festlegen
+- [ ] `docs/CHARTA.md`, `docs/ZIELBILD.md`, `docs/BETRIEBSVERFASSUNG.md` als v1.2 bestätigen
+- [ ] Entscheidungsweg und Gate-Regeln als operativen Standard festschreiben
 
-## Phase 1 – Foundation bootstrap (verbindliche Reihenfolge)
+## Phase 1 – Foundation Core
 
-- [ ] MinIO bereitstellen und Bucket-Policy definieren
-- [ ] PostgreSQL bereitstellen und Grundschema verifizieren
+- [ ] MinIO bereitstellen und State-/Artefaktpfad verifizieren
+- [ ] PostgreSQL bereitstellen und Basiszugriff prüfen
 - [ ] Gitea bereitstellen und als kanonisches Remote etablieren
 - [ ] Semaphore bereitstellen und Initial-Templates seeden
-- [ ] Foundation-End-to-End-Smoketest durchführen
+- [ ] Foundation Core End-to-End validieren
 
-## Phase 2 – Sicherheitsbasis
+## Phase 2 – Foundation Services
 
-- [ ] Secret-Handling ohne Klartext im Repo durchsetzen
-- [ ] Least-Privilege-Prinzip auf Dienste und Runner anwenden
-- [ ] Incident-Modus und Eskalationspfad dokumentiert testen
+- [ ] Vaultwarden bereitstellen
+- [ ] Prometheus bereitstellen
+- [ ] Foundation-Smokes vollständig durchführen
 
-## Phase 3 – Erweiterungswellen
+## Phase 3 – Erweiterung
 
-- [ ] Vaultwarden integrieren
-- [ ] Prometheus integrieren
-- [ ] n8n integrieren
-- [ ] KI-Instanz integrieren
+- [ ] n8n bereitstellen
+- [ ] KI-Instanz bereitstellen
+- [ ] Erweiterungs-Smokes durchführen
 
 ## Phase 4 – Betriebsreife
 
-- [ ] Regelmäßige Drift-/Health-Checks etablieren
-- [ ] Verifizierungs- und Rollback-Pfade je Dienst dokumentieren
-- [ ] Jede Änderung mit Gate-Status und Artefaktnachweis abschließen
+- [ ] Semaphore-first Betrieb als Standard festlegen
+- [ ] regelmäßige Drift-/Health-Checks etablieren
+- [ ] jede Änderung mit Gate-Status und Nachweis abschließen

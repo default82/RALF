@@ -1,124 +1,88 @@
 # RALF – Zielbild
 
-Version 1.1 – Kanonisch
+Version 1.2 – Kanonisch (MVP)
 
-## 1. Kernidee
+## 1. Zweck
 
-RALF ist die Radnabe des Homelabs.
+RALF betreibt ein Proxmox-Homelab reproduzierbar, kontrolliert und dokumentiert.
 
-Alle Infrastruktur-, Automatisierungs- und Entscheidungsprozesse laufen strukturiert über RALF:
+RALF ist:
 
-- Artefakte erzeugen
-- kontrolliert ausführen
-- Ergebnisse validieren
-- Lernen dokumentieren
+- Orchestrator
+- Entscheidungsstütze
+- Dokumentationsinstanz
 
-## 2. Geltungsbereich und Nicht-Ziele
+RALF ist nicht:
 
-### Geltungsbereich
+- autonomer Executor ohne Freigabe
+- Blackbox
+- Docker-zentriert
 
-- Betrieb eines lokalen Homelabs auf Proxmox
-- Infrastruktur-Orchestrierung für LXC-basierte Dienste
-- nachvollziehbarer Übergang in einen stabilen Semaphore-first-Betrieb
+## 2. Leitplanken
 
-### Nicht-Ziele
+- Plattform: Proxmox
+- Betriebsform: LXC-first
+- Netzwerk: `10.10.0.0/16`
+- Gatekeeping: `OK | Warnung | Blocker`
+- Priorität: Stabilität vor Geschwindigkeit
 
-- kein autonomes Self-Deployment ohne Freigabe
-- kein blindes Internet-Exposing
-- kein Docker-basierter Primärbetrieb
+## 3. Basisdienste (Foundation)
 
-## 3. Technisches Fundament
+1. MinIO
+2. PostgreSQL
+3. Gitea
+4. Semaphore
+5. Vaultwarden
+6. Prometheus
+7. n8n
+8. KI-Instanz (lokal)
 
-### Plattform
+## 4. Verbindliche Bootstrap-Phasen
 
-- Proxmox
-- LXC-first
-- VM nur bei technischer Notwendigkeit (z. B. GPU/Passthrough)
+### Phase 0 – Vorbereitung
 
-### Netzwerk
+- Eingaben, Netz, IDs, Ressourcen prüfen
+- Secrets-Quellen prüfen
+- Start nur bei `OK` oder bewusst bestätigter `Warnung`
 
-- Primärnetz: `10.10.0.0/16`
-- Segmentierung nach Funktionsgruppen
-- CTID-Ableitung aus dem Adressschema
+### Phase 1 – Foundation Core
 
-### Persistenz & Source of Truth
+- MinIO deployen und State/Artefakt-Pfad aktivieren
+- PostgreSQL deployen und Basiszugriff prüfen
+- Gitea deployen und internes kanonisches Remote bereitstellen
+- Semaphore deployen und Templates/Runpfade seeden
 
-- MinIO: State-/Artefakt-Storage
-- Gitea: kanonische Git-Quelle (intern)
-- PostgreSQL: Status-, Wissens- und Ereignisspeicher
+### Phase 2 – Foundation Services
 
-## 4. Basisdienste (Initiale Säulen)
+- Vaultwarden deployen
+- Prometheus deployen
+- Foundation-Smokes vollständig ausführen
 
-- MinIO
-- PostgreSQL
-- Gitea
-- Semaphore
-<<<<<<< HEAD
-=======
-- MinIO
->>>>>>> f200d596326529e49fcd13e611cc042e296ea1ba
-- Vaultwarden
-- Prometheus
-- n8n
-- KI-Instanz (lokal)
+### Phase 3 – Erweiterung
 
-Diese Dienste bilden das stabile Fundament.
+- n8n und KI-Dienste ausrollen
+- weitere Domänen (z. B. Kommunikation) nur nach Gates
 
-## 5. Zielreihenfolge für den Bootstrap
+### Phase 4 – Betriebsmodus
 
-1. MinIO bereitstellen (Remote-State/Artefakte)
-2. PostgreSQL bereitstellen (gemeinsame Datenbasis)
-3. Gitea bereitstellen (internes kanonisches Remote)
-4. Semaphore bereitstellen und seeden
-5. Foundation validieren, danach Erweiterungswellen ausrollen
+- Semaphore-first als Standardbetrieb
+- jeder Change mit Gate-Status und Nachweis
+- Drift-/Health-Checks regelmäßig durchführen
 
-## 6. Betriebsmodell
+## 5. Done-Kriterien je Phase
 
-RALF arbeitet als:
+Eine Phase gilt nur als abgeschlossen, wenn:
 
-- Hub, nicht Pipeline
-- Orchestrator, nicht Executor
-- Dokumentierer, nicht Blackbox
+- definierte Dienste laufen
+- Smoke/Verify erfolgreich sind
+- Gate-Status dokumentiert ist
+- Artefakte abgelegt sind
 
-Jeder Schritt endet in einem Gate-Status:
+## 6. Langfristige Richtung
 
-- OK
-- Warnung
-- Blocker
+RALF entwickelt sich zu einem kontrollierten Infrastruktur-Betriebssystem für das Homelab:
 
-## 7. Qualitätsziele
-
-- Stabilität vor Geschwindigkeit
-- Nachvollziehbarkeit vor Autonomie
-- Reproduzierbarkeit vor Komfort
-- konservative Ressourcenplanung
-
-## 8. Entwicklungsziel
-
-RALF soll:
-
-1. Dienste vorschlagen
-2. Ressourcen und Risiken prüfen
-3. Artefakte erzeugen
-4. Deployment vorbereiten
-5. mit Freigabe ausführen
-6. validieren und überwachen
-7. Verbesserungen aus Betriebserfahrungen ableiten
-
-## 9. Langfristige Vision
-
-<<<<<<< HEAD
-Nach dem Bootstrap kann RALF kontrolliert weitere Domänen orchestrieren (z. B. Kommunikation, KI, Integrationen), ohne seine Governance-Prinzipien zu brechen.
-=======
----
-
-## 6. Langfristige Vision
-
-Nach dem Bootstrap kann RALF selbständig orchestrieren:
-
-- Matrix/Synapse
-- Domainfreigaben in OPNsense
-- weitere Dienste
-
-RALF wird zu einem selbstreflektierenden, kontrollierten Infrastruktur-Betriebssystem.
->>>>>>> f200d596326529e49fcd13e611cc042e296ea1ba
+- lernfähig
+- nachvollziehbar
+- revisionsfest
+- freigabegeführt

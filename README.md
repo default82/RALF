@@ -11,6 +11,18 @@ Der aktuelle Fokus ist ein reproduzierbarer Bootstrap mit fruehem Handover zu `S
 
 Danach werden weitere Dienste ueber Semaphore-Tasks ausgerollt (u. a. `Vaultwarden`, `n8n`, `Synapse`, `Mail`, `exo`).
 
+## Festgelegte Basiswerte (2026-02-28)
+
+- Primaere Domain: `otta.zone`
+- Netzwerk: `10.10.0.0/16`
+- Bootstrap-Netz (temporaer): `10.10.250.0/24`
+- Bootstrap-Lifecycle: explizit `ephemeral`, nach Erfolg stoppen und manuell loeschen
+- Foundation (Welle 1): `PostgreSQL`, `Gitea`, `Semaphore`, `Prometheus`, `Vaultwarden`
+- Welle 2: `n8n`, `Exo`, `Ollama`, `Synapse+Element`
+- Kanonische Variablen/Policy: `bootstrap/VARS.md`
+- Kanonische Checks/Gates: `bootstrap/CHECKS.md`
+- Beispiel-Answers fuer diesen Stand: `bootstrap/examples/answers.otta.zone.yml`
+
 ## Zielbild (Auszug)
 
 - Infrastruktur mit `OpenTofu` + `Terragrunt`
@@ -25,6 +37,35 @@ Danach werden weitere Dienste ueber Semaphore-Tasks ausgerollt (u. a. `Vaultward
 - `inventory/` - Ansible-Inventar
 
 ## Einstieg
+
+### Runner (lokal, aktueller Stand)
+
+```bash
+bash bootstrap/runner.sh --answers-file bootstrap/examples/answers.otta.zone.yml --outputs-dir ./outputs
+```
+
+Optional mit Gate + Apply:
+
+```bash
+ACK=DEPLOY bash bootstrap/runner.sh --apply --outputs-dir ./outputs
+```
+
+Hinweis: `--apply` fuehrt jetzt echte `pct create/start`-Provisionierung fuer Foundation + Welle 2 aus
+(`postgres`, `gitea`, `semaphore`, `prometheus`, `vaultwarden`, `n8n`, `minio`, `exo_*`, `ollama_llm`, `matrix_element`).
+Der Runner schreibt dabei u. a. `checkpoints.json`, `cleanup_manifest.json`, `handover_report.json`, `endpoints.md`.
+
+### Seed + Runner (Stufe A -> B)
+
+```bash
+bash bootstrap/start.sh --answers-file bootstrap/examples/answers.otta.zone.yml --outputs-dir ./outputs
+```
+
+Mit Integritaetspruefung (SHA256) fuer den Runner:
+
+```bash
+RUNNER_SHA256="<sha256_von_bootstrap_runner.sh>" \
+bash bootstrap/start.sh --runner-path bootstrap/runner.sh --verify-only
+```
 
 ### Bootstrap One-Liner (Quick Start, unsicher)
 
@@ -41,7 +82,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/boot
 ### Parametrisierter One-Liner
 
 ```bash
-PROVISIONER=host PROFILE=generic_home NETWORK_CIDR=192.168.178.0/24 BASE_DOMAIN=home.lan TUI=1 \
+PROVISIONER=host PROFILE=ops NETWORK_CIDR=10.10.0.0/16 BASE_DOMAIN=otta.zone TUI=1 \
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/default82/RALF/main/bootstrap/start.sh)"
 ```
 
@@ -72,7 +113,7 @@ Unterstuetzte ENV-Parameter (`bootstrap/start.sh` -> `ralf bootstrap`):
 
 Beispiel fuer Answers-Datei:
 
-- `bootstrap/examples/answers.generic_home.yml`
+- `bootstrap/examples/answers.otta.zone.yml` (empfohlen fuer den aktuellen Zielstand)
 
 Provisioner-Status aktuell:
 

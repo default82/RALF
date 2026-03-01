@@ -1,169 +1,53 @@
-# Bootstrap Status (Spec vs Current Stand)
+# Bootstrap Status
 
-Stand: `main` branch (see latest commit in `git log -1`)
+Stand: 2026-02-28
 
-## Summary
+## Kurzfazit
 
-Der neue Bootstrap-Pfad ist funktionsfaehig und deutlich verbessert:
+Die Planungsbasis fuer den neuen RALF-Bootstrap ist jetzt als verbindliche
+Dokumentations-Spezifikation im Repo abgelegt.
 
-- `bootstrap/start.sh` = thin launcher (GitHub one-liner geeignet)
-- `ralf bootstrap` = CLI mit Phasen, Outputs, Exitcodes
-- Provisioner:
-  - `proxmox_pct`: produktiv (Adapter)
-  - `host`: konservativer Minimal-Adapter (idempotent, Workspace + Artefakte + `ralf-host-runner`)
-  - `lxd`: konservativer Minimal-Adapter (idempotent, create-if-missing + Profile-Validierung + Metadata-Stamping + Plan/Metadata-Artefakte)
+Aktueller Scope dieses Repos:
 
-## A) Quick Start (unsafe)
+- Architektur- und Policy-Definitionen sind konkretisiert
+- Variablenkatalog + Beispiel-Answers sind vorhanden
+- Gatekeeping- und Artefakt-Vertrag sind dokumentiert
+- Seed-Launcher ist implementiert (`bootstrap/start.sh`)
+- Runner ist implementiert (`bootstrap/runner.sh`)
+- Foundation + Welle 2 CT-Provisionierung kann per `pct` laufen (`--apply`)
 
-Status: `ERFUELLT`
+Noch offen:
 
-- `curl .../bootstrap/start.sh | bash` unterstuetzt
-- Launcher funktioniert mit Defaults
-- `PROVISIONER` autodetect implementiert
+- externe Runner-Bundle-Distribution (Release-Assets + Signaturfluss) final anbinden
+- Service-Konfiguration innerhalb der CTs (Ansible/OpenTofu-Stacks) nach Provisionierung
+- automatische Handover-Logik auf Gitea + Semaphore-Seeding
+- Welle 2 Deployment- und Verifikationskette (n8n, KI, Matrix/Element, MinIO-Proof via Semaphore)
 
-## B) Parametrisierter One-Liner
+## Abgedeckte Entscheidungen (2026-02-28)
 
-Status: `WEITGEHEND ERFUELLT`
+- LXC-first
+- `10.10.0.0/16` als dauerhaftes Netzschema
+- `10.10.250.0/24` als temporaeres Bootstrap-Netz
+- Foundation-Welle 1 inkl. fester IP-Reservierungen
+- Welle 2 (n8n, Exo, Ollama, Matrix/Element) inkl. fester IPs
+- Gatekeeping mit `ok/warn/blocker`, Default-Ack und `--yes`/`ACK=DEPLOY`
+- Ephemeral-Bootstrap-Lifecycle mit manuellem Delete
+- GitHub als Distribution, Gitea als kanonische Wahrheit
 
-Unterstuetzt:
+## Dokumente (kanonisch)
 
-- `PROVISIONER`
-- `PROFILE`
-- `NETWORK_CIDR`
-- `BASE_DOMAIN`
-- `CT_HOSTNAME`
-- `OWNER_NAME`
-- `RALF_NAME`
-- `TUI`
-- `NON_INTERACTIVE`
-- `YES`
-- `FORCE`
-- `ANSWERS_FILE`
-- `EXPORT_ANSWERS`
-- `OUTPUTS_DIR` (zusaetzliche Erweiterung)
+- `bootstrap/ARCHITEKTUR.md`
+- `bootstrap/CHECKS.md`
+- `bootstrap/VARS.md`
+- `bootstrap/examples/answers.otta.zone.yml`
 
-Autodetect:
+## Definition of Done (Phase 1)
 
-- `pct` -> `proxmox_pct`
-- `lxc` -> `lxd`
-- sonst `host`
+Phase 1 gilt als erreicht, wenn mindestens:
 
-## C) Danger Zone (Pinned Commit + SHA256)
+- Gitea erreichbar und Repo-Seed vorhanden
+- Semaphore erreichbar und Templates vorhanden
+- n8n erreichbar
+- PostgreSQL erreichbar (`ralf_db`, `ralf_user`)
 
-Status: `ERFUELLT`
-
-- Doku vorhanden (`bootstrap/README.md`)
-- Hash-Erzeugung fuer Maintainer dokumentiert
-- Launcher funktioniert mit gepinntem Commit (`RALF_REF=<commit>`)
-
-## D) Production-ish (Release + minisign)
-
-Status: `WEITGEHEND ERFUELLT`
-
-Erfuellt:
-
-- Doku fuer Nutzerflow vorhanden (`minisign -Vm`)
-- Doku fuer Maintainer (Keygen/Sign) vorhanden
-- CI-Workflow vorhanden fuer Release-/Dispatch-Signierung und Upload der Release-Artefakte
-- `bootstrap/release/sign-start.sh` vorhanden fuer reproduzierbare lokale/CI-Signierung
-- `bootstrap/release/print-start-integrity.sh` vorhanden fuer Commit+SHA256 Ausgabe (Danger-Zone Flow)
-- separater CI-Selfcheck-Workflow fuer Launcher/CLI/Adapter-Grundpfade vorhanden
-- lokales Pendant vorhanden: `bootstrap/selfcheck.sh` (voll/quick)
-- CI nutzt zusaetzlich `bootstrap/selfcheck.sh --quick` (geringeres Drift-Risiko zwischen lokal/CI)
-
-Offen:
-
-- Reale `bootstrap/release/minisign.pub` noch nicht eingecheckt (nur `.example` Template vorhanden)
-- CI-Workflow braucht konfiguriertes Secret `MINISIGN_SECRET_KEY_B64`
-
-## E) start.sh Responsibilities
-
-Status: `WEITGEHEND ERFUELLT`
-
-Erfuellt:
-
-1. Self-check (`bash`, `curl`)
-2. Repo-Fetch:
-   - via `git` wenn vorhanden
-   - tarball fallback wenn `git` fehlt
-3. Delegation an `./ralf bootstrap`
-
-Zusatz:
-
-- Tarball-URL-Auswahl ist ref-typ-aware (`branch` / `tag` / `commit`)
-- Git-Fetch-Pfad nutzt zusaetzliche Fallbacks fuer `refs/tags/*` (neben branch/commit-Aufloesung)
-
-Einschraenkung:
-
-- Der Proxmox-Adapter bleibt intern noch historisch spezialisiert (alte Defaults/Topologie), d. h. nicht alles ist bereits vollstaendig in `profiles/` + `conventions/` ueberfuehrt.
-
-## F) Bootstrap Engine (CLI Contract)
-
-Status: `WEITGEHEND ERFUELLT`
-
-Erfuellt:
-
-- `ralf bootstrap [options]`
-- Phasenmodell (Probe, Config merge, Policy, Provisioner, Artifacts, Optional apply)
-- Outputs werden immer geschrieben:
-  - `probe_report.json`
-  - `final_config.json`
-  - `checkpoints.json`
-  - `answers.yml`
-  - `plan_summary.md`
-  - `cli_status.json`
-- Exitcodes:
-  - `0` ok
-  - `1` warn
-  - `2` blocker/error
-
-Zusatz:
-
-- `adapter_report_file` in `cli_status.json`
-- `adapter_report_exists` in `cli_status.json` (explizit fuer no-apply/apply Unterscheidung)
-- `adapter_artifacts` in `cli_status.json` (maschinenlesbare Artefaktliste mit `exists`)
-- `OUTPUTS_DIR` / `--outputs-dir` fuer Run-Isolation
-- Launcher normalisiert relative Pfade fuer `ANSWERS_FILE` / `EXPORT_ANSWERS` / `OUTPUTS_DIR` relativ zum Aufrufverzeichnis
-- `plan_summary.md` listet Adapter-Artefakte (`present` / `missing`)
-- `host`-Wrapper `--status --json` spiegelt Host-Artefakte ebenfalls maschinenlesbar
-- `host`-Wrapper `--run` fuehrt jetzt gated `bootstrap/runner.sh` aus (Default: non-apply; Apply zusaetzlich blockiert ohne Freigabe)
-- Volllauf-Guard im Host-Wrapper: `RUN_STACKS=1` ohne `ONLY_STACKS`/`START_AT` blockiert standardmaessig
-- `tui_requested` / `tui_effective` / `tui_backend` in Outputs fuer transparente TUI-Gating-Entscheidungen
-- Beispiel-Answers-Datei fuer `ANSWERS_FILE` vorhanden (`bootstrap/examples/answers.generic_home.yml`)
-
-Offen / Ausbau:
-
-- Vollwertige nicht-Proxmox-Provisioner (host/lxd derzeit konservative Minimal-Adapter)
-- Tieferer Config-Merge (komplexes YAML, nested structures, validation)
-- Host-Runner fuehrt `bootstrap/runner.sh` gated aus, aber der Host-Pfad bleibt insgesamt konservativ (keine impliziten Applies; Secrets/Tools weiterhin Voraussetzung)
-
-## G) TUI (optional)
-
-Status: `WEITGEHEND ERFUELLT`
-
-Erfuellt:
-
-- `TUI=1` / `--tui` Flags vorhanden
-- `--no-tui`
-- `NON_INTERACTIVE=1` deaktiviert TUI
-- Gatekeeping/Warnings fuer TTY/NON_INTERACTIVE
-- TUI default aktiv bei TTY (wenn nicht explizit deaktiviert)
-- Backend-Reihenfolge: `dialog` -> `whiptail` -> Prompt-Fallback
-- `curl | bash` TUI-Prompts lesen von `/dev/tty`
-- Bestandsprobe fuer lokale Secrets/Domain/Namen
-- Interaktive Eingaben fuer Domain / Owner / RALF Name
-- Passwort-Summary (`password_summary.md` / `.json`) wird erzeugt und ausgegeben
-
-Offen:
-
-- Keine mehrstufige Review-/Wizard-TUI mit finaler Bestaetigungsseite vor Apply
-- Passwort-Summary ist aktuell Ausgabe/Artefakt, aber keine separate interaktive Abschlussansicht im TUI-Dialogfluss
-
-## Aktuelle naechste sinnvolle Schritte
-
-1. Mehrstufige TUI-Review/Confirm vor Apply (optional) ergänzen
-2. `host`-Provisioner von Workspace-Prep Richtung lokalem Runner/Toolchain-Workflow erweitern
-3. `lxd`-Provisioner um Netzwerk-/Profile-Konfig (konservativ, idempotent) erweitern
-4. Minisign Public-Key-Verteilung festlegen/dokumentieren (z. B. README + Release Notes + Website)
-5. Proxmox-Defaults schrittweise in `profiles/` / `conventions/` ueberfuehren
-6. Optional: Adapter-Artefakt-Discovery standardisieren (schema statt provisioner-spezifische Felder)
+Erst danach gilt "Foundation lebt" fuer die weitere Automation.

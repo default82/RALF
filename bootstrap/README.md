@@ -1,5 +1,11 @@
 ## Bootstrap Start Modes
 
+Aktueller Implementierungsstand in diesem Repo:
+
+- `bootstrap/start.sh`: Seed-Stufe (Preflight, optional SHA256/minisign, Runner-Start)
+- `bootstrap/runner.sh`: Runner (Checkpoints A-D, Artefakt-Vertrag, Gatekeeping, Foundation-Welle-1 `pct`-Apply)
+- Historische Hinweise unten koennen Teile referenzieren, die in diesem reduzierten Tree noch fehlen.
+
 ### 1) Quick Start (unsafe)
 
 ```bash
@@ -90,7 +96,7 @@ Additionally, `bootstrap-selfcheck.yml` validates:
 - shell syntax for launcher/CLI/adapters/release helpers
 - `ralf bootstrap` host/lxd CLI paths (including expected no-`lxc` blocker)
 - TUI policy behavior (`TUI=1` + `NON_INTERACTIVE=1`)
-- `ANSWERS_FILE` merge using `bootstrap/examples/answers.generic_home.yml`
+- `ANSWERS_FILE` merge using `bootstrap/examples/answers.otta.zone.yml`
 - launcher end-to-end path using local `file://` repo checkout
 - launcher ref handling checks including local tag ref
 - integrity helper output (`bootstrap/release/print-start-integrity.sh`)
@@ -189,14 +195,14 @@ Example (`cli_status.json` excerpt):
 Optional:
 
 - `OUTPUTS_DIR` / `--outputs-dir` to isolate outputs per run (useful for sequential comparisons)
-- example answers file: `bootstrap/examples/answers.generic_home.yml`
+- example answers file: `bootstrap/examples/answers.otta.zone.yml`
 - launcher resolves relative `ANSWERS_FILE` / `EXPORT_ANSWERS` / `OUTPUTS_DIR` paths against the caller's current directory
 
 Example:
 
 ```bash
 OUTPUTS_DIR=/tmp/ralf-bootstrap-run1 ./ralf bootstrap --provisioner host --apply --yes
-./ralf bootstrap --provisioner host --answers-file bootstrap/examples/answers.generic_home.yml
+./bootstrap/start.sh --answers-file bootstrap/examples/answers.otta.zone.yml
 ```
 
 Exit codes:

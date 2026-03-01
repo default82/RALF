@@ -34,6 +34,39 @@ Diese drei Dokumente sind bindend.
 Danach folgen Foundation-Services (`Vaultwarden`, `Prometheus`) und Erweiterungen (`n8n`, KI).
 Details zu Phase 2/3 stehen in `docs/ZIELBILD.md`.
 
+## Start (ein Befehl aus Bash)
+
+Empfohlen direkt auf dem Proxmox-Knoten:
+
+```bash
+bash bootstrap/start.sh
+```
+
+Das Skript führt eine einfache interaktive Abfrage durch und startet danach den `bootrunner`.
+
+## Best-Practice Startpfad
+
+1. Erst im Plan-Modus starten (Default):
+
+```bash
+bash bootstrap/start.sh
+```
+
+2. Danach bewusst mit Apply starten:
+
+```bash
+bash bootstrap/start.sh --apply
+```
+
+3. Für automatisierte Läufe ohne Rückfragen:
+
+```bash
+bash bootstrap/start.sh --apply --yes --non-interactive --config bootstrap/bootstrap.env
+```
+
+Hinweis: Die eigentliche Deploy-Logik hängt an Hook-Skripten unter `bootstrap/hooks/*.sh`.
+Die Core-Hooks `010` bis `040` führen im `--apply` Modus idempotente LXC-Provisionierung via `pct` aus.
+
 ## Leitplanken
 
 - LXC-first

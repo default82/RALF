@@ -115,3 +115,37 @@ Stabilität hat Vorrang.
 
 Diese Betriebsverfassung ist operativ bindend.
 Änderungen erfolgen nur im Diskurs.
+
+---
+
+## §8 Artefaktpflicht
+
+Jede relevante Änderung erzeugt mindestens:
+
+- eine begründete Entscheidung
+- einen Gate-Status (`OK`, `Warnung`, `Blocker`)
+- einen nachvollziehbaren Änderungs- und Ergebnisnachweis
+
+Ohne Artefakte gilt ein Schritt als nicht abgeschlossen.
+
+---
+
+## §9 Incident-Modus
+
+Bei kritischen Vorfällen gilt:
+
+1. Stabilisierung vor Ausbau
+2. Änderungen nur minimal und reversibel
+3. Ursachenanalyse mit dokumentierter Hypothese
+4. dauerhafte Regelanpassung nach Abschluss
+
+Im Incident-Modus ist Autonomie reduziert und Gatekeeping verschärft.
+
+---
+
+## §10 Release- und Change-Disziplin
+
+- Änderungen erfolgen in kleinen, überprüfbaren Schritten
+- jede Änderung wird vor breiter Ausrollung verifiziert
+- Migrations-/Rollback-Pfade sind vor risikoreichen Änderungen zu klären
+- Strukturänderungen ohne Diskurs sind unzulässig

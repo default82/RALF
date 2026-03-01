@@ -1,53 +1,74 @@
 # RALF – Zielbild
 
+Version 1.1 – Kanonisch
+
 ## 1. Kernidee
 
 RALF ist die Radnabe des Homelabs.
 
-Alle Infrastruktur-, Automatisierungs- und Entscheidungsprozesse laufen strukturiert über ihn.
+Alle Infrastruktur-, Automatisierungs- und Entscheidungsprozesse laufen strukturiert über RALF:
 
-Er erzeugt Artefakte.
-Er stößt kontrollierte Ausführungen an.
-Er beobachtet Ergebnisse.
-Er lernt.
+- Artefakte erzeugen
+- kontrolliert ausführen
+- Ergebnisse validieren
+- Lernen dokumentieren
 
----
+## 2. Geltungsbereich und Nicht-Ziele
 
-## 2. Technisches Fundament
+### Geltungsbereich
+
+- Betrieb eines lokalen Homelabs auf Proxmox
+- Infrastruktur-Orchestrierung für LXC-basierte Dienste
+- nachvollziehbarer Übergang in einen stabilen Semaphore-first-Betrieb
+
+### Nicht-Ziele
+
+- kein autonomes Self-Deployment ohne Freigabe
+- kein blindes Internet-Exposing
+- kein Docker-basierter Primärbetrieb
+
+## 3. Technisches Fundament
 
 ### Plattform
+
 - Proxmox
 - LXC-first
-- VM nur bei technischer Notwendigkeit (z. B. GPU-Passthrough)
+- VM nur bei technischer Notwendigkeit (z. B. GPU/Passthrough)
 
 ### Netzwerk
-- 10.10.0.0/16
-- CTID = letzte zwei Oktette der IP
+
+- Primärnetz: `10.10.0.0/16`
 - Segmentierung nach Funktionsgruppen
+- CTID-Ableitung aus dem Adressschema
 
-### Storage
-- MinIO als State-Backend
-- Git (Gitea) als Source of Truth
-- PostgreSQL als Wissens- und Statusspeicher
+### Persistenz & Source of Truth
 
----
+- MinIO: State-/Artefakt-Storage
+- Gitea: kanonische Git-Quelle (intern)
+- PostgreSQL: Status-, Wissens- und Ereignisspeicher
 
-## 3. Basisdienste (Initiale Säulen)
+## 4. Basisdienste (Initiale Säulen)
 
+- MinIO
 - PostgreSQL
 - Gitea
-- Semaphore (Bootstrap-Container wird Semaphore)
-- MinIO
+- Semaphore
 - Vaultwarden
 - Prometheus
-- KI-Instanz (lokal)
 - n8n
+- KI-Instanz (lokal)
 
 Diese Dienste bilden das stabile Fundament.
 
----
+## 5. Zielreihenfolge für den Bootstrap
 
-## 4. Betriebsmodell
+1. MinIO bereitstellen (Remote-State/Artefakte)
+2. PostgreSQL bereitstellen (gemeinsame Datenbasis)
+3. Gitea bereitstellen (internes kanonisches Remote)
+4. Semaphore bereitstellen und seeden
+5. Foundation validieren, danach Erweiterungswellen ausrollen
+
+## 6. Betriebsmodell
 
 RALF arbeitet als:
 
@@ -55,30 +76,31 @@ RALF arbeitet als:
 - Orchestrator, nicht Executor
 - Dokumentierer, nicht Blackbox
 
----
+Jeder Schritt endet in einem Gate-Status:
 
-## 5. Entwicklungsziel
+- OK
+- Warnung
+- Blocker
+
+## 7. Qualitätsziele
+
+- Stabilität vor Geschwindigkeit
+- Nachvollziehbarkeit vor Autonomie
+- Reproduzierbarkeit vor Komfort
+- konservative Ressourcenplanung
+
+## 8. Entwicklungsziel
 
 RALF soll:
 
-1. selbstständig einen Dienst vorschlagen
-2. dessen Ressourcen prüfen
+1. Dienste vorschlagen
+2. Ressourcen und Risiken prüfen
 3. Artefakte erzeugen
 4. Deployment vorbereiten
 5. mit Freigabe ausführen
-6. validieren
-7. überwachen
+6. validieren und überwachen
+7. Verbesserungen aus Betriebserfahrungen ableiten
 
-Ab diesem Punkt steht RALF „auf eigenen Beinen“.
+## 9. Langfristige Vision
 
----
-
-## 6. Langfristige Vision
-
-Nach dem Bootstrap kann RALF selbständig orchestrieren:
-
-- Matrix/Synapse
-- Domainfreigaben in OPNsense
-- weitere Dienste
-
-RALF wird zu einem selbstreflektierenden, kontrollierten Infrastruktur-Betriebssystem.
+Nach dem Bootstrap kann RALF kontrolliert weitere Domänen orchestrieren (z. B. Kommunikation, KI, Integrationen), ohne seine Governance-Prinzipien zu brechen.

@@ -10,6 +10,13 @@ RALF ist ein freigabegeführtes Infrastruktur-Betriebssystem für ein Proxmox-Ho
 
 Diese drei Dokumente sind bindend.
 
+## Release-Ready Snapshot
+
+- Stand: 2026-03-01
+- `docs/CHARTA.md`: Version 1.2 – Kanonisch (MVP)
+- `docs/ZIELBILD.md`: Version 1.2 – Kanonisch (MVP)
+- `docs/BETRIEBSVERFASSUNG.md`: Version 1.2 – Kanonisch (MVP)
+
 ## Foundation (verbindliche Reihenfolge)
 
 1. MinIO

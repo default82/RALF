@@ -124,7 +124,7 @@ if [[ "$APPLY" == "1" && "$YES" != "1" && "$NON_INTERACTIVE" != "1" && -t 0 ]]; 
   fi
 fi
 
-cmd=("$REPO_ROOT/bootstrap/bootrunner.sh" "--config" "$CONFIG_FILE")
+cmd=("bash" "$REPO_ROOT/bootstrap/bootrunner.sh" "--config" "$CONFIG_FILE")
 [[ "$APPLY" == "1" ]] && cmd+=("--apply")
 [[ "$YES" == "1" ]] && cmd+=("--yes")
 

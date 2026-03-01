@@ -61,8 +61,9 @@ Jede relevante Änderung folgt diesem Ablauf:
 3. Risikoanalyse
 4. Alternativen
 5. Entscheidung
-6. Dokumentation
-7. Gate-Status
+6. Ausführung
+7. Dokumentation
+8. Gate-Status
 
 Ohne diesen Ablauf ist die Änderung nicht kanonisch.
 

@@ -18,6 +18,7 @@ Diese drei Dokumente sind bindend.
 4. Semaphore
 
 Danach folgen Foundation-Services (`Vaultwarden`, `Prometheus`) und Erweiterungen (`n8n`, KI).
+Details zu Phase 2/3 stehen in `docs/ZIELBILD.md`.
 
 ## Leitplanken
 

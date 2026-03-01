@@ -8,13 +8,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck disable=SC1091
 source "$REPO_ROOT/bootstrap/lib/proxmox_lxc.sh"
+# shellcheck disable=SC1091
+source "$REPO_ROOT/bootstrap/lib/service_init.sh"
 
 mode="${RALF_MODE:-plan}"
 runtime_dir="${RALF_RUNTIME_DIR:-/opt/ralf/runtime}"
 mkdir -p "$runtime_dir/state"
 
 vmid="3010"
-hostname="minio"
+hostname="minio-svc"
 ip_cidr="10.10.30.10/16"
 
 gateway="${RALF_GATEWAY:-10.10.0.1}"
@@ -37,6 +39,7 @@ if [[ "$mode" == "plan" ]]; then
   fi
 else
   ensure_lxc "$vmid" "$hostname" "$ip_cidr" "$gateway" "$bridge" "$cores" "$mem_mb" "$disk_gb" "$storage" "$template_storage" "$template_name" "$ssh_pubkey_file"
+  init_minio_service "$vmid"
   log "APPLY: MinIO LXC bereitgestellt."
 fi
 

@@ -17,6 +17,13 @@ Diese drei Dokumente sind bindend.
 - `docs/ZIELBILD.md`: Version 1.2 – Kanonisch (MVP)
 - `docs/BETRIEBSVERFASSUNG.md`: Version 1.2 – Kanonisch (MVP)
 
+## Versionierungsregel (Kanon)
+
+- Patch (`x.y.z`): reine Sprach-/Formatkorrekturen ohne inhaltliche Regeländerung.
+- Minor (`x.y`): neue Regel, neuer Prozessschritt oder geänderte Reihenfolge.
+- Major (`x`): grundlegender Governance-Wechsel (Rollen, Gate-Logik, Geltungsbereich).
+- Bei Änderungen an Charta/Zielbild/Betriebsverfassung wird die Version im jeweiligen Dokument und im Snapshot aktualisiert.
+
 ## Foundation (verbindliche Reihenfolge)
 
 1. MinIO

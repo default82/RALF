@@ -53,6 +53,10 @@ Alle Infrastruktur-, Automatisierungs- und Entscheidungsprozesse laufen struktur
 - PostgreSQL
 - Gitea
 - Semaphore
+<<<<<<< HEAD
+=======
+- MinIO
+>>>>>>> f200d596326529e49fcd13e611cc042e296ea1ba
 - Vaultwarden
 - Prometheus
 - n8n
@@ -103,4 +107,18 @@ RALF soll:
 
 ## 9. Langfristige Vision
 
+<<<<<<< HEAD
 Nach dem Bootstrap kann RALF kontrolliert weitere Domänen orchestrieren (z. B. Kommunikation, KI, Integrationen), ohne seine Governance-Prinzipien zu brechen.
+=======
+---
+
+## 6. Langfristige Vision
+
+Nach dem Bootstrap kann RALF selbständig orchestrieren:
+
+- Matrix/Synapse
+- Domainfreigaben in OPNsense
+- weitere Dienste
+
+RALF wird zu einem selbstreflektierenden, kontrollierten Infrastruktur-Betriebssystem.
+>>>>>>> f200d596326529e49fcd13e611cc042e296ea1ba

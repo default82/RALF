@@ -28,6 +28,15 @@ Details zu Phase 2/3 stehen in `docs/ZIELBILD.md`.
 - Nachvollziehbarkeit vor Autonomie
 - Stabilität vor Geschwindigkeit
 
+## Begriffskarte
+
+- Foundation: MinIO, PostgreSQL, Gitea, Semaphore als Kernschicht.
+- Foundation-Services: Vaultwarden und Prometheus als Basis-Betriebsdienste.
+- Erweiterung: n8n und KI-Dienste nach erfolgreicher Foundation-Validierung.
+- Phase: klar abgegrenzter Umsetzungsabschnitt mit eigenem Done-Kriterium.
+- Gate: Abschlussstatus eines Schritts (`OK`, `Warnung`, `Blocker`).
+- Nachweis: dokumentiertes Ergebnis einer Änderung (Entscheidung, Ergebnis, Gate-Status).
+
 ## Betriebsmodus
 
 - Jede relevante Änderung folgt Entscheidungsweg + Gate-Status.

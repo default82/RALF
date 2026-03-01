@@ -6,7 +6,7 @@ set -euo pipefail
 
 # --- Config (edit if needed) ---
 CTID="${CTID:-10010}"                 # 10.10.100.10 -> 10010
-HOSTNAME="${HOSTNAME:-ralf-bootstrap}"
+CT_HOSTNAME="${CT_HOSTNAME:-ralf-bootstrap}"
 IP_CIDR="${IP_CIDR:-10.10.100.10/16}"
 GW="${GW:-10.10.0.1}"
 BRIDGE="${BRIDGE:-vmbr0}"
@@ -43,9 +43,9 @@ fi
 
 # Create CT if missing
 if ! pct status "${CTID}" >/dev/null 2>&1; then
-  echo "==> Creating CT ${CTID} (${HOSTNAME} @ ${IP_CIDR})"
+  echo "==> Creating CT ${CTID} (${CT_HOSTNAME} @ ${IP_CIDR})"
   pct create "${CTID}" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
-    --hostname "${HOSTNAME}" \
+    --hostname "${CT_HOSTNAME}" \
     --memory "${MEM_MB}" \
     --cores "${CORES}" \
     --rootfs "${STORAGE}:${DISK_GB}" \
@@ -57,7 +57,7 @@ else
   echo "==> CT ${CTID} already exists. Ensuring config is set."
   # Update relevant settings (idempotent-ish)
   pct set "${CTID}" \
-    --hostname "${HOSTNAME}" \
+    --hostname "${CT_HOSTNAME}" \
     --memory "${MEM_MB}" \
     --cores "${CORES}" \
     --net0 "name=eth0,bridge=${BRIDGE},ip=${IP_CIDR},gw=${GW}" \
@@ -66,7 +66,14 @@ else
 fi
 
 echo "==> Installing SSH pubkey into CT ${CTID}"
-pct set "${CTID}" --ssh-public-keys "${SSH_PUBKEY_FILE}" >/dev/null
+if pct set "${CTID}" --ssh-public-keys "${SSH_PUBKEY_FILE}" >/dev/null 2>&1; then
+  echo "==> SSH key installed via pct option."
+else
+  echo "==> pct --ssh-public-keys not supported, applying key inside container."
+  pct start "${CTID}" >/dev/null 2>&1 || true
+  KEY_CONTENT="$(tr -d '\r' < "${SSH_PUBKEY_FILE}")"
+  pct exec "${CTID}" -- bash -lc "install -d -m 700 /root/.ssh && touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && grep -qxF '${KEY_CONTENT}' /root/.ssh/authorized_keys || echo '${KEY_CONTENT}' >> /root/.ssh/authorized_keys"
+fi
 
 echo "==> Starting CT ${CTID}"
 pct start "${CTID}" >/dev/null 2>&1 || true

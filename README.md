@@ -66,6 +66,18 @@ bash bootstrap/start.sh --apply --yes --non-interactive --config bootstrap/boots
 
 Hinweis: Die eigentliche Deploy-Logik hängt an Hook-Skripten unter `bootstrap/hooks/*.sh`.
 Die Core-Hooks `010` bis `040` führen im `--apply` Modus idempotente LXC-Provisionierung via `pct` aus.
+Hooks `050` bis `090` decken Foundation-Services und Erweiterungen ab.
+
+## Smoke-Validierung
+
+Nach einem erfolgreichen Deploy können alle Services mit einem Befehl geprüft werden:
+
+```bash
+bash bootstrap/validate.sh --config bootstrap/bootstrap.env
+```
+
+Das Skript prüft für jeden Service, ob der LXC-Container läuft, der Dienst aktiv ist und der Port erreichbar ist.
+Ergebnisse werden in `$RUNTIME_DIR/smoke-results.jsonl` abgelegt.
 
 ## Leitplanken
 

@@ -130,3 +130,151 @@ init_semaphore_service() {
   '
   si_warn "Semaphore-Applikation ist als Basis-Init vorbereitet; vollständige App-Config folgt im nächsten Schritt."
 }
+
+init_vaultwarden_service() {
+  local vmid="$1"
+  local domain="$2"
+  ensure_ct_running "$vmid"
+  si_log "Initialisiere Vaultwarden in CT ${vmid}"
+  pct exec "$vmid" -- env RALF_DOMAIN="$domain" bash -lc '
+    set -euo pipefail
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y >/dev/null
+    apt-get install -y curl ca-certificates openssl sqlite3 >/dev/null
+
+    if ! command -v vaultwarden >/dev/null 2>&1; then
+      ARCH="$(dpkg --print-architecture)"
+      VW_VERSION="$(curl -fsSL https://api.github.com/repos/dani-garcia/vaultwarden/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')"
+      if [[ -z "$VW_VERSION" ]]; then
+        echo "[service-init][warn] Vaultwarden-Version konnte nicht ermittelt werden – überspringe Binary-Download." >&2
+      else
+        curl -fsSL -o /usr/local/bin/vaultwarden \
+          "https://github.com/dani-garcia/vaultwarden/releases/download/${VW_VERSION}/vaultwarden-${VW_VERSION}-linux-${ARCH}"
+        chmod +x /usr/local/bin/vaultwarden
+      fi
+    fi
+
+    id -u vaultwarden >/dev/null 2>&1 || useradd --system --home /var/lib/vaultwarden --shell /usr/sbin/nologin vaultwarden
+    mkdir -p /var/lib/vaultwarden /etc/vaultwarden /etc/ralf
+    chown -R vaultwarden:vaultwarden /var/lib/vaultwarden
+
+    if [ ! -f /etc/vaultwarden/vaultwarden.env ]; then
+      token="$(openssl rand -hex 30)"
+      printf "DATA_FOLDER=/var/lib/vaultwarden\nADMIN_TOKEN=%s\nROCKET_PORT=8222\nSIGNUPS_ALLOWED=false\n" "$token" > /etc/vaultwarden/vaultwarden.env
+      chmod 600 /etc/vaultwarden/vaultwarden.env
+    fi
+
+    printf "VAULTWARDEN_URL=http://vaultwarden.%s\n" "$RALF_DOMAIN" > /etc/ralf/vaultwarden.env
+
+    if [ ! -f /etc/systemd/system/vaultwarden.service ]; then
+      cat > /etc/systemd/system/vaultwarden.service <<"SERVICE"
+[Unit]
+Description=Vaultwarden
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=vaultwarden
+Group=vaultwarden
+EnvironmentFile=/etc/vaultwarden/vaultwarden.env
+ExecStart=/usr/local/bin/vaultwarden
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+    fi
+
+    systemctl daemon-reload
+    systemctl enable vaultwarden || true
+  '
+  si_log "Vaultwarden-Basis in CT ${vmid} vorbereitet."
+}
+
+init_prometheus_service() {
+  local vmid="$1"
+  ensure_ct_running "$vmid"
+  si_log "Initialisiere Prometheus in CT ${vmid}"
+  pct exec "$vmid" -- bash -lc '
+    set -euo pipefail
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y >/dev/null
+    apt-get install -y prometheus >/dev/null
+
+    mkdir -p /etc/ralf
+    printf "PROMETHEUS_URL=http://localhost:9090\n" > /etc/ralf/prometheus.env
+
+    systemctl enable --now prometheus
+    systemctl is-active --quiet prometheus
+  '
+  si_log "Prometheus in CT ${vmid} bereitgestellt."
+}
+
+init_n8n_service() {
+  local vmid="$1"
+  local domain="$2"
+  ensure_ct_running "$vmid"
+  si_log "Initialisiere n8n in CT ${vmid}"
+  pct exec "$vmid" -- env RALF_DOMAIN="$domain" bash -lc '
+    set -euo pipefail
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y >/dev/null
+    apt-get install -y curl ca-certificates nodejs npm >/dev/null
+
+    npm install -g n8n >/dev/null
+
+    id -u n8n >/dev/null 2>&1 || useradd --system --home /var/lib/n8n --shell /usr/sbin/nologin n8n
+    mkdir -p /var/lib/n8n /etc/ralf
+    chown -R n8n:n8n /var/lib/n8n
+
+    printf "N8N_URL=http://n8n.%s\nN8N_PORT=5678\n" "$RALF_DOMAIN" > /etc/ralf/n8n.env
+
+    if [ ! -f /etc/systemd/system/n8n.service ]; then
+      cat > /etc/systemd/system/n8n.service <<"SERVICE"
+[Unit]
+Description=n8n workflow automation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=n8n
+Group=n8n
+Environment=N8N_USER_FOLDER=/var/lib/n8n
+Environment=N8N_PORT=5678
+ExecStart=/usr/bin/n8n start
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+    fi
+
+    systemctl daemon-reload
+    systemctl enable n8n || true
+  '
+  si_log "n8n-Basis in CT ${vmid} vorbereitet."
+}
+
+init_ki_service() {
+  local vmid="$1"
+  ensure_ct_running "$vmid"
+  si_log "Initialisiere KI-Instanz (Ollama) in CT ${vmid}"
+  pct exec "$vmid" -- bash -lc '
+    set -euo pipefail
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y >/dev/null
+    apt-get install -y curl ca-certificates >/dev/null
+
+    if ! command -v ollama >/dev/null 2>&1; then
+      # Hinweis: Das Installationsskript wird von https://ollama.com/install.sh bezogen.
+      # Vor dem Einsatz in Produktionsumgebungen sollte die Integrität des Skripts geprüft werden.
+      curl -fsSL https://ollama.com/install.sh | sh
+    fi
+
+    mkdir -p /etc/ralf
+    printf "OLLAMA_URL=http://localhost:11434\n" > /etc/ralf/ki.env
+
+    systemctl enable ollama || true
+  '
+  si_log "KI-Instanz (Ollama) in CT ${vmid} vorbereitet."
+}

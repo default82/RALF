@@ -99,12 +99,57 @@ init_gitea_service() {
     set -euo pipefail
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y >/dev/null
-    apt-get install -y gitea >/dev/null
+    apt-get install -y curl ca-certificates git >/dev/null
 
+    if ! command -v gitea >/dev/null 2>&1; then
+      ARCH="$(dpkg --print-architecture)"
+      GITEA_VERSION="$(curl -fsSL https://dl.gitea.com/gitea/version.json | grep -oP "\"latest\":\s*\"\K[^\"]+")"
+      if [[ -z "$GITEA_VERSION" ]]; then
+        echo "[service-init][error] Gitea-Version konnte nicht ermittelt werden." >&2
+        exit 1
+      fi
+      GITEA_URL="https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-linux-${ARCH}"
+      curl -fsSL -o /usr/local/bin/gitea "${GITEA_URL}"
+      EXPECTED="$(curl -fsSL "${GITEA_URL}.sha256" | awk '"'"'{print $1}'"'"')"
+      ACTUAL="$(sha256sum /usr/local/bin/gitea | awk '"'"'{print $1}'"'"')"
+      if [[ "$EXPECTED" != "$ACTUAL" ]]; then
+        echo "[service-init][error] SHA256-Prüfung für Gitea-Binary fehlgeschlagen." >&2
+        rm -f /usr/local/bin/gitea
+        exit 1
+      fi
+      chmod +x /usr/local/bin/gitea
+    fi
+
+    id -u git >/dev/null 2>&1 || useradd --system --home /var/lib/gitea --shell /bin/bash git
+    mkdir -p /var/lib/gitea/{custom,data,log} /etc/gitea
+    # /etc/ralf ist das systemweite RALF-Konfig-Verzeichnis für alle Dienste
+    mkdir -p /etc/ralf
+    chown -R git:git /var/lib/gitea /etc/gitea
+
+    if [ ! -f /etc/systemd/system/gitea.service ]; then
+      cat > /etc/systemd/system/gitea.service <<"SERVICE"
+[Unit]
+Description=Gitea
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=git
+Group=git
+WorkingDirectory=/var/lib/gitea
+Environment=USER=git HOME=/var/lib/gitea GITEA_WORK_DIR=/var/lib/gitea
+ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+    fi
+
+    systemctl daemon-reload
     systemctl enable --now gitea
     systemctl is-active --quiet gitea
 
-    mkdir -p /etc/ralf
     printf "GITEA_ROOT_URL=http://gitea.%s\n" "$RALF_DOMAIN" > /etc/ralf/gitea.env
   '
 }

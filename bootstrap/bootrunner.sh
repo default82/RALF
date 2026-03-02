@@ -35,8 +35,10 @@ done
 [[ -n "$CONFIG_FILE" ]] || { err "--config FILE ist erforderlich"; exit 2; }
 [[ -f "$CONFIG_FILE" ]] || { err "Config nicht gefunden: $CONFIG_FILE"; exit 2; }
 
+set -a
 # shellcheck disable=SC1090
 source "$CONFIG_FILE"
+set +a
 
 RUNTIME_DIR="${RUNTIME_DIR:-/opt/ralf/runtime}"
 LOG_DIR="$RUNTIME_DIR/logs"

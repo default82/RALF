@@ -12,9 +12,9 @@ Diese drei Dokumente sind bindend.
 
 ## Release-Ready Snapshot
 
-- Stand: 2026-03-01
+- Stand: 2026-03-05
 - `docs/CHARTA.md`: Version 1.2 – Kanonisch (MVP)
-- `docs/ZIELBILD.md`: Version 1.2 – Kanonisch (MVP)
+- `docs/ZIELBILD.md`: Version 1.3 – Kanonisch (MVP)
 - `docs/BETRIEBSVERFASSUNG.md`: Version 1.2 – Kanonisch (MVP)
 
 ## Versionierungsregel (Kanon)
@@ -31,7 +31,7 @@ Diese drei Dokumente sind bindend.
 3. Gitea
 4. Semaphore
 
-Danach folgen Foundation-Services (`Vaultwarden`, `Prometheus`) und Erweiterungen (`n8n`, KI).
+Danach folgen Foundation-Services (`Vaultwarden`, `Prometheus`) und Erweiterungen (`n8n`, KI, `Matrix`).
 Details zu Phase 2/3 stehen in `docs/ZIELBILD.md`.
 
 ## Start (ein Befehl aus Bash)
@@ -101,7 +101,7 @@ Ergebnisse werden in `$RUNTIME_DIR/smoke-results.jsonl` abgelegt.
 
 - Foundation: MinIO, PostgreSQL, Gitea, Semaphore als Kernschicht.
 - Foundation-Services: Vaultwarden und Prometheus als Basis-Betriebsdienste.
-- Erweiterung: n8n und KI-Dienste nach erfolgreicher Foundation-Validierung.
+- Erweiterung: n8n-, KI- und Matrix-Dienste nach erfolgreicher Foundation-Validierung.
 - Phase: klar abgegrenzter Umsetzungsabschnitt mit eigenem Done-Kriterium.
 - Gate: Abschlussstatus eines Schritts (`OK`, `Warnung`, `Blocker`).
 - Nachweis: dokumentiertes Ergebnis einer Änderung (Entscheidung, Ergebnis, Gate-Status).

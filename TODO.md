@@ -2,7 +2,7 @@
 
 ## Phase 0 – Governance
 
-- [ ] `docs/CHARTA.md`, `docs/ZIELBILD.md`, `docs/BETRIEBSVERFASSUNG.md` als v1.2 bestätigen
+- [ ] `docs/CHARTA.md` (v1.2), `docs/ZIELBILD.md` (v1.3), `docs/BETRIEBSVERFASSUNG.md` (v1.2) als kanonischen Stand bestaetigen
 - [ ] Entscheidungsweg und Gate-Regeln als operativen Standard festschreiben
 
 ## Phase 1 – Foundation Core
@@ -23,6 +23,7 @@
 
 - [ ] n8n bereitstellen
 - [ ] KI-Instanz bereitstellen
+- [ ] Matrix bereitstellen
 - [ ] Erweiterungs-Smokes durchführen
 
 ## Phase 4 – Betriebsreife

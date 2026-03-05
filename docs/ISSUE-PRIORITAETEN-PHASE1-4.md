@@ -21,13 +21,14 @@ Detailtexte stehen in den vorhandenen Draft-Dateien.
 
 9. `Erweiterung: n8n bereitstellen`
 10. `Erweiterung: KI-Instanz bereitstellen`
-11. `Erweiterung: Erweiterungs-Smokes vollstaendig durchfuehren`
+11. `Erweiterung: Matrix bereitstellen`
+12. `Erweiterung: Erweiterungs-Smokes vollstaendig durchfuehren`
 
 ## Phase 4 - Betriebsreife
 
-12. `Betriebsreife: Semaphore-first Betrieb als Standard festlegen`
-13. `Betriebsreife: regelmaessige Drift-/Health-Checks etablieren`
-14. `Betriebsreife: jede Aenderung mit Gate-Status und Nachweis abschliessen`
+13. `Betriebsreife: Semaphore-first Betrieb als Standard festlegen`
+14. `Betriebsreife: regelmaessige Drift-/Health-Checks etablieren`
+15. `Betriebsreife: jede Aenderung mit Gate-Status und Nachweis abschliessen`
 
 ## Referenzen fuer Detail-Body-Texte
 

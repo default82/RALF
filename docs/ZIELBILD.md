@@ -1,6 +1,6 @@
 # RALF – Zielbild
 
-Version 1.2 – Kanonisch (MVP)
+Version 1.3 – Kanonisch (MVP)
 
 ## 1. Zweck
 
@@ -36,6 +36,7 @@ RALF ist nicht:
 6. Prometheus
 7. n8n
 8. KI-Instanz (lokal)
+9. Matrix (Kommunikation)
 
 ## 4. Verbindliche Bootstrap-Phasen
 
@@ -60,7 +61,7 @@ RALF ist nicht:
 
 ### Phase 3 – Erweiterung
 
-- n8n und KI-Dienste ausrollen
+- n8n-, KI- und Matrix-Dienste ausrollen
 - weitere Domänen (z. B. Kommunikation) nur nach Gates
 
 ### Phase 4 – Betriebsmodus

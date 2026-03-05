@@ -98,7 +98,55 @@ Eine KI-Instanz in der vorgesehenen LXC-Umgebung bereitstellen und den technisch
 `Warnung` (initial) -> auf `OK` bei stabilem Betrieb und erfolgreichem Basis-Test
 ```
 
-## 3) Erweiterungs-Smokes durchfuehren
+## 3) Matrix bereitstellen
+
+**Titel**
+
+`Erweiterung: Matrix bereitstellen`
+
+**Body**
+
+```md
+## Kontext
+Matrix ist Teil des MVP-Backlogs fuer RALF, damit eine stabile Kommunikationsbasis fuer die Interaktion mit RALF bereitsteht.
+
+## Ziel
+Matrix (Synapse) in der vorgesehenen LXC-Umgebung bereitstellen und den Basisbetrieb verifizieren (Erreichbarkeit, Dienstgesundheit, technischer Login/Registrierungstest).
+
+## Preconditions
+- [ ] Foundation Core End-to-End Gate = `OK`
+- [ ] Foundation Services Smokes abgeschlossen
+- [ ] Netz-/IP-Plan in `bootstrap/bootstrap.env` ist aktuell
+
+## Vorschlag
+- Hook `bootstrap/hooks/085-matrix.sh` im Plan- und Apply-Modus ausfuehren
+- Matrix-Container auf Ziel-IP/Port starten
+- Basis-Health des Dienstes pruefen
+- Technischen End-to-End-Test fuer Registrierung/Login dokumentieren
+
+## Risikoanalyse
+- **Warnung:** Fehlkonfiguration bei Domain/Servername fuehrt zu inkonsistentem Client-Verhalten
+- **Warnung:** Persistenz-/Volume-Probleme gefaehrden Nutzerdaten
+- **Blocker:** Kein stabil erreichbarer Dienst oder fehlgeschlagener Basis-Login-Test
+
+## Akzeptanzkriterien
+- [ ] Matrix-LXC laeuft stabil (`running`)
+- [ ] Endpoint/API ist erreichbar (z. B. Port `8008`)
+- [ ] Dienst-Health ist plausibel pruefbar
+- [ ] Technischer Registrierung-/Login-Test ist erfolgreich
+- [ ] Ergebnis/Nachweis dokumentiert
+- [ ] Gate-Status gesetzt (`OK|Warnung|Blocker`)
+
+## Nachweis
+- Command-Log (Plan/Apply)
+- Dienststatus + Endpoint-Erreichbarkeit
+- Erfolgreicher technischer Basis-Test (Registrierung/Login)
+
+## Gate-Status
+`Warnung` (initial) -> auf `OK` bei stabilem Betrieb und erfolgreichem Basis-Test
+```
+
+## 4) Erweiterungs-Smokes durchfuehren
 
 **Titel**
 
@@ -108,7 +156,7 @@ Eine KI-Instanz in der vorgesehenen LXC-Umgebung bereitstellen und den technisch
 
 ```md
 ## Kontext
-Nach Bereitstellung der Phase-3-Dienste (n8n, KI-Instanz) ist ein gesamthafter Smoke-Lauf erforderlich.
+Nach Bereitstellung der Phase-3-Dienste (n8n, KI-Instanz, Matrix) ist ein gesamthafter Smoke-Lauf erforderlich.
 
 ## Ziel
 Alle Erweiterungs-Smokes reproduzierbar ausfuehren, Ergebnisse zentral dokumentieren und den finalen Gate-Status fuer Phase 3 setzen.
@@ -116,6 +164,7 @@ Alle Erweiterungs-Smokes reproduzierbar ausfuehren, Ergebnisse zentral dokumenti
 ## Abhaengige Issues
 - [ ] #<n8n-Issue-ID>
 - [ ] #<KI-Issue-ID>
+- [ ] #<Matrix-Issue-ID>
 
 ## Vorschlag
 - Vollstaendigen Smoke-Lauf fuer Erweiterungsdienste ausfuehren
@@ -129,7 +178,7 @@ Alle Erweiterungs-Smokes reproduzierbar ausfuehren, Ergebnisse zentral dokumenti
 
 ## Akzeptanzkriterien
 - [ ] Erweiterungs-Smoke-Lauf vollstaendig ausgefuehrt
-- [ ] n8n und KI technisch verifiziert
+- [ ] n8n, KI und Matrix technisch verifiziert
 - [ ] Ergebnisse sind reproduzierbar und dokumentiert
 - [ ] Rest-Risiken sind transparent klassifiziert
 - [ ] Gate-Status gesetzt (`OK|Warnung|Blocker`)

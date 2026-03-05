@@ -21,7 +21,7 @@ Ziel ist eine direkt ausfuehrbare Reihenfolge mit klaren Gates, Nachweisen und B
 
 ## 3. Priorisierte Reihenfolge (MVP)
 
-Die Reihenfolge folgt den bestehenden Issue-Prioritaeten 1-14.
+Die Reihenfolge folgt den bestehenden Issue-Prioritaeten 1-15.
 
 1. Foundation: MinIO bereitstellen und State-/Artefaktpfad verifizieren
 2. Foundation: PostgreSQL bereitstellen und Basiszugriff pruefen
@@ -33,10 +33,11 @@ Die Reihenfolge folgt den bestehenden Issue-Prioritaeten 1-14.
 8. Foundation Services: Foundation-Smokes vollstaendig durchfuehren
 9. Erweiterung: n8n bereitstellen
 10. Erweiterung: KI-Instanz bereitstellen
-11. Erweiterung: Erweiterungs-Smokes vollstaendig durchfuehren
-12. Betriebsreife: Semaphore-first Betrieb als Standard festlegen
-13. Betriebsreife: regelmaessige Drift-/Health-Checks etablieren
-14. Betriebsreife: jede Aenderung mit Gate-Status und Nachweis abschliessen
+11. Erweiterung: Matrix bereitstellen
+12. Erweiterung: Erweiterungs-Smokes vollstaendig durchfuehren
+13. Betriebsreife: Semaphore-first Betrieb als Standard festlegen
+14. Betriebsreife: regelmaessige Drift-/Health-Checks etablieren
+15. Betriebsreife: jede Aenderung mit Gate-Status und Nachweis abschliessen
 
 ## 4. Ausfuehrungsprotokoll pro Arbeitspaket
 
@@ -109,18 +110,17 @@ bash bootstrap/validate.sh --config bootstrap/bootstrap.env
 4. Integrationsfehler trotz erfolgreicher Einzel-Smokes
 5. Drift zwischen Dokumentation (`TODO`) und technischer Ausfuehrungslogik (`bootrunner`)
 
-## 9. Aktueller Planungs-Blocker (Rückfragepflicht)
+## 9. Planungsentscheidung (aufgeloest)
 
-Es gibt eine nicht vollstaendig aufloesbare Abweichung aus den `*.md`-Quellen:
+Owner-Entscheidung: `Matrix` gehoert zum MVP-Backlog, damit eine Kommunikationsbasis mit RALF bereitsteht.
 
-- `TODO.md` und die priorisierte 1-14 Liste enthalten in Phase 3 nur `n8n` und `KI`.
-- `bootstrap/lib/phase_catalog.sh` und `bootstrap/hooks/085-matrix.sh` enthalten zusaetzlich `Matrix` in Phase 3.
+Konsequenz:
 
-Damit ist unklar, ob `Matrix` Teil des MVP-Backlogs sein soll oder bewusst ausserhalb bleibt.
+- Phase 3 enthaelt verbindlich `n8n`, `KI` und `Matrix`.
+- Die Prioritaetenliste wurde auf 15 Issues erweitert.
 
-## 10. Naechste Aktion nach Rueckmeldung
+## 10. Naechste operative Planungsschritte
 
-Nach Owner-Entscheidung zu `Matrix` wird die Prioritaetenliste entweder:
-
-- unveraendert fortgefuehrt (Matrix explizit out-of-scope), oder
-- auf 15 Issues erweitert (zusaetzliches Matrix-Issue in Phase 3).
+1. Matrix-Issue in GitHub anlegen (auf Basis `docs/ISSUE-DRAFTS-PHASE3.md`).
+2. Erweiterungs-Smoke-Issue-Abhaengigkeiten auf `n8n + KI + Matrix` setzen.
+3. Bei Umsetzungsstart die Reihenfolge 9 -> 10 -> 11 -> 12 strikt einhalten.

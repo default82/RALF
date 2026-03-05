@@ -7,6 +7,8 @@ Stand: 2026-03-05
 Dieses Dokument konsolidiert die operative Planung aus den kanonischen Grundlagen und den vorhandenen Issue-Drafts.
 Ziel ist eine direkt ausfuehrbare Reihenfolge mit klaren Gates, Nachweisen und Blocker-Regeln.
 
+Fuer den konkreten technischen Erstlauf siehe zusaetzlich `docs/PLANUNG-ERSTLAUF-CHECKLISTE.md`.
+
 ## 2. Verbindliche Quellen
 
 - `docs/CHARTA.md`
@@ -14,6 +16,7 @@ Ziel ist eine direkt ausfuehrbare Reihenfolge mit klaren Gates, Nachweisen und B
 - `docs/BETRIEBSVERFASSUNG.md`
 - `docs/IP-KONVENTION.md`
 - `docs/ISSUE-PRIORITAETEN-PHASE1-4.md`
+- `docs/ISSUE-DRAFTS-PHASE0.md`
 - `docs/ISSUE-DRAFTS-PHASE1.md`
 - `docs/ISSUE-DRAFTS-PHASE2.md`
 - `docs/ISSUE-DRAFTS-PHASE3.md`
@@ -21,23 +24,25 @@ Ziel ist eine direkt ausfuehrbare Reihenfolge mit klaren Gates, Nachweisen und B
 
 ## 3. Priorisierte Reihenfolge (MVP)
 
-Die Reihenfolge folgt den bestehenden Issue-Prioritaeten 1-15.
+Die Reihenfolge folgt den bestehenden Issue-Prioritaeten 1-17.
 
-1. Foundation: MinIO bereitstellen und State-/Artefaktpfad verifizieren
-2. Foundation: PostgreSQL bereitstellen und Basiszugriff pruefen
-3. Foundation: Gitea bereitstellen und als kanonisches Remote etablieren
-4. Foundation: Semaphore bereitstellen und Initial-Templates seeden
-5. Foundation Core End-to-End validieren
-6. Foundation Services: Vaultwarden bereitstellen
-7. Foundation Services: Prometheus bereitstellen
-8. Foundation Services: Foundation-Smokes vollstaendig durchfuehren
-9. Erweiterung: n8n bereitstellen
-10. Erweiterung: KI-Instanz bereitstellen
-11. Erweiterung: Matrix bereitstellen
-12. Erweiterung: Erweiterungs-Smokes vollstaendig durchfuehren
-13. Betriebsreife: Semaphore-first Betrieb als Standard festlegen
-14. Betriebsreife: regelmaessige Drift-/Health-Checks etablieren
-15. Betriebsreife: jede Aenderung mit Gate-Status und Nachweis abschliessen
+1. Governance: kanonischen Dokumentstand fuer MVP bestaetigen
+2. Governance: Entscheidungsweg und Gate-Regeln als operativen Standard festschreiben
+3. Foundation: MinIO bereitstellen und State-/Artefaktpfad verifizieren
+4. Foundation: PostgreSQL bereitstellen und Basiszugriff pruefen
+5. Foundation: Gitea bereitstellen und als kanonisches Remote etablieren
+6. Foundation: Semaphore bereitstellen und Initial-Templates seeden
+7. Foundation Core End-to-End validieren
+8. Foundation Services: Vaultwarden bereitstellen
+9. Foundation Services: Prometheus bereitstellen
+10. Foundation Services: Foundation-Smokes vollstaendig durchfuehren
+11. Erweiterung: n8n bereitstellen
+12. Erweiterung: KI-Instanz bereitstellen
+13. Erweiterung: Matrix bereitstellen
+14. Erweiterung: Erweiterungs-Smokes vollstaendig durchfuehren
+15. Betriebsreife: Semaphore-first Betrieb als Standard festlegen
+16. Betriebsreife: regelmaessige Drift-/Health-Checks etablieren
+17. Betriebsreife: jede Aenderung mit Gate-Status und Nachweis abschliessen
 
 ## 4. Ausfuehrungsprotokoll pro Arbeitspaket
 
@@ -123,4 +128,5 @@ Konsequenz:
 
 1. Matrix-Issue in GitHub anlegen (auf Basis `docs/ISSUE-DRAFTS-PHASE3.md`).
 2. Erweiterungs-Smoke-Issue-Abhaengigkeiten auf `n8n + KI + Matrix` setzen.
-3. Bei Umsetzungsstart die Reihenfolge 9 -> 10 -> 11 -> 12 strikt einhalten.
+3. Bei Umsetzungsstart die Reihenfolge 11 -> 12 -> 13 -> 14 strikt einhalten.
+4. DNS-/Ingress-Standard fuer `*.${RALF_DOMAIN}` verbindlich festlegen (siehe Erstlauf-Checkliste).

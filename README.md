@@ -109,6 +109,7 @@ Für Pull Requests gilt ein verbindliches Merge-Gate über:
 - `.github/pull_request_template.md`
 - `.github/workflows/merge-gate.yml`
 - `.github/workflows/issue-labeler.yml`
+- `.github/workflows/validate-ci.yml`
 
 Für neue Tickets stehen strukturierte Issue-Formulare bereit unter:
 
@@ -123,9 +124,11 @@ Aktive Pflichtprüfungen:
 - Bash-Syntaxcheck für `bootstrap/**/*.sh`
 - Secret-Guard gegen versehentlich committed Credentials
 - Foundation-vor-Extension Regel bei PRs mit Erweiterungs-Deploypfaden
+- Dry-Run Checkrun fuer `bootstrap/validate.sh`
 
 Empfohlene lokale Vorprüfung:
 
 ```bash
 bash -n bootstrap/start.sh bootstrap/bootrunner.sh bootstrap/validate.sh
+bash bootstrap/validate.sh --dry-run --runtime-dir /tmp/ralf-runtime
 ```

@@ -3,6 +3,7 @@ name: issue-labeler
 on:
   issues:
     types: [opened, edited, reopened]
+  workflow_dispatch:
 
 permissions:
   issues: write
@@ -15,38 +16,61 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const title = (context.payload.issue.title || "").toLowerCase();
-            const issueNumber = context.issue.number;
-            const labels = new Set();
+            function labelsForTitle(rawTitle) {
+              const title = (rawTitle || "").toLowerCase();
+              const labels = new Set();
 
-            if (title.startsWith("foundation:")) {
-              labels.add("foundation");
-              labels.add("priority:high");
-              labels.add("gate:required");
-              labels.add("governance");
+              if (title.startsWith("foundation:")) {
+                labels.add("foundation");
+                labels.add("priority:high");
+                labels.add("gate:required");
+                labels.add("governance");
+              }
+
+              if (title.startsWith("extension:")) {
+                labels.add("extension");
+                labels.add("priority:medium");
+                labels.add("gate:required");
+              }
+
+              if (title.startsWith("epic:")) {
+                labels.add("epic");
+                labels.add("gate:required");
+                labels.add("governance");
+              }
+
+              return Array.from(labels);
             }
 
-            if (title.startsWith("extension:")) {
-              labels.add("extension");
-              labels.add("priority:medium");
-              labels.add("gate:required");
+            async function applyForIssue(issue) {
+              const labels = labelsForTitle(issue.title);
+              if (labels.length === 0) {
+                core.info(`No matching prefix for issue #${issue.number}.`);
+                return;
+              }
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels,
+              });
+              core.info(`Labels applied to issue #${issue.number}: ${labels.join(", ")}`);
             }
 
-            if (title.startsWith("epic:")) {
-              labels.add("epic");
-              labels.add("gate:required");
-              labels.add("governance");
-            }
+            if (context.eventName === "workflow_dispatch") {
+              const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: "open",
+                per_page: 100,
+              });
 
-            if (labels.size === 0) {
-              core.info("No matching title prefix; no labels added.");
+              for (const issue of openIssues) {
+                // Skip pull requests listed by the Issues API.
+                if (issue.pull_request) continue;
+                await applyForIssue(issue);
+              }
               return;
             }
 
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              labels: Array.from(labels),
-            });
-            core.info(`Labels applied to issue #${issueNumber}: ${Array.from(labels).join(", ")}`);
+            await applyForIssue(context.payload.issue);

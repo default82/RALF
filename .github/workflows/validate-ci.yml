@@ -1,0 +1,32 @@
+name: validate-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bash syntax for validate script
+        run: |
+          set -euo pipefail
+          bash -n bootstrap/validate.sh
+
+      - name: Run validate.sh in dry-run mode
+        run: |
+          set -euo pipefail
+          bash bootstrap/validate.sh --dry-run --runtime-dir /tmp/ralf-runtime
+
+      - name: Assert dry-run output exists
+        run: |
+          set -euo pipefail
+          test -f /tmp/ralf-runtime/smoke-results.jsonl
+          test "$(wc -l < /tmp/ralf-runtime/smoke-results.jsonl)" -ge 9

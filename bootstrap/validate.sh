@@ -13,17 +13,22 @@ source "$REPO_ROOT/bootstrap/lib/smoke_check.sh"
 
 CONFIG_FILE=""
 RUNTIME_DIR="/opt/ralf/runtime"
+DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config) CONFIG_FILE="${2:-}"; shift 2 ;;
     --runtime-dir) RUNTIME_DIR="${2:-}"; shift 2 ;;
+    --dry-run|--mock) DRY_RUN=1; shift ;;
     -h|--help)
       cat <<'EOF'
-Usage: bootstrap/validate.sh [--config FILE] [--runtime-dir DIR]
+Usage: bootstrap/validate.sh [--config FILE] [--runtime-dir DIR] [--dry-run|--mock]
 
 Runs smoke checks for all deployed RALF services.
 Requires a Proxmox host with pct available.
+
+Options:
+  --dry-run, --mock   Simuliert die Pruefung ohne Proxmox-Abhaengigkeit.
 EOF
       exit 0
       ;;
@@ -58,6 +63,12 @@ check_service() {
   local vmid_key="${service}_ctid"
   local service_name="$2"
   local port="${3:-}"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "DRY-RUN: pruefe ${service} (service=${service_name}, port=${port:-n/a})"
+    write_result "$service" "DRY-RUN"
+    return 0
+  fi
 
   if ! smoke_state_file "$state_file" "$service"; then
     write_result "$service" "no-state"
@@ -103,6 +114,10 @@ run_check() {
 }
 
 log "RALF Smoke-Validierung startet..."
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  log "Modus: DRY-RUN (Mock)"
+fi
 
 run_check "minio"        check_service "minio"       "minio"          "9000"
 run_check "postgresql"   check_service "postgresql"  "postgresql"     "5432"

@@ -68,6 +68,16 @@ Hinweis: Die eigentliche Deploy-Logik hängt an Hook-Skripten unter `bootstrap/h
 Die Core-Hooks `010` bis `040` führen im `--apply` Modus idempotente LXC-Provisionierung via `pct` aus.
 Hooks `050` bis `090` decken Foundation-Services und Erweiterungen ab.
 
+## Modulare Bootstrap-Struktur
+
+Die Installation und das Deployment sind in wiederverwendbare Module getrennt:
+
+- `bootstrap/lib/hook_module.sh`: gemeinsamer Hook-Runner für standardisierte LXC-Services
+- `bootstrap/lib/phase_catalog.sh`: deklarative Hook-Reihenfolge je Phase
+- `bootstrap/hooks/*.sh`: service-spezifische Konfiguration + optionale Zusatzlogik
+
+Dadurch bleibt die Ausführungsreihenfolge stabil, während neue Services mit weniger dupliziertem Code ergänzt werden können.
+
 ## Smoke-Validierung
 
 Nach einem erfolgreichen Deploy können alle Services mit einem Befehl geprüft werden:

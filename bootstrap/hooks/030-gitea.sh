@@ -1,33 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-log() { printf '[hook:030-gitea] %s\n' "$*"; }
-warn() { printf '[hook:030-gitea][warn] %s\n' "$*" >&2; }
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck disable=SC1091
-source "$REPO_ROOT/bootstrap/lib/proxmox_lxc.sh"
-# shellcheck disable=SC1091
 source "$REPO_ROOT/bootstrap/lib/service_init.sh"
+# shellcheck disable=SC1091
+source "$REPO_ROOT/bootstrap/lib/hook_module.sh"
 
-mode="${RALF_MODE:-plan}"
-runtime_dir="${RALF_RUNTIME_DIR:-/opt/ralf/runtime}"
-mkdir -p "$runtime_dir/state"
+mode="$(hm_mode)"
+runtime_dir="$(hm_runtime_dir)"
 
-vmid="4010"
-hostname="gitea-svc"
 ip_cidr="10.10.40.10/16"
-
-gateway="${RALF_GATEWAY:-10.10.0.1}"
-bridge="${RALF_BRIDGE:-vmbr0}"
-cores="${GITEA_CORES:-2}"
-mem_mb="${GITEA_MEM_MB:-2048}"
-disk_gb="${GITEA_DISK_GB:-32}"
-storage="${RALF_STORAGE:-local-lvm}"
-template_storage="${RALF_TEMPLATE_STORAGE:-local}"
-template_name="${RALF_TEMPLATE_NAME:-ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
-ssh_pubkey_file="${RALF_SSH_PUBKEY_FILE:-/root/.ssh/ralf_ed25519.pub}"
 
 # Load PostgreSQL credentials if available (written by 020-postgresql hook)
 CRED_FILE="$runtime_dir/state/postgresql-credentials.env"
@@ -37,24 +21,16 @@ if [[ -f "$CRED_FILE" ]]; then
 fi
 
 if [[ "$mode" == "plan" ]]; then
-  log "PLAN: würde Gitea LXC erstellen/abgleichen (CTID=$vmid, IP=$ip_cidr)."
   if [[ -n "${POSTGRES_HOST:-}" ]]; then
-    log "PLAN: Gitea würde PostgreSQL-Datenbank verwenden (Host=${POSTGRES_HOST}, DB=${GITEA_DB_NAME:-gitea_db})."
+    hm_log "030-gitea" "PLAN: Gitea würde PostgreSQL-Datenbank verwenden (Host=${POSTGRES_HOST}, DB=${GITEA_DB_NAME:-gitea_db})."
   else
-    log "PLAN: Keine PostgreSQL-Credentials – Gitea würde SQLite verwenden."
+    hm_log "030-gitea" "PLAN: Keine PostgreSQL-Credentials – Gitea würde SQLite verwenden."
   fi
-  command -v pct >/dev/null 2>&1 || { warn "pct fehlt"; exit 1; }
-  if pct status "$vmid" >/dev/null 2>&1; then
-    log "PLAN: CT $vmid existiert bereits."
-  else
-    log "PLAN: CT $vmid fehlt und würde erstellt werden."
-  fi
-else
-  ensure_lxc "$vmid" "$hostname" "$ip_cidr" "$gateway" "$bridge" "$cores" "$mem_mb" "$disk_gb" "$storage" "$template_storage" "$template_name" "$ssh_pubkey_file"
-  init_gitea_service "$vmid" "${RALF_DOMAIN:-otta.zone}" \
-    "${POSTGRES_HOST:-}" "${GITEA_DB_USER:-}" "${GITEA_DB_PASS:-}" "${GITEA_DB_NAME:-gitea_db}"
-  log "APPLY: Gitea LXC bereitgestellt."
 fi
 
-echo "gitea_ctid=$vmid" > "$runtime_dir/state/gitea.state"
-echo "gitea_ip=$ip_cidr" >> "$runtime_dir/state/gitea.state"
+run_standard_lxc_hook \
+  "030-gitea" "gitea" \
+  "4010" "gitea-svc" "$ip_cidr" "$ip_cidr" \
+  "${GITEA_CORES:-2}" "${GITEA_MEM_MB:-2048}" "${GITEA_DISK_GB:-32}" \
+  "init_gitea_service" \
+  "${RALF_DOMAIN:-otta.zone}" "${POSTGRES_HOST:-}" "${GITEA_DB_USER:-}" "${GITEA_DB_PASS:-}" "${GITEA_DB_NAME:-gitea_db}"

@@ -8,6 +8,9 @@ err() { printf '[bootrunner][error] %s\n' "$*" >&2; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$REPO_ROOT/bootstrap/lib/phase_catalog.sh"
+
 APPLY=0
 YES=0
 CONFIG_FILE=""
@@ -95,6 +98,18 @@ run_hook_or_stub() {
   return 0
 }
 
+run_service_sequence() {
+  local phase_label="$1"
+  shift
+  local services=("$@")
+
+  log "$phase_label"
+  local service
+  for service in "${services[@]}"; do
+    run_hook_or_stub "$service" || return 1
+  done
+}
+
 phase_preflight() {
   log "Phase 0: Vorbereitung"
   command -v bash >/dev/null 2>&1 || { err "bash fehlt"; return 1; }
@@ -106,32 +121,30 @@ phase_preflight() {
 }
 
 phase_foundation_core() {
-  log "Phase 1: Foundation Core (MinIO -> PostgreSQL -> Gitea -> Semaphore)"
-  run_hook_or_stub "010-minio" || return 1
-  run_hook_or_stub "020-postgresql" || return 1
-  run_hook_or_stub "030-gitea" || return 1
-  run_hook_or_stub "040-semaphore" || return 1
+  run_service_sequence \
+    "Phase 1: Foundation Core (MinIO -> PostgreSQL -> Gitea -> Semaphore)" \
+    "${RALF_PHASE_SERVICES_FOUNDATION_CORE[@]}" || return 1
   return 0
 }
 
 phase_foundation_services() {
-  log "Phase 2: Foundation Services (Vaultwarden -> Prometheus)"
-  run_hook_or_stub "050-vaultwarden" || return 1
-  run_hook_or_stub "060-prometheus" || return 1
+  run_service_sequence \
+    "Phase 2: Foundation Services (Vaultwarden -> Prometheus)" \
+    "${RALF_PHASE_SERVICES_FOUNDATION_SERVICES[@]}" || return 1
   return 0
 }
 
 phase_extension() {
-  log "Phase 3: Erweiterung (n8n -> KI -> Matrix)"
-  run_hook_or_stub "070-n8n" || return 1
-  run_hook_or_stub "080-ki" || return 1
-  run_hook_or_stub "085-matrix" || return 1
+  run_service_sequence \
+    "Phase 3: Erweiterung (n8n -> KI -> Matrix)" \
+    "${RALF_PHASE_SERVICES_EXTENSION[@]}" || return 1
   return 0
 }
 
 phase_operating_mode() {
-  log "Phase 4: Betriebsmodus (Semaphore-first)"
-  run_hook_or_stub "090-semaphore-first" || return 1
+  run_service_sequence \
+    "Phase 4: Betriebsmodus (Semaphore-first)" \
+    "${RALF_PHASE_SERVICES_OPERATING_MODE[@]}" || return 1
   return 0
 }
 

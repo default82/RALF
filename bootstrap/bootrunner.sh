@@ -122,9 +122,10 @@ phase_foundation_services() {
 }
 
 phase_extension() {
-  log "Phase 3: Erweiterung (n8n -> KI)"
+  log "Phase 3: Erweiterung (n8n -> KI -> Matrix)"
   run_hook_or_stub "070-n8n" || return 1
   run_hook_or_stub "080-ki" || return 1
+  run_hook_or_stub "085-matrix" || return 1
   return 0
 }
 

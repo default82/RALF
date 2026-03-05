@@ -65,7 +65,17 @@ init_postgresql_service() {
   local vmid="$1"
   ensure_ct_running "$vmid"
   si_log "Initialisiere PostgreSQL in CT ${vmid}"
-  pct exec "$vmid" -- bash -lc '
+  pct exec "$vmid" -- env \
+    GITEA_DB_USER="${GITEA_DB_USER:-}" \
+    GITEA_DB_PASS="${GITEA_DB_PASS:-}" \
+    GITEA_DB_NAME="${GITEA_DB_NAME:-gitea_db}" \
+    N8N_DB_USER="${N8N_DB_USER:-}" \
+    N8N_DB_PASS="${N8N_DB_PASS:-}" \
+    N8N_DB_NAME="${N8N_DB_NAME:-n8n_db}" \
+    MATRIX_DB_USER="${MATRIX_DB_USER:-}" \
+    MATRIX_DB_PASS="${MATRIX_DB_PASS:-}" \
+    MATRIX_DB_NAME="${MATRIX_DB_NAME:-synapse_db}" \
+    bash -lc '
     set -euo pipefail
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y >/dev/null
@@ -82,20 +92,67 @@ init_postgresql_service() {
 
     . /etc/ralf/postgres.env
 
-    systemctl enable --now postgresql
+    # Configure PostgreSQL to accept connections from the RALF network
+    PG_VERSION="$(pg_lsclusters -h | awk '"'"'{print $1}'"'"' | head -1)"
+    PG_CONF="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
+    PG_HBA="/etc/postgresql/${PG_VERSION}/main/pg_hba.conf"
+
+    if ! grep -q "^listen_addresses = '\*'" "$PG_CONF" 2>/dev/null; then
+      sed -i "s/^#*listen_addresses = .*/listen_addresses = '*'/" "$PG_CONF"
+    fi
+    if ! grep -q "10.10.0.0/16" "$PG_HBA" 2>/dev/null; then
+      printf "host\tall\tall\t10.10.0.0/16\tscram-sha-256\n" >> "$PG_HBA"
+    fi
+
+    systemctl enable postgresql
+    systemctl restart postgresql
     systemctl is-active --quiet postgresql
 
-    su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='\"'\"'$RALF_USER'\"'\"'\" | grep -q 1 || psql -c \"CREATE USER $RALF_USER WITH PASSWORD '\"'\"'$RALF_PASSWORD'\"'\"';\""
-    su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='\"'\"'$RALF_DB'\"'\"'\" | grep -q 1 || psql -c \"CREATE DATABASE $RALF_DB OWNER $RALF_USER;\""
+    # Helper: idempotent user + database creation.
+    # $1=user $2=password $3=dbname $4=optional extra CREATE DATABASE options
+    create_pg_user_db() {
+      local u="$1" p="$2" d="$3" extra_opts="${4:-}"
+      [ -z "$u" ] && return 0
+      su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='${u}'\" | grep -q 1 || \
+        psql -c \"CREATE USER ${u} WITH PASSWORD '${p}';\""
+      if [ -z "$extra_opts" ]; then
+        su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='${d}'\" | grep -q 1 || \
+          psql -c \"CREATE DATABASE ${d} OWNER ${u};\""
+      else
+        su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='${d}'\" | grep -q 1 || \
+          psql -c \"CREATE DATABASE ${d} ${extra_opts} OWNER ${u};\""
+      fi
+    }
+
+    # Default RALF database
+    create_pg_user_db "$RALF_USER" "$RALF_PASSWORD" "$RALF_DB"
+
+    # Per-service databases
+    create_pg_user_db "$GITEA_DB_USER" "$GITEA_DB_PASS" "$GITEA_DB_NAME"
+    create_pg_user_db "$N8N_DB_USER" "$N8N_DB_PASS" "$N8N_DB_NAME"
+
+    # Matrix Synapse requires UTF-8 with C locale (cannot run inside a transaction)
+    create_pg_user_db "$MATRIX_DB_USER" "$MATRIX_DB_PASS" "$MATRIX_DB_NAME" \
+      "ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0"
   '
 }
 
 init_gitea_service() {
   local vmid="$1"
   local domain="$2"
+  local pg_host="${3:-}"
+  local pg_user="${4:-}"
+  local pg_pass="${5:-}"
+  local pg_db="${6:-gitea_db}"
   ensure_ct_running "$vmid"
   si_log "Initialisiere Gitea in CT ${vmid}"
-  pct exec "$vmid" -- env RALF_DOMAIN="$domain" bash -lc '
+  pct exec "$vmid" -- env \
+    RALF_DOMAIN="$domain" \
+    PG_HOST="$pg_host" \
+    PG_USER="$pg_user" \
+    PG_PASS="$pg_pass" \
+    PG_DB="$pg_db" \
+    bash -lc '
     set -euo pipefail
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y >/dev/null
@@ -127,7 +184,8 @@ init_gitea_service() {
     chown -R git:git /var/lib/gitea /etc/gitea
 
     if [ ! -f /etc/systemd/system/gitea.service ]; then
-      cat > /etc/systemd/system/gitea.service <<"SERVICE"
+      {
+        cat <<'"'"'STATIC'"'"'
 [Unit]
 Description=Gitea
 After=network-online.target
@@ -138,12 +196,23 @@ User=git
 Group=git
 WorkingDirectory=/var/lib/gitea
 Environment=USER=git HOME=/var/lib/gitea GITEA_WORK_DIR=/var/lib/gitea
+STATIC
+        if [ -n "${PG_HOST:-}" ]; then
+          printf "Environment=GITEA__database__DB_TYPE=postgres\n"
+          printf "Environment=GITEA__database__HOST=%s:5432\n" "$PG_HOST"
+          printf "Environment=GITEA__database__NAME=%s\n" "$PG_DB"
+          printf "Environment=GITEA__database__USER=%s\n" "$PG_USER"
+          printf "Environment=GITEA__database__PASSWD=%s\n" "$PG_PASS"
+          printf "Environment=GITEA__database__SSL_MODE=disable\n"
+        fi
+        cat <<'"'"'STATIC'"'"'
 ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-SERVICE
+STATIC
+      } > /etc/systemd/system/gitea.service
     fi
 
     systemctl daemon-reload
@@ -258,9 +327,19 @@ init_prometheus_service() {
 init_n8n_service() {
   local vmid="$1"
   local domain="$2"
+  local pg_host="${3:-}"
+  local pg_user="${4:-}"
+  local pg_pass="${5:-}"
+  local pg_db="${6:-n8n_db}"
   ensure_ct_running "$vmid"
   si_log "Initialisiere n8n in CT ${vmid}"
-  pct exec "$vmid" -- env RALF_DOMAIN="$domain" bash -lc '
+  pct exec "$vmid" -- env \
+    RALF_DOMAIN="$domain" \
+    PG_HOST="$pg_host" \
+    PG_USER="$pg_user" \
+    PG_PASS="$pg_pass" \
+    PG_DB="$pg_db" \
+    bash -lc '
     set -euo pipefail
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y >/dev/null
@@ -275,7 +354,8 @@ init_n8n_service() {
     printf "N8N_URL=http://n8n.%s\nN8N_PORT=5678\n" "$RALF_DOMAIN" > /etc/ralf/n8n.env
 
     if [ ! -f /etc/systemd/system/n8n.service ]; then
-      cat > /etc/systemd/system/n8n.service <<"SERVICE"
+      {
+        cat <<'"'"'STATIC'"'"'
 [Unit]
 Description=n8n workflow automation
 After=network-online.target
@@ -286,12 +366,23 @@ User=n8n
 Group=n8n
 Environment=N8N_USER_FOLDER=/var/lib/n8n
 Environment=N8N_PORT=5678
+STATIC
+        if [ -n "${PG_HOST:-}" ]; then
+          printf "Environment=DB_TYPE=postgresdb\n"
+          printf "Environment=DB_POSTGRESDB_HOST=%s\n" "$PG_HOST"
+          printf "Environment=DB_POSTGRESDB_PORT=5432\n"
+          printf "Environment=DB_POSTGRESDB_DATABASE=%s\n" "$PG_DB"
+          printf "Environment=DB_POSTGRESDB_USER=%s\n" "$PG_USER"
+          printf "Environment=DB_POSTGRESDB_PASSWORD=%s\n" "$PG_PASS"
+        fi
+        cat <<'"'"'STATIC'"'"'
 ExecStart=/usr/bin/n8n start
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-SERVICE
+STATIC
+      } > /etc/systemd/system/n8n.service
     fi
 
     systemctl daemon-reload
@@ -322,4 +413,78 @@ init_ki_service() {
     systemctl enable ollama || true
   '
   si_log "KI-Instanz (Ollama) in CT ${vmid} vorbereitet."
+}
+
+init_matrix_service() {
+  local vmid="$1"
+  local domain="$2"
+  local pg_host="${3:-}"
+  local pg_user="${4:-}"
+  local pg_pass="${5:-}"
+  local pg_db="${6:-synapse_db}"
+  ensure_ct_running "$vmid"
+  si_log "Initialisiere Matrix Synapse in CT ${vmid}"
+  pct exec "$vmid" -- env \
+    RALF_DOMAIN="$domain" \
+    PG_HOST="$pg_host" \
+    PG_USER="$pg_user" \
+    PG_PASS="$pg_pass" \
+    PG_DB="$pg_db" \
+    bash -lc '
+    set -euo pipefail
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y >/dev/null
+    apt-get install -y lsb-release wget apt-transport-https curl ca-certificates openssl >/dev/null
+
+    # Add Matrix.org package repository
+    if [ ! -f /usr/share/keyrings/matrix-org-archive-keyring.gpg ]; then
+      wget -O /usr/share/keyrings/matrix-org-archive-keyring.gpg \
+        https://packages.matrix.org/debian/matrix-org-archive-keyring.gpg
+    fi
+    if [ ! -f /etc/apt/sources.list.d/matrix-org.list ]; then
+      printf "deb [signed-by=/usr/share/keyrings/matrix-org-archive-keyring.gpg] https://packages.matrix.org/debian/ %s main\n" \
+        "$(lsb_release -cs)" > /etc/apt/sources.list.d/matrix-org.list
+    fi
+    apt-get update -y >/dev/null
+    # Pre-accept the debconf question for reporting stats
+    echo "matrix-synapse matrix-synapse/report-stats boolean false" | debconf-set-selections
+    echo "matrix-synapse matrix-synapse/server-name string matrix.${RALF_DOMAIN}" | debconf-set-selections
+    apt-get install -y matrix-synapse-py3 >/dev/null
+
+    mkdir -p /etc/ralf /var/lib/matrix-synapse /etc/matrix-synapse/conf.d
+
+    # Write database config fragment (overrides the default SQLite config)
+    if [ -n "${PG_HOST:-}" ]; then
+      cat > /etc/matrix-synapse/conf.d/database.yaml <<DBCONF
+database:
+  name: psycopg2
+  args:
+    user: ${PG_USER}
+    password: ${PG_PASS}
+    database: ${PG_DB}
+    host: ${PG_HOST}
+    cp_min: 5
+    cp_max: 10
+DBCONF
+      chmod 640 /etc/matrix-synapse/conf.d/database.yaml
+      chown root:matrix-synapse /etc/matrix-synapse/conf.d/database.yaml
+    fi
+
+    # Generate signing key and registration secret if not present
+    if [ ! -f /etc/matrix-synapse/homeserver.signing.key ]; then
+      python3 -m synapse.app.homeserver \
+        --server-name "matrix.${RALF_DOMAIN}" \
+        --config-path /etc/matrix-synapse/homeserver.yaml \
+        --generate-keys 2>/dev/null || true
+    fi
+
+    systemctl daemon-reload
+    systemctl enable matrix-synapse
+    systemctl restart matrix-synapse
+    sleep 3
+    systemctl is-active --quiet matrix-synapse
+
+    printf "MATRIX_URL=http://matrix.%s\nMATRIX_PORT=8008\n" "$RALF_DOMAIN" > /etc/ralf/matrix.env
+  '
+  si_log "Matrix Synapse in CT ${vmid} bereitgestellt."
 }

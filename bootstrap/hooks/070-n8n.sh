@@ -29,8 +29,20 @@ template_storage="${RALF_TEMPLATE_STORAGE:-local}"
 template_name="${RALF_TEMPLATE_NAME:-ubuntu-24.04-standard_24.04-2_amd64.tar.zst}"
 ssh_pubkey_file="${RALF_SSH_PUBKEY_FILE:-/root/.ssh/ralf_ed25519.pub}"
 
+# Load PostgreSQL credentials if available (written by 020-postgresql hook)
+CRED_FILE="$runtime_dir/state/postgresql-credentials.env"
+if [[ -f "$CRED_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CRED_FILE"
+fi
+
 if [[ "$mode" == "plan" ]]; then
   log "PLAN: würde n8n LXC erstellen/abgleichen (CTID=$vmid, IP=$ip_cidr)."
+  if [[ -n "${POSTGRES_HOST:-}" ]]; then
+    log "PLAN: n8n würde PostgreSQL-Datenbank verwenden (Host=${POSTGRES_HOST}, DB=${N8N_DB_NAME:-n8n_db})."
+  else
+    log "PLAN: Keine PostgreSQL-Credentials – n8n würde SQLite verwenden."
+  fi
   command -v pct >/dev/null 2>&1 || { warn "pct fehlt"; exit 1; }
   if pct status "$vmid" >/dev/null 2>&1; then
     log "PLAN: CT $vmid existiert bereits."
@@ -39,7 +51,8 @@ if [[ "$mode" == "plan" ]]; then
   fi
 else
   ensure_lxc "$vmid" "$hostname" "$ip_cidr" "$gateway" "$bridge" "$cores" "$mem_mb" "$disk_gb" "$storage" "$template_storage" "$template_name" "$ssh_pubkey_file"
-  init_n8n_service "$vmid" "${RALF_DOMAIN:-otta.zone}"
+  init_n8n_service "$vmid" "${RALF_DOMAIN:-otta.zone}" \
+    "${POSTGRES_HOST:-}" "${N8N_DB_USER:-}" "${N8N_DB_PASS:-}" "${N8N_DB_NAME:-n8n_db}"
   log "APPLY: n8n LXC bereitgestellt."
 fi
 

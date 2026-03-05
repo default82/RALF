@@ -123,6 +123,17 @@ Vorgaben:
 - Service-FQDNs: `<service>.<RALF_DOMAIN>`
 - Resolver: interner DNS-Resolver im Lab (Split-Horizon)
 
+DNS-Artefakte fuer Resolver-Import erzeugen:
+
+```bash
+bash bootstrap/dns-manifest.sh --config bootstrap/bootstrap.env
+```
+
+Erwartete Artefakte:
+
+- `$RUNTIME_DIR/dns/records.hosts`
+- `$RUNTIME_DIR/dns/zone.bind`
+
 Fuer den Erstlauf sind mindestens folgende Nachweise zu erbringen:
 
 ```bash

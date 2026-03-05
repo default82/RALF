@@ -89,6 +89,19 @@ bash bootstrap/validate.sh --config bootstrap/bootstrap.env
 Das Skript prüft für jeden Service, ob der LXC-Container läuft, der Dienst aktiv ist und der Port erreichbar ist.
 Ergebnisse werden in `$RUNTIME_DIR/smoke-results.jsonl` abgelegt.
 
+## DNS-Manifest
+
+Fuer die interne DNS-Zone kann ein reproduzierbares Manifest erzeugt werden:
+
+```bash
+bash bootstrap/dns-manifest.sh --config bootstrap/bootstrap.env
+```
+
+Ausgabe:
+
+- `$RUNTIME_DIR/dns/records.hosts`
+- `$RUNTIME_DIR/dns/zone.bind`
+
 ## Leitplanken
 
 - LXC-first

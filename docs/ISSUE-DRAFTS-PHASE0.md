@@ -81,6 +81,7 @@ Den operativen Standard so festschreiben, dass der 8-Schritt-Entscheidungsweg in
 - Verlinktes Runbook/Schema
 - Beispielhafte PR/Issue mit vollstaendigem Ablauf und Gate
 - Kurzes Stichprobenprotokoll
+- DNS-Manifest-Artefakte (`$RUNTIME_DIR/dns/records.hosts`, `$RUNTIME_DIR/dns/zone.bind`)
 
 ## Gate-Status
 `Warnung` (initial) -> auf `OK` bei dokumentierter und nachweisbarer Anwendung

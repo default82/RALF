@@ -90,6 +90,12 @@ Service-Smoke:
 bash bootstrap/validate.sh --config bootstrap/bootstrap.env
 ```
 
+DNS-Manifest fuer interne Zone:
+
+```bash
+bash bootstrap/dns-manifest.sh --config bootstrap/bootstrap.env
+```
+
 ## 6. Pflichtartefakte je Schritt
 
 - Entscheidungsnachweis (Issue/PR-Text)

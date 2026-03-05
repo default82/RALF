@@ -31,7 +31,7 @@ Detailtexte stehen in den vorhandenen Draft-Dateien.
 
 ## Referenzen fuer Detail-Body-Texte
 
+- `docs/ISSUE-DRAFTS-PHASE1.md`
+- `docs/ISSUE-DRAFTS-PHASE2.md`
 - `docs/ISSUE-DRAFTS-PHASE3.md`
 - `docs/ISSUE-DRAFTS-PHASE4.md`
-
-Hinweis: Die Detailentwuerfe fuer Phase 1 und Phase 2 wurden im Chat erstellt. Falls gewuenscht, koennen sie als eigene Dateien unter `docs/` abgelegt werden.

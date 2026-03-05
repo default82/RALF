@@ -15,9 +15,9 @@ mode="${RALF_MODE:-plan}"
 runtime_dir="${RALF_RUNTIME_DIR:-/opt/ralf/runtime}"
 mkdir -p "$runtime_dir/state"
 
-vmid="6010"
+vmid="8010"
 hostname="prometheus-svc"
-ip_cidr="10.10.60.10/16"
+ip_cidr="10.10.80.10/16"
 
 gateway="${RALF_GATEWAY:-10.10.0.1}"
 bridge="${RALF_BRIDGE:-vmbr0}"

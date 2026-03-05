@@ -101,3 +101,31 @@ Ergebnisse werden in `$RUNTIME_DIR/smoke-results.jsonl` abgelegt.
 - Jede relevante Änderung folgt Entscheidungsweg + Gate-Status.
 - Jede Phase gilt erst als abgeschlossen mit Nachweis/Artefakten.
 - Ab stabiler Foundation: `Semaphore-first` für wiederholbare Ausführung.
+
+## Merge-Gate
+
+Für Pull Requests gilt ein verbindliches Merge-Gate über:
+
+- `.github/pull_request_template.md`
+- `.github/workflows/merge-gate.yml`
+- `.github/workflows/issue-labeler.yml`
+
+Für neue Tickets stehen strukturierte Issue-Formulare bereit unter:
+
+- `.github/ISSUE_TEMPLATE/foundation-task.yml`
+- `.github/ISSUE_TEMPLATE/extension-task.yml`
+- `.github/ISSUE_TEMPLATE/epic.yml`
+
+Aktive Pflichtprüfungen:
+
+- PR-Body enthält `Gate-Status: OK|Warnung|Blocker`
+- PR-Body enthält einen Nachweis-Abschnitt
+- Bash-Syntaxcheck für `bootstrap/**/*.sh`
+- Secret-Guard gegen versehentlich committed Credentials
+- Foundation-vor-Extension Regel bei PRs mit Erweiterungs-Deploypfaden
+
+Empfohlene lokale Vorprüfung:
+
+```bash
+bash -n bootstrap/start.sh bootstrap/bootrunner.sh bootstrap/validate.sh
+```

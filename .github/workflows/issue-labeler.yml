@@ -1,0 +1,52 @@
+name: issue-labeler
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  issues: write
+
+jobs:
+  label-by-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply default labels by title prefix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = (context.payload.issue.title || "").toLowerCase();
+            const issueNumber = context.issue.number;
+            const labels = new Set();
+
+            if (title.startsWith("foundation:")) {
+              labels.add("foundation");
+              labels.add("priority:high");
+              labels.add("gate:required");
+              labels.add("governance");
+            }
+
+            if (title.startsWith("extension:")) {
+              labels.add("extension");
+              labels.add("priority:medium");
+              labels.add("gate:required");
+            }
+
+            if (title.startsWith("epic:")) {
+              labels.add("epic");
+              labels.add("gate:required");
+              labels.add("governance");
+            }
+
+            if (labels.size === 0) {
+              core.info("No matching title prefix; no labels added.");
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: Array.from(labels),
+            });
+            core.info(`Labels applied to issue #${issueNumber}: ${Array.from(labels).join(", ")}`);

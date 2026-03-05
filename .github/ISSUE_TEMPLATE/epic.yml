@@ -1,0 +1,32 @@
+name: Epic
+description: Sammelthema mit Child-Issues und klaren Gates
+title: "Epic: "
+labels:
+  - epic
+  - governance
+  - gate:required
+body:
+  - type: textarea
+    id: ziel
+    attributes:
+      label: Ziel
+      description: Was wird durch das Epic erreicht?
+    validations:
+      required: true
+  - type: textarea
+    id: arbeitspakete
+    attributes:
+      label: Enthaltene Arbeitspakete
+      description: Liste mit referenzierten Issues
+      placeholder: |
+        - [ ] #14 ...
+        - [ ] #18 ...
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      description: Welche Bedingungen muessen fuer Abschluss erfuellt sein?
+    validations:
+      required: true

@@ -1,0 +1,51 @@
+name: Foundation Task
+description: Foundation-Core oder Foundation-Service Arbeitspaket fuer RALF
+title: "Foundation: "
+labels:
+  - foundation
+  - priority:high
+  - gate:required
+  - governance
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bitte dieses Formular fuer Foundation-Themen nutzen.
+  - type: textarea
+    id: ziel
+    attributes:
+      label: Ziel
+      description: Was soll erreicht werden?
+      placeholder: Kurze, klare Zielbeschreibung.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Welche Komponenten/Pfade sind betroffen?
+      placeholder: bootstrap/hooks/..., bootstrap/lib/..., docs/...
+    validations:
+      required: true
+  - type: textarea
+    id: akzeptanz
+    attributes:
+      label: Akzeptanzkriterien
+      description: Messbare Definition of Done
+      placeholder: |
+        - idempotent in plan/apply
+        - validate/smoke nachweis vorhanden
+    validations:
+      required: true
+  - type: textarea
+    id: abhaengigkeiten
+    attributes:
+      label: Abhaengigkeiten
+      description: Vorbedingungen gemaess Foundation-Reihenfolge
+  - type: textarea
+    id: risiko
+    attributes:
+      label: Risiko
+      description: Wichtigstes Risiko und geplanter Rollback
+    validations:
+      required: true

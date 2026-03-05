@@ -15,9 +15,9 @@ mode="${RALF_MODE:-plan}"
 runtime_dir="${RALF_RUNTIME_DIR:-/opt/ralf/runtime}"
 mkdir -p "$runtime_dir/state"
 
-vmid="8510"
+vmid="11010"
 hostname="matrix-svc"
-ip_cidr="10.10.85.10/16"
+ip_cidr="10.10.110.10/16"
 
 gateway="${RALF_GATEWAY:-10.10.0.1}"
 bridge="${RALF_BRIDGE:-vmbr0}"

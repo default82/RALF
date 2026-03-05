@@ -104,14 +104,15 @@ run_check() {
 
 log "RALF Smoke-Validierung startet..."
 
-run_check "minio"        check_service "minio"       "minio"      "9000"
-run_check "postgresql"   check_service "postgresql"  "postgresql" "5432"
-run_check "gitea"        check_service "gitea"       "gitea"      "3000"
-run_check "semaphore"    check_service "semaphore"   "semaphore"  "3000"
-run_check "vaultwarden"  check_service "vaultwarden" "vaultwarden" "8222"
-run_check "prometheus"   check_service "prometheus"  "prometheus" "9090"
-run_check "n8n"          check_service "n8n"         "n8n"        "5678"
-run_check "ki"           check_service "ki"          "ollama"     "11434"
+run_check "minio"        check_service "minio"       "minio"          "9000"
+run_check "postgresql"   check_service "postgresql"  "postgresql"     "5432"
+run_check "gitea"        check_service "gitea"       "gitea"          "3000"
+run_check "semaphore"    check_service "semaphore"   "semaphore"      "3000"
+run_check "vaultwarden"  check_service "vaultwarden" "vaultwarden"    "8222"
+run_check "prometheus"   check_service "prometheus"  "prometheus"     "9090"
+run_check "n8n"          check_service "n8n"         "n8n"            "5678"
+run_check "ki"           check_service "ki"          "ollama"         "11434"
+run_check "matrix"       check_service "matrix"      "matrix-synapse" "8008"
 
 log "Ergebnis: $PASS OK, $FAIL Warnung(en)"
 log "Detailergebnisse: $RESULTS_FILE"

@@ -1,0 +1,50 @@
+name: Extension Task
+description: Erweiterungsdienst fuer RALF nach Foundation-Validierung
+title: "Extension: "
+labels:
+  - extension
+  - priority:medium
+  - gate:required
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Erweiterungen werden erst nach Foundation-OK umgesetzt.
+  - type: textarea
+    id: ziel
+    attributes:
+      label: Ziel
+      description: Was soll der Dienst leisten?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Betroffene Hooks/Services/Pfade
+    validations:
+      required: true
+  - type: textarea
+    id: akzeptanz
+    attributes:
+      label: Akzeptanzkriterien
+      description: Messbare Kriterien inkl. Nachweis
+      placeholder: |
+        - Service intern erreichbar
+        - validate/smoke dokumentiert
+    validations:
+      required: true
+  - type: textarea
+    id: abhaengigkeiten
+    attributes:
+      label: Abhaengigkeiten
+      description: Foundation-Tickets/Services, die vorher abgeschlossen sein muessen
+    validations:
+      required: true
+  - type: textarea
+    id: risiko
+    attributes:
+      label: Risiko
+      description: Hauptrisiko und Rollback-Ansatz
+    validations:
+      required: true

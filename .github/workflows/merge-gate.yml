@@ -1,0 +1,121 @@
+name: merge-gate
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  pr-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Gate-Status in PR body
+        run: |
+          set -euo pipefail
+          body="$(jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH")"
+
+          if ! grep -Eq 'Gate-Status:[[:space:]]*`?(OK|Warnung|Blocker)`?' <<<"$body"; then
+            echo "Missing or invalid 'Gate-Status'. Expected: OK|Warnung|Blocker."
+            exit 1
+          fi
+
+          if ! grep -Eq '##[[:space:]]+Nachweis|Nachweis' <<<"$body"; then
+            echo "PR body must contain a Nachweis section."
+            exit 1
+          fi
+
+  shell-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bash syntax check
+        run: |
+          set -euo pipefail
+          if [ -d bootstrap ]; then
+            find bootstrap -type f -name '*.sh' -print0 | xargs -0 -r bash -n
+          fi
+
+  secret-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files
+        id: changed
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --name-only "origin/${{ github.base_ref }}"...HEAD > /tmp/changed_files.txt
+          cat /tmp/changed_files.txt
+
+      - name: Block credential files in repo
+        run: |
+          set -euo pipefail
+          if grep -E '(^|/)bootstrap\.env$|credentials\.env$|postgresql-credentials\.env$' /tmp/changed_files.txt; then
+            echo "Credential or local env file detected in diff."
+            exit 1
+          fi
+
+      - name: Block obvious inline secrets
+        run: |
+          set -euo pipefail
+          files="$(tr '\n' ' ' < /tmp/changed_files.txt)"
+          [ -z "$files" ] && exit 0
+
+          # Basic deny-list for hard-coded sensitive variables with non-empty values.
+          if grep -RInE 'PROXMOX_API_TOKEN_SECRET="[^"]+"|PROXMOX_API_TOKEN_ID="[^"]+"|POSTGRES_MASTER_PASS="[^"]+"|GITEA_ADMIN[12]_PASS="[^"]+"|SEMAPHORE_ADMIN[12]_PASS="[^"]+"|MINIO_ROOT_PASSWORD="[^"]+"' $files; then
+            echo "Potential hard-coded secret detected."
+            exit 1
+          fi
+
+  foundation-order:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --name-only "origin/${{ github.base_ref }}"...HEAD > /tmp/changed_files.txt
+          cat /tmp/changed_files.txt
+
+      - name: Enforce foundation before extension
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if ! grep -Eq '^bootstrap/hooks/(070-n8n|080-ki|085-matrix|090-semaphore-first)\.sh$|^bootstrap/create-(n8n|matrix|mail|exo)\.sh$' /tmp/changed_files.txt; then
+            echo "No extension deploy paths changed."
+            exit 0
+          fi
+
+          echo "Extension deploy paths detected; verifying foundation issue status..."
+          required_foundation_issues=(14 18 15 20)
+
+          for issue_id in "${required_foundation_issues[@]}"; do
+            state="$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${issue_id}" | jq -r '.state')"
+
+            echo "Issue #${issue_id} state=${state}"
+            if [[ "${state}" != "closed" ]]; then
+              echo "Foundation order violation: Issue #${issue_id} is not closed."
+              exit 1
+            fi
+          done
+
+          echo "Foundation order check passed."

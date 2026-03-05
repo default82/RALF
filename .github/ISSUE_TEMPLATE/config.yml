@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: RALF Governance Hinweise
+    url: https://github.com/default82/RALF/blob/main/agents.md
+    about: Bitte erst Rollenmodell, Gate-Logik und Foundation-Reihenfolge pruefen.

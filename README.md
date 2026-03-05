@@ -93,6 +93,7 @@ Ergebnisse werden in `$RUNTIME_DIR/smoke-results.jsonl` abgelegt.
 
 - LXC-first
 - Netzwerkstandard: `10.10.0.0/16`
+- DNS-Standard: interne Zone (`internal-zone`) fuer `*.${RALF_DOMAIN}`
 - Gatekeeping: `OK | Warnung | Blocker`
 - Nachvollziehbarkeit vor Autonomie
 - Stabilität vor Geschwindigkeit

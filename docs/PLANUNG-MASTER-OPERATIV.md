@@ -114,6 +114,7 @@ bash bootstrap/validate.sh --config bootstrap/bootstrap.env
 3. Persistenzfehler bei Volume-Mounts
 4. Integrationsfehler trotz erfolgreicher Einzel-Smokes
 5. Drift zwischen Dokumentation (`TODO`) und technischer Ausfuehrungslogik (`bootrunner`)
+6. Fehlende interne DNS-Zonenpflege fuer `<service>.<RALF_DOMAIN>`
 
 ## 9. Planungsentscheidung (aufgeloest)
 
@@ -122,11 +123,11 @@ Owner-Entscheidung: `Matrix` gehoert zum MVP-Backlog, damit eine Kommunikationsb
 Konsequenz:
 
 - Phase 3 enthaelt verbindlich `n8n`, `KI` und `Matrix`.
-- Die Prioritaetenliste wurde auf 15 Issues erweitert.
+- Die Prioritaetenliste wurde um Matrix erweitert (insgesamt 17 inkl. Phase 0).
 
 ## 10. Naechste operative Planungsschritte
 
 1. Matrix-Issue in GitHub anlegen (auf Basis `docs/ISSUE-DRAFTS-PHASE3.md`).
 2. Erweiterungs-Smoke-Issue-Abhaengigkeiten auf `n8n + KI + Matrix` setzen.
 3. Bei Umsetzungsstart die Reihenfolge 11 -> 12 -> 13 -> 14 strikt einhalten.
-4. DNS-/Ingress-Standard fuer `*.${RALF_DOMAIN}` verbindlich festlegen (siehe Erstlauf-Checkliste).
+4. Interne DNS-Zone fuer `*.${RALF_DOMAIN}` operativ umsetzen und im Erstlauf nachweisen.

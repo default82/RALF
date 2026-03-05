@@ -58,12 +58,13 @@ Formale Bestaetigung der gueltigen Versionen und Geltung als operativer Referenz
 RALF verlangt fuer jede relevante Aenderung den verbindlichen Operativablauf und eindeutiges Gatekeeping (`OK|Warnung|Blocker`).
 
 ## Ziel
-Den operativen Standard so festschreiben, dass der 8-Schritt-Entscheidungsweg inklusive Nachweis/Gate bei allen relevanten Aenderungen reproduzierbar angewendet wird.
+Den operativen Standard so festschreiben, dass der 8-Schritt-Entscheidungsweg inklusive Nachweis/Gate bei allen relevanten Aenderungen reproduzierbar angewendet wird, inklusive DNS-Standard `internal-zone` fuer `*.${RALF_DOMAIN}`.
 
 ## Vorschlag
 - Einheitliches Schema fuer Vorschlag, Risiko, Alternativen, Entscheidung, Nachweis und Gate definieren
 - PR-/Issue-Prozess auf diese Pflichtfelder ausrichten
 - Kurz-Runbook fuer Teamanwendung dokumentieren
+- Interne DNS-Zone als verbindliche Betriebsregel referenzieren
 
 ## Risikoanalyse
 - **Warnung:** Prozess wird formal genannt, aber nicht konsistent angewendet
@@ -72,6 +73,7 @@ Den operativen Standard so festschreiben, dass der 8-Schritt-Entscheidungsweg in
 ## Akzeptanzkriterien
 - [ ] Operatives Schema ist dokumentiert und teamweit referenzierbar
 - [ ] PR-/Issue-Templates bilden den Ablauf ab
+- [ ] DNS-Standard `internal-zone` ist als Pflichtvorgabe dokumentiert
 - [ ] Stichprobe bestaetigt praktische Anwendung
 - [ ] Gate-Status gesetzt (`OK|Warnung|Blocker`)
 

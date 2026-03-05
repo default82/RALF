@@ -1,6 +1,6 @@
 # IP-Adressenvergabe – Konvention
 
-Version 1.0 – Kanonisch (MVP)
+Version 1.1 – Kanonisch (MVP)
 
 ## Schema
 
@@ -64,3 +64,28 @@ Beispiel: Kategorie 80, erster Dienst (y=10) → CTID = `80 * 100 + 10` = `8010`
 - Das vierte Oktett (`y`) beginnt bei `.10` für den ersten Dienst und wird in 10er-Schritten erhöht.
 - Keine statische IP außerhalb dieses Schemas.
 - Änderungen an dieser Konvention erfordern Diskurs und Versionierung dieses Dokuments.
+
+## DNS-Konvention (Interne Zone)
+
+Fuer den MVP gilt verbindlich eine interne DNS-Zone.
+
+- DNS-Modus: `internal-zone`
+- Zonenname: `${RALF_DOMAIN}`
+- Service-Aufloesung: `<service>.<RALF_DOMAIN>`
+- Aufloesung erfolgt ueber internen Resolver (Split-Horizon), nicht ueber externe oeffentliche DNS-Eintraege.
+
+### Mindest-Eintraege
+
+| Service         | FQDN                               | Ziel-IP         |
+|-----------------|------------------------------------|-----------------|
+| MinIO           | `minio.<RALF_DOMAIN>`              | `10.10.30.10`   |
+| PostgreSQL      | `postgresql.<RALF_DOMAIN>`         | `10.10.20.10`   |
+| Gitea           | `gitea.<RALF_DOMAIN>`              | `10.10.40.10`   |
+| Semaphore       | `semaphore.<RALF_DOMAIN>`          | `10.10.100.10`  |
+| Vaultwarden     | `vaultwarden.<RALF_DOMAIN>`        | `10.10.50.10`   |
+| Prometheus      | `prometheus.<RALF_DOMAIN>`         | `10.10.80.10`   |
+| n8n             | `n8n.<RALF_DOMAIN>`                | `10.10.100.20`  |
+| KI              | `ki.<RALF_DOMAIN>`                 | `10.10.90.10`   |
+| Matrix Synapse  | `matrix.<RALF_DOMAIN>`             | `10.10.110.10`  |
+
+Hinweis: Fuer den Erstlauf ist `/etc/hosts` nur als temporaerer Fallback zulaessig.

@@ -112,14 +112,27 @@ Gate:
 4. Smoke-Ergebnisse (`smoke-results.jsonl`)
 5. Gate-Entscheidung (`OK|Warnung|Blocker`) mit kurzer Begruendung
 
-## 8. Offene Infrastruktur-Entscheidung
+## 8. DNS-Standard (verbindlich)
 
-Mehrere Dienste schreiben URLs als `http://<service>.<RALF_DOMAIN>` (z. B. Gitea, Semaphore, Vaultwarden, n8n, Matrix).
-Die `*.md`-Quellen legen jedoch keinen verbindlichen DNS-/Ingress-Standard fest.
+Owner-Entscheidung: Interne DNS-Zone ist verbindlicher MVP-Standard.
 
-Fuer den Erstlauf muss festgelegt werden:
+Vorgaben:
 
-- interne DNS-Aufloesung (empfohlen), oder
-- temporaere `/etc/hosts`-Aufloesung fuer Testzwecke.
+- DNS-Modus: `internal-zone`
+- Zone: `${RALF_DOMAIN}`
+- Service-FQDNs: `<service>.<RALF_DOMAIN>`
+- Resolver: interner DNS-Resolver im Lab (Split-Horizon)
 
-Ohne diese Festlegung sind End-to-End-Clienttests nur eingeschraenkt reproduzierbar (`Warnung`).
+Fuer den Erstlauf sind mindestens folgende Nachweise zu erbringen:
+
+```bash
+getent hosts gitea.${RALF_DOMAIN}
+getent hosts semaphore.${RALF_DOMAIN}
+getent hosts matrix.${RALF_DOMAIN}
+```
+
+Gate:
+
+- `OK` bei interner DNS-Aufloesung fuer alle Pflichtdienste
+- `Warnung` nur bei dokumentiertem temporaeren Fallback
+- `Blocker` wenn interne DNS-Aufloesung fuer Pflichtdienste nicht gegeben ist

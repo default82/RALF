@@ -3,7 +3,7 @@
 ## Phase 0 – Governance
 
 - [ ] `docs/CHARTA.md` (v1.2), `docs/ZIELBILD.md` (v1.3), `docs/BETRIEBSVERFASSUNG.md` (v1.2) als kanonischen Stand bestaetigen
-- [ ] Entscheidungsweg und Gate-Regeln als operativen Standard festschreiben
+- [ ] Entscheidungsweg, Gate-Regeln und DNS-Standard (`internal-zone`) als operativen Standard festschreiben
 
 ## Phase 1 – Foundation Core
 

@@ -82,6 +82,8 @@ Den operativen Standard so festschreiben, dass der 8-Schritt-Entscheidungsweg in
 - Beispielhafte PR/Issue mit vollstaendigem Ablauf und Gate
 - Kurzes Stichprobenprotokoll
 - DNS-Manifest-Artefakte (`$RUNTIME_DIR/dns/records.hosts`, `$RUNTIME_DIR/dns/zone.bind`)
+- OPNsense/Unbound-Artefakte (`$RUNTIME_DIR/dns/unbound-host-overrides.csv`, `$RUNTIME_DIR/dns/unbound-custom-options.conf`)
+- Resolver-Verifikation (`$RUNTIME_DIR/dns/dns-verify.jsonl`)
 
 ## Gate-Status
 `Warnung` (initial) -> auf `OK` bei dokumentierter und nachweisbarer Anwendung

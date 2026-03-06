@@ -1,6 +1,6 @@
 # IP-Adressenvergabe – Konvention
 
-Version 1.1 – Kanonisch (MVP)
+Version 1.2 – Kanonisch (MVP)
 
 ## Schema
 
@@ -72,6 +72,7 @@ Fuer den MVP gilt verbindlich eine interne DNS-Zone.
 - DNS-Modus: `internal-zone`
 - Zonenname: `${RALF_DOMAIN}`
 - Service-Aufloesung: `<service>.<RALF_DOMAIN>`
+- Zielplattform: `OPNsense + Unbound`
 - Aufloesung erfolgt ueber internen Resolver (Split-Horizon), nicht ueber externe oeffentliche DNS-Eintraege.
 
 ### Mindest-Eintraege
@@ -89,3 +90,10 @@ Fuer den MVP gilt verbindlich eine interne DNS-Zone.
 | Matrix Synapse  | `matrix.<RALF_DOMAIN>`             | `10.10.110.10`  |
 
 Hinweis: Fuer den Erstlauf ist `/etc/hosts` nur als temporaerer Fallback zulaessig.
+
+### OPNsense-Unbound Referenz
+
+Die DNS-Ausbringung erfolgt ueber:
+
+- `bootstrap/dns-unbound-opnsense.sh` (Export fuer OPNsense Unbound)
+- `bootstrap/dns-verify.sh` (Resolver-Verifikation)

@@ -15,6 +15,7 @@ Fuer den konkreten technischen Erstlauf siehe zusaetzlich `docs/PLANUNG-ERSTLAUF
 - `docs/ZIELBILD.md`
 - `docs/BETRIEBSVERFASSUNG.md`
 - `docs/IP-KONVENTION.md`
+- `docs/DNS-OPNSENSE-UNBOUND-RUNBOOK.md`
 - `docs/ISSUE-PRIORITAETEN-PHASE1-4.md`
 - `docs/ISSUE-DRAFTS-PHASE0.md`
 - `docs/ISSUE-DRAFTS-PHASE1.md`
@@ -94,6 +95,8 @@ DNS-Manifest fuer interne Zone:
 
 ```bash
 bash bootstrap/dns-manifest.sh --config bootstrap/bootstrap.env
+bash bootstrap/dns-unbound-opnsense.sh --config bootstrap/bootstrap.env
+bash bootstrap/dns-verify.sh --config bootstrap/bootstrap.env
 ```
 
 ## 6. Pflichtartefakte je Schritt
@@ -137,3 +140,4 @@ Konsequenz:
 2. Erweiterungs-Smoke-Issue-Abhaengigkeiten auf `n8n + KI + Matrix` setzen.
 3. Bei Umsetzungsstart die Reihenfolge 11 -> 12 -> 13 -> 14 strikt einhalten.
 4. Interne DNS-Zone fuer `*.${RALF_DOMAIN}` operativ umsetzen und im Erstlauf nachweisen.
+5. Zielplattform `OPNsense + Unbound` ueber DNS-Exportartefakte (`dns-unbound-opnsense.sh`) versorgen.

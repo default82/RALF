@@ -127,12 +127,23 @@ DNS-Artefakte fuer Resolver-Import erzeugen:
 
 ```bash
 bash bootstrap/dns-manifest.sh --config bootstrap/bootstrap.env
+bash bootstrap/dns-unbound-opnsense.sh --config bootstrap/bootstrap.env
+bash bootstrap/dns-verify.sh --config bootstrap/bootstrap.env
 ```
 
 Erwartete Artefakte:
 
 - `$RUNTIME_DIR/dns/records.hosts`
 - `$RUNTIME_DIR/dns/zone.bind`
+- `$RUNTIME_DIR/dns/unbound-host-overrides.csv`
+- `$RUNTIME_DIR/dns/unbound-custom-options.conf`
+- `$RUNTIME_DIR/dns/dns-verify.jsonl`
+
+OPNsense Unbound Umsetzung:
+
+- Option A: Host-Overrides aus `unbound-host-overrides.csv` in OPNsense uebernehmen
+- Option B: Inhalt aus `unbound-custom-options.conf` in Unbound Custom Options eintragen
+- Danach Unbound neu laden/restarten
 
 Fuer den Erstlauf sind mindestens folgende Nachweise zu erbringen:
 

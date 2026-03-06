@@ -102,6 +102,25 @@ Ausgabe:
 - `$RUNTIME_DIR/dns/records.hosts`
 - `$RUNTIME_DIR/dns/zone.bind`
 
+Bei OPNsense + Unbound kann zusaetzlich ein importfaehiges Paket erzeugt werden:
+
+```bash
+bash bootstrap/dns-unbound-opnsense.sh --config bootstrap/bootstrap.env
+```
+
+Ausgabe:
+
+- `$RUNTIME_DIR/dns/unbound-host-overrides.csv`
+- `$RUNTIME_DIR/dns/unbound-custom-options.conf`
+
+Resolver-Verifikation:
+
+```bash
+bash bootstrap/dns-verify.sh --config bootstrap/bootstrap.env
+```
+
+Runbook: `docs/DNS-OPNSENSE-UNBOUND-RUNBOOK.md`
+
 ## Leitplanken
 
 - LXC-first

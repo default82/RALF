@@ -34,3 +34,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die konkrete Verfügbarkeit und exakte Bezeichnung des Ubuntu-26.04-LXC-Templates auf dem Ziel-Proxmox-Host muss bei der Implementierung geprüft werden. Die Implementierung bleibt durch O-002 bis O-006 blockiert.
 - Nächster sinnvoller Zielbild-Eintrag: O-002
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – Ollama als Modelllaufzeit festgelegt
+
+- Bearbeitete Zielbild-IDs: O-002, M-014, A-007
+- Ergebnis: Ollama wurde verbindlich als Modelllaufzeit für RALF Standalone 0.0.1 festgelegt. Ollama und das noch auszuwählende Referenzmodell werden im selben LXC wie die kleine Weboberfläche betrieben.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Status, Folgeentscheidung und Übereinstimmung mit dem aktuellen Ein-Container-Meilenstein wurden geprüft.
+- Nicht ausgeführte Prüfungen: Keine Code-, Installations- oder Infrastrukturtests, da ausschließlich eine Projektentscheidung dokumentiert wurde.
+- Risiken oder Blocker: Modell, Weboberfläche, Installationsform sowie Container- und Netzwerkvorgaben sind noch offen. Die Implementierung bleibt durch O-003 bis O-006 blockiert.
+- Nächster sinnvoller Zielbild-Eintrag: O-003
+- Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.

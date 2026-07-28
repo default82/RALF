@@ -122,3 +122,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: VMID, Storage, Netzwerk-Bridge und feste Ressourcenwerte sind für den Erzeugungsschritt noch nicht implementiert. Der Template-Abgleich setzt voraus, dass der Proxmox-Katalog einen Namen mit `ubuntu-26.04-standard` enthält.
 - Nächster sinnvoller Zielbild-Eintrag: M-017 – sichere, explizit konfigurierte Erstellung des unprivilegierten LXC ergänzen.
 - Veröffentlichung: Die Änderungen werden gemeinsam committed, gepusht und nach `main` gemergt.
+
+## 2026-07-28 – Allgemeingültigen Codex-Auftrag veröffentlicht
+
+- Bearbeitete Zielbild-IDs: P-002, A-014
+- Ergebnis: `GOAL.md` wurde als allgemeingültiger und wiederverwendbarer Arbeitsauftrag für Codex CLI angelegt. `AGENTS.md`, `README.md` und `ZIELBILD.md` verweisen nun verbindlich auf diesen Auftrag. Der Goal-Auftrag verlangt ausdrücklich Ergebnisprotokoll, gezielten Commit und Push nach jedem Arbeitsdurchlauf.
+- Geänderte Dateien: `GOAL.md`, `AGENTS.md`, `README.md`, `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Aktuelle Remote-Dateien wurden gelesen; Verweise, Prioritätsreihenfolge, Zielbild-IDs und sichtbarer Projektstatus wurden auf Konsistenz geprüft. Eine zwischenzeitliche README- und Ergebnis-Erweiterung zum Bootstrap-Preflight wurde beim erneuten Einlesen erhalten.
+- Nicht ausgeführte Prüfungen: Keine Code-, Installations- oder Infrastrukturtests, da ausschließlich Projekt- und Agentendokumentation geändert wurde.
+- Risiken oder Blocker: Die GitHub-Schreibvorgänge erzeugten mehrere aufeinanderfolgende Commits statt eines einzelnen atomaren Commits. Der Bootstrap ist weiterhin nur als ungefährlicher Preflight teilweise implementiert; Container-Erstellung und Softwareinstallation stehen aus.
+- Nächster sinnvoller Zielbild-Eintrag: M-017 – sichere, explizit konfigurierte Erstellung des unprivilegierten LXC gemäß `GOAL.md` fortsetzen.
+- Veröffentlichung: Alle Änderungen wurden durch GitHub-Schreibvorgänge direkt auf `main` committed und auf das Remote-Repository veröffentlicht; dieser Protokolleintrag bildet den abschließenden Commit des Arbeitsdurchlaufs.

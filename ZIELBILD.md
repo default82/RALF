@@ -61,6 +61,7 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-011 | AKTIV | Installationsfehler müssen verständlich gemeldet werden. Bestehende Container, VMs, Storages und Netzwerke dürfen nicht stillschweigend verändert oder überschrieben werden. |
 | M-012 | AKTIV | Zugangsdaten, Tokens und andere Geheimnisse dürfen nicht in das Repository gelangen. |
 | M-013 | AKTIV | Der erste LXC verwendet Ubuntu Server 26.04 LTS `Resolute Raccoon`. Für die Installation ist das aktuell verfügbare Proxmox-LXC-Template dieser Serie zu verwenden; anschließend sind alle verfügbaren Sicherheits- und Point-Updates einzuspielen. |
+| M-014 | AKTIV | Ollama ist die festgelegte Modelllaufzeit für RALF Standalone 0.0.1. Ollama und das Referenzmodell werden im selben LXC wie die kleine Weboberfläche betrieben. |
 
 ## Definition of Done
 
@@ -81,7 +82,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | ID | Status | Offene Entscheidung |
 |---|---|---|
 | O-001 | ABGESCHLOSSEN | Als Betriebssystem des ersten LXC ist Ubuntu Server 26.04 LTS `Resolute Raccoon` festgelegt. Verwendet wird das aktuell verfügbare Proxmox-LXC-Template der Serie mit anschließenden Sicherheits- und Point-Updates. |
-| O-002 | OFFEN | Modelllaufzeit festlegen. |
+| O-002 | ABGESCHLOSSEN | Ollama ist als Modelllaufzeit für RALF Standalone 0.0.1 festgelegt. |
 | O-003 | OFFEN | Erstes Referenzmodell festlegen. |
 | O-004 | OFFEN | Kleine Weboberfläche festlegen. |
 | O-005 | OFFEN | Installationsform festlegen, beispielsweise ein vom Proxmox-Host gestartetes Bootstrap-Skript. |
@@ -97,6 +98,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-004 | ABGESCHLOSSEN | Eine endgültige Definition des RALF-Kerns wurde bewusst auf einen späteren Zeitpunkt verschoben. |
 | A-005 | ABGESCHLOSSEN | Das Projekt wurde zunächst unter die Apache License 2.0 gestellt. |
 | A-006 | ABGESCHLOSSEN | Ubuntu Server 26.04 LTS `Resolute Raccoon` wurde als Betriebssystem für den ersten RALF-Standalone-LXC festgelegt. |
+| A-007 | ABGESCHLOSSEN | Ollama wurde als Modelllaufzeit für RALF Standalone 0.0.1 festgelegt. |
 
 # 5. Verbindlicher Entwicklungsprozess
 

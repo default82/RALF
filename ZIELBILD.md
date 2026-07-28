@@ -111,9 +111,11 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-011 | ABGESCHLOSSEN | `ralf-standalone` wurde als Hostname und Proxmox-Bezeichnung des ersten LXC festgelegt. |
 | A-012 | ABGESCHLOSSEN | DHCP ohne vorausgesetzte Reservierung wurde als Netzwerkkonfiguration des ersten RALF-Standalone-LXC festgelegt. |
 | A-013 | ABGESCHLOSSEN | Die persistenten Verzeichnisse des ersten LXC wurden festgelegt; separate Proxmox-Mountpoints werden in RALF Standalone 0.0.1 nicht verwendet. |
+| A-014 | ABGESCHLOSSEN | `GOAL.md` wurde als allgemeingültiger, wiederverwendbarer Arbeitsauftrag für Codex CLI angelegt und in den Projektdokumenten verankert. |
 
 # 5. Verbindlicher Entwicklungsprozess
 
 | ID | Status | Anweisung |
 |---|---|---|
 | P-001 | AKTIV | Nach jedem Arbeitsdurchlauf wird `Ergebnis.md` append-only um Ergebnis oder Fehler, Änderungen, Prüfungen, Blocker und nächsten Zielbild-Schritt ergänzt. Die zugehörigen Repository-Änderungen werden gezielt committed und auf den vorgesehenen Remote-Branch gepusht; technische Commit- oder Pushfehler werden wahrheitsgemäß nachgetragen. |
+| P-002 | AKTIV | Vor jedem Codex-Arbeitsdurchlauf sind `AGENTS.md`, `GOAL.md` und `ZIELBILD.md` vollständig sowie die jüngsten relevanten Einträge in `Ergebnis.md` zu lesen. `GOAL.md` bleibt allgemein; die konkrete nächste Aufgabe wird aus dem aktuellen Zielbild abgeleitet. |

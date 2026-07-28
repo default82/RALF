@@ -78,3 +78,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Containername, Netzwerkvorgaben und persistente Verzeichnisse sind noch offen. Die Implementierung bleibt durch O-006 blockiert.
 - Nächster sinnvoller Zielbild-Eintrag: O-006
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – Standalone-Container benannt
+
+- Bearbeitete Zielbild-IDs: O-006, M-018, A-011
+- Ergebnis: `ralf-standalone` wurde verbindlich als Hostname und Proxmox-Bezeichnung des ersten RALF-Standalone-LXC festgelegt. O-006 bleibt für Netzwerkvorgaben und persistente Verzeichnisse offen.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Bezeichnung, Status und Abgrenzung der weiterhin offenen Teile von O-006 wurden auf Konsistenz geprüft.
+- Nicht ausgeführte Prüfungen: Kein Container wurde erstellt oder umbenannt, da ausschließlich eine Projektentscheidung dokumentiert wurde.
+- Risiken oder Blocker: Netzwerkvorgaben und persistente Verzeichnisse sind weiterhin offen. Die Implementierung bleibt dadurch blockiert.
+- Nächster sinnvoller Zielbild-Eintrag: O-006 – Netzwerkvorgabe
+- Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.

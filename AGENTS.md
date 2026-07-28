@@ -5,10 +5,12 @@ Diese Datei enthält verbindliche Arbeitsanweisungen für Codex CLI und andere C
 ## Vor jeder Änderung
 
 1. Lies diese Datei vollständig.
-2. Lies `ZIELBILD.md` vollständig.
-3. Prüfe den aktuellen Repository-Stand und vorhandene Änderungen.
-4. Arbeite nur am tatsächlich beauftragten Schritt.
-5. Vermeide Architekturentscheidungen, die für den aktuellen Schritt nicht notwendig sind.
+2. Lies `GOAL.md` vollständig.
+3. Lies `ZIELBILD.md` vollständig.
+4. Lies die jüngsten relevanten Einträge in `Ergebnis.md`.
+5. Prüfe den aktuellen Repository-Stand und vorhandene Änderungen.
+6. Arbeite nur am tatsächlich beauftragten Schritt.
+7. Vermeide Architekturentscheidungen, die für den aktuellen Schritt nicht notwendig sind.
 
 ## Quellen der Wahrheit
 
@@ -17,10 +19,15 @@ Bei Widersprüchen gilt diese Reihenfolge:
 1. die aktuelle ausdrückliche Nutzeranweisung,
 2. `ZIELBILD.md`,
 3. `AGENTS.md`,
-4. `README.md`,
-5. bestehender Code und Kommentare.
+4. `GOAL.md`,
+5. `README.md`,
+6. bestehender Code und Kommentare.
 
 Widersprüche dürfen nicht stillschweigend aufgelöst werden. Dokumentiere die gewählte Auflösung knapp in `ZIELBILD.md`, wenn sie Ziele oder Entscheidungen verändert.
+
+## Allgemeingültiger Arbeitsauftrag
+
+`GOAL.md` enthält den wiederverwendbaren Startauftrag für jeden Codex-Arbeitsdurchlauf. Der Auftrag bleibt allgemein; die konkrete nächste Aufgabe ergibt sich aus dem aktuellen Stand von `ZIELBILD.md` und `Ergebnis.md`.
 
 ## Pflege von ZIELBILD.md
 

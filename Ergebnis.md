@@ -111,3 +111,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die tatsächlichen Datenpfade von Ollama und Open WebUI müssen bei der Implementierung gezielt auf die festgelegten RALF-Pfade konfiguriert oder nachvollziehbar dorthin gebunden werden.
 - Nächster sinnvoller Zielbild-Eintrag: Implementierung des Bootstrap-Skripts für RALF Standalone 0.0.1.
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – Read-only Bootstrap-Preflight implementiert
+
+- Bearbeitete Zielbild-IDs: M-001, M-010, M-011, M-012, M-013, M-017, P-001
+- Ergebnis: Das Host-Bootstrap-Skript besitzt einen ausschließlich lesenden `--check`-Modus. Er prüft Root-Ausführung, erforderliche Proxmox-Befehle, die Proxmox-Versionsabfrage, die Verfügbarkeit eines Ubuntu-26.04-LXC-Templates und eine Namenskollision mit `ralf-standalone`.
+- Geänderte Dateien: `scripts/ralf-standalone-bootstrap.sh`, `tests/bootstrap-preflight.sh`, `README.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: `bash -n` und ShellCheck ohne Befund; simulierte Tests für Erfolgsfall, fehlendes Template und bestehenden Containername erfolgreich; read-only Preflight auf dem realen Proxmox-Host erfolgreich; `git diff --check` ohne Befund.
+- Nicht ausgeführte Prüfungen: Kein Test gegen eine reale Container-Erstellung oder Softwareinstallation, weil dieser Schritt ausschließlich den read-only Preflight implementiert und Live-Infrastruktur nicht verändert werden darf.
+- Risiken oder Blocker: VMID, Storage, Netzwerk-Bridge und feste Ressourcenwerte sind für den Erzeugungsschritt noch nicht implementiert. Der Template-Abgleich setzt voraus, dass der Proxmox-Katalog einen Namen mit `ubuntu-26.04-standard` enthält.
+- Nächster sinnvoller Zielbild-Eintrag: M-017 – sichere, explizit konfigurierte Erstellung des unprivilegierten LXC ergänzen.
+- Veröffentlichung: Die Änderungen werden gemeinsam committed, gepusht und nach `main` gemergt.

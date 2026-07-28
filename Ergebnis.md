@@ -67,3 +67,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die konkrete Installationsart und Versionsbindung von Open WebUI sind im Rahmen der Implementierung noch festzulegen. Die Implementierung bleibt durch O-005 und O-006 blockiert.
 - Nächster sinnvoller Zielbild-Eintrag: O-005
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – Bootstrap-Skript als Installationsform festgelegt
+
+- Bearbeitete Zielbild-IDs: O-005, M-017, A-010
+- Ergebnis: Die Referenzinstallation wird durch ein auf dem Proxmox-Host gestartetes Bootstrap-Skript ausgeführt. Das Skript erstellt und konfiguriert den unprivilegierten LXC und stößt danach die Installation und Einrichtung von Ubuntu-Aktualisierungen, Ollama, `qwen2.5-coder:7b` und Open WebUI im Container an.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Statusübergang, Übereinstimmung mit dem Proxmox-LXC-Meilenstein und Abgrenzung zur noch offenen Container- und Netzwerkkonfiguration wurden geprüft.
+- Nicht ausgeführte Prüfungen: Es wurde noch kein Bootstrap-Skript implementiert oder auf einem Proxmox-Host ausgeführt, da ausschließlich die Installationsform beschlossen wurde.
+- Risiken oder Blocker: Containername, Netzwerkvorgaben und persistente Verzeichnisse sind noch offen. Die Implementierung bleibt durch O-006 blockiert.
+- Nächster sinnvoller Zielbild-Eintrag: O-006
+- Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.

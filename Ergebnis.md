@@ -56,3 +56,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Der Ollama-Modelltag kann sich langfristig auf ein anderes Artefakt beziehen; die bei der Implementierung tatsächlich aufgelöste Modellversion sollte nachvollziehbar protokolliert werden. Die Implementierung bleibt durch O-004 bis O-006 blockiert.
 - Nächster sinnvoller Zielbild-Eintrag: O-004
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – Open WebUI als Weboberfläche festgelegt
+
+- Bearbeitete Zielbild-IDs: O-004, M-016, A-009
+- Ergebnis: Open WebUI wurde verbindlich als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. Open WebUI wird im gemeinsamen LXC betrieben und mit der lokalen Ollama-Instanz verbunden.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Statusübergang, Folgeentscheidung und Übereinstimmung mit dem aktuellen Ein-Container-Meilenstein wurden geprüft.
+- Nicht ausgeführte Prüfungen: Open WebUI wurde noch nicht installiert, gestartet oder mit Ollama verbunden, da bislang ausschließlich die Projektentscheidung dokumentiert wurde.
+- Risiken oder Blocker: Die konkrete Installationsart und Versionsbindung von Open WebUI sind im Rahmen der Implementierung noch festzulegen. Die Implementierung bleibt durch O-005 und O-006 blockiert.
+- Nächster sinnvoller Zielbild-Eintrag: O-005
+- Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.

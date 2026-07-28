@@ -42,9 +42,19 @@ Diese Punkte sind Zielrichtung, nicht bereits implementierte Architektur.
 
 Codex soll vor jeder Änderung zuerst `AGENTS.md` und `ZIELBILD.md` lesen. Änderungen, die Ziele, Grenzen, Entscheidungen oder den Stand eines Meilensteins verändern, müssen gleichzeitig in `ZIELBILD.md` nachgeführt werden. Codex verwendet dafür die konventionelle Projektdatei `AGENTS.md`, wie sie auch vom Codex-Initialisierungsworkflow erzeugt wird.
 
+## Bootstrap-Preflight
+
+Der erste ungefährliche Teil des Proxmox-Bootstraps prüft ausschließlich die Voraussetzungen und verändert keine Container oder Hostkonfigurationen:
+
+```bash
+sudo ./scripts/ralf-standalone-bootstrap.sh --check
+```
+
+Der Preflight erwartet einen Proxmox-Host, prüft die benötigten Proxmox-Befehle, sucht im Templatekatalog nach Ubuntu 26.04 und bricht ab, falls bereits ein LXC namens `ralf-standalone` existiert. Die eigentliche Container-Erstellung ist noch nicht implementiert.
+
 ## Status
 
-Das Repository befindet sich in der Initialisierung. Es existiert noch keine Implementierung und es wurde noch kein Modell, keine Laufzeit und keine Weboberfläche verbindlich ausgewählt.
+Das Repository befindet sich in der Initialisierung. Die Referenzkomponenten sind im Zielbild festgelegt; implementiert ist bislang nur der read-only Bootstrap-Preflight, noch keine Container-Erstellung oder Softwareinstallation.
 
 ## Lizenz
 

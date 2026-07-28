@@ -91,6 +91,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | ID | Status | Ergebnis |
 |---|---|---|
 | A-001 | ABGESCHLOSSEN | Das GitHub-Repository `default82/RALF` wurde leer vorgefunden und als neues Projekt initialisiert. |
-| A-002 | ABGESCHLOSSEN | `README.md`, `AGENTS.md`, `ZIELBILD.md` und eine Projektlizenz wurden als erste Repository-Grundlage vorgesehen. |
+| A-002 | ABGESCHLOSSEN | `README.md`, `AGENTS.md`, `ZIELBILD.md` und `LICENSE` wurden als erste Repository-Grundlage angelegt. |
 | A-003 | ABGESCHLOSSEN | Der erste praktische Schritt wurde von einer vollständigen Plattformarchitektur auf eine feste Proxmox-Standalone-Installation reduziert. |
 | A-004 | ABGESCHLOSSEN | Eine endgültige Definition des RALF-Kerns wurde bewusst auf einen späteren Zeitpunkt verschoben. |
+| A-005 | ABGESCHLOSSEN | Das Projekt wurde zunächst unter die Apache License 2.0 gestellt. |

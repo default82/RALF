@@ -89,3 +89,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Netzwerkvorgaben und persistente Verzeichnisse sind weiterhin offen. Die Implementierung bleibt dadurch blockiert.
 - Nächster sinnvoller Zielbild-Eintrag: O-006 – Netzwerkvorgabe
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – DHCP als Netzwerkvorgabe festgelegt
+
+- Bearbeitete Zielbild-IDs: O-006, M-019, A-012
+- Ergebnis: Der erste `ralf-standalone`-LXC bezieht seine Netzwerkkonfiguration grundsätzlich per DHCP. Für die Referenzinstallation werden weder eine feste IP-Adresse noch eine DHCP-Reservierung vorausgesetzt.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Die Netzwerkentscheidung wurde auf Übereinstimmung mit dem einfachen und infrastrukturoffenen Bootstrap-Ziel geprüft; O-006 wurde für die noch offenen persistenten Verzeichnisse offen gelassen.
+- Nicht ausgeführte Prüfungen: Es wurde kein LXC erstellt und keine DHCP-Zuweisung getestet, da ausschließlich eine Projektentscheidung dokumentiert wurde.
+- Risiken oder Blocker: Die per DHCP vergebene Adresse kann sich ändern und muss nach der Installation zuverlässig ermittelt und ausgegeben werden. Die grundlegenden persistenten Verzeichnisse sind weiterhin offen.
+- Nächster sinnvoller Zielbild-Eintrag: O-006 – persistente Verzeichnisse
+- Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.

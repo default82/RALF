@@ -100,3 +100,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die per DHCP vergebene Adresse kann sich ändern und muss nach der Installation zuverlässig ermittelt und ausgegeben werden. Die grundlegenden persistenten Verzeichnisse sind weiterhin offen.
 - Nächster sinnvoller Zielbild-Eintrag: O-006 – persistente Verzeichnisse
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – Persistenzpfade des Standalone-LXC festgelegt
+
+- Bearbeitete Zielbild-IDs: O-006, M-020, A-013
+- Ergebnis: RALF Standalone 0.0.1 verwendet keine separaten Proxmox-Mountpoints. Konfiguration, Ollama-Daten, Open-WebUI-Daten und Protokolle liegen persistent im Root-Dateisystem des LXC unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`. Die Sicherung erfolgt zunächst über normale Proxmox-Backups des LXC.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Pfade, Statusübergang und Übereinstimmung mit dem Ein-Container-Meilenstein sowie der vorhandenen Definition of Done wurden geprüft.
+- Nicht ausgeführte Prüfungen: Die Verzeichnisse wurden noch nicht erstellt, beschrieben oder durch ein Proxmox-Backup gesichert, da ausschließlich eine Projektentscheidung dokumentiert wurde.
+- Risiken oder Blocker: Die tatsächlichen Datenpfade von Ollama und Open WebUI müssen bei der Implementierung gezielt auf die festgelegten RALF-Pfade konfiguriert oder nachvollziehbar dorthin gebunden werden.
+- Nächster sinnvoller Zielbild-Eintrag: Implementierung des Bootstrap-Skripts für RALF Standalone 0.0.1.
+- Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.

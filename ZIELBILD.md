@@ -93,6 +93,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | O-004 | ABGESCHLOSSEN | Open WebUI ist als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. |
 | O-005 | ABGESCHLOSSEN | Die Installation erfolgt durch ein vom Proxmox-Host gestartetes Bootstrap-Skript, das den LXC erstellt, konfiguriert und die Installation im Container anstößt. |
 | O-006 | ABGESCHLOSSEN | Hostname und Proxmox-Bezeichnung lauten `ralf-standalone`. Die Netzwerkkonfiguration erfolgt per DHCP ohne vorausgesetzte Reservierung. Persistente Daten verbleiben ohne separate Proxmox-Mountpoints im Root-Dateisystem unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`; die Sicherung erfolgt zunächst über Proxmox-Backups des LXC. |
+| O-007 | OFFEN | Vor der LXC-Erstellung sind VMID, Ziel-Storage, Netzwerk-Bridge, CPU-Anzahl, RAM und Root-Disk-Größe sowie die verbindliche Eingabeform dieser Werte festzulegen. |
 
 # 4. Abgeschlossene Anweisungen und Entscheidungen
 

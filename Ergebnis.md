@@ -133,3 +133,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die GitHub-Schreibvorgänge erzeugten mehrere aufeinanderfolgende Commits statt eines einzelnen atomaren Commits. Der Bootstrap ist weiterhin nur als ungefährlicher Preflight teilweise implementiert; Container-Erstellung und Softwareinstallation stehen aus.
 - Nächster sinnvoller Zielbild-Eintrag: M-017 – sichere, explizit konfigurierte Erstellung des unprivilegierten LXC gemäß `GOAL.md` fortsetzen.
 - Veröffentlichung: Alle Änderungen wurden durch GitHub-Schreibvorgänge direkt auf `main` committed und auf das Remote-Repository veröffentlicht; dieser Protokolleintrag bildet den abschließenden Commit des Arbeitsdurchlaufs.
+
+## 2026-07-28 – Fehlende LXC-Ressourcenkonfiguration formalisiert
+
+- Bearbeitete Zielbild-IDs: M-002, M-007, M-010, M-011, M-017, O-007, P-001
+- Ergebnis: O-007 erfasst VMID, Ziel-Storage, Netzwerk-Bridge, CPU, RAM, Root-Disk-Größe und deren verbindliche Eingabeform als noch offene, vor der LXC-Erstellung notwendige Entscheidung. Es wurden keine Werte erfunden und keine Live-Ressourcen verändert.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Pflichtdokumente und jüngste relevante Ergebnisse gelesen; Abhängigkeit zur sicheren LXC-Erstellung geprüft; Zielbild-ID und Tabellenstruktur kontrolliert; `git diff --check` wird vor dem Commit ausgeführt.
+- Nicht ausgeführte Prüfungen: Keine Shell-, Installations- oder Infrastrukturtests, da ausschließlich ein Implementierungsblocker dokumentiert wurde und die bestehende Preflight-Implementierung unverändert blieb.
+- Risiken oder Blocker: M-017 und D-001 bleiben bis zur Entscheidung O-007 blockiert.
+- Nächster sinnvoller Zielbild-Eintrag: O-007
+- Veröffentlichung: Die Dokumentationsänderungen werden gemeinsam committed, gepusht und nach `main` gemergt.

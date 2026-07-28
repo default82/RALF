@@ -67,6 +67,7 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-017 | AKTIV | Die Referenzinstallation wird durch ein auf dem Proxmox-Host gestartetes Bootstrap-Skript ausgeführt. Das Skript erstellt und konfiguriert den LXC und stößt anschließend die Installation und Einrichtung von Ubuntu-Aktualisierungen, Ollama, Referenzmodell und Open WebUI innerhalb des Containers an. |
 | M-018 | AKTIV | Hostname und Proxmox-Bezeichnung des ersten LXC lauten `ralf-standalone`. |
 | M-019 | AKTIV | Die Netzwerkkonfiguration des ersten LXC erfolgt grundsätzlich per DHCP. Für die erste Referenzinstallation wird keine feste IP-Adresse und keine DHCP-Reservierung vorausgesetzt. |
+| M-020 | AKTIV | Für RALF Standalone 0.0.1 werden keine separaten Proxmox-Mountpoints eingerichtet. Persistente Daten liegen im Root-Dateisystem des LXC unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`. Die Sicherung erfolgt zunächst über normale Proxmox-Backups des LXC. |
 
 ## Definition of Done
 
@@ -91,7 +92,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | O-003 | ABGESCHLOSSEN | `qwen2.5-coder:7b` ist als erstes Referenzmodell für RALF Standalone 0.0.1 festgelegt. |
 | O-004 | ABGESCHLOSSEN | Open WebUI ist als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. |
 | O-005 | ABGESCHLOSSEN | Die Installation erfolgt durch ein vom Proxmox-Host gestartetes Bootstrap-Skript, das den LXC erstellt, konfiguriert und die Installation im Container anstößt. |
-| O-006 | OFFEN | Hostname und Proxmox-Bezeichnung sind mit `ralf-standalone` festgelegt. Die Netzwerkkonfiguration erfolgt per DHCP ohne vorausgesetzte Reservierung. Die grundlegenden persistenten Verzeichnisse des ersten Containers sind noch festzulegen. |
+| O-006 | ABGESCHLOSSEN | Hostname und Proxmox-Bezeichnung lauten `ralf-standalone`. Die Netzwerkkonfiguration erfolgt per DHCP ohne vorausgesetzte Reservierung. Persistente Daten verbleiben ohne separate Proxmox-Mountpoints im Root-Dateisystem unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`; die Sicherung erfolgt zunächst über Proxmox-Backups des LXC. |
 
 # 4. Abgeschlossene Anweisungen und Entscheidungen
 
@@ -109,6 +110,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-010 | ABGESCHLOSSEN | Ein vom Proxmox-Host gestartetes Bootstrap-Skript wurde als Installationsform für RALF Standalone 0.0.1 festgelegt. |
 | A-011 | ABGESCHLOSSEN | `ralf-standalone` wurde als Hostname und Proxmox-Bezeichnung des ersten LXC festgelegt. |
 | A-012 | ABGESCHLOSSEN | DHCP ohne vorausgesetzte Reservierung wurde als Netzwerkkonfiguration des ersten RALF-Standalone-LXC festgelegt. |
+| A-013 | ABGESCHLOSSEN | Die persistenten Verzeichnisse des ersten LXC wurden festgelegt; separate Proxmox-Mountpoints werden in RALF Standalone 0.0.1 nicht verwendet. |
 
 # 5. Verbindlicher Entwicklungsprozess
 

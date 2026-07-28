@@ -45,3 +45,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Modell, Weboberfläche, Installationsform sowie Container- und Netzwerkvorgaben sind noch offen. Die Implementierung bleibt durch O-003 bis O-006 blockiert.
 - Nächster sinnvoller Zielbild-Eintrag: O-003
 - Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.
+
+## 2026-07-28 – Qwen-Coder-Referenzmodell festgelegt
+
+- Bearbeitete Zielbild-IDs: O-003, M-015, A-008
+- Ergebnis: `qwen2.5-coder:7b` wurde verbindlich als Referenzmodell für RALF Standalone 0.0.1 festgelegt und soll über Ollama im gemeinsamen LXC bereitgestellt werden.
+- Geänderte Dateien: `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Modellbezeichnung, Statusübergang und Übereinstimmung mit der festgelegten Ollama-Laufzeit wurden geprüft.
+- Nicht ausgeführte Prüfungen: Das Modell wurde noch nicht heruntergeladen, gestartet oder auf der Zielhardware getestet, da bislang ausschließlich die Projektentscheidung dokumentiert wurde.
+- Risiken oder Blocker: Der Ollama-Modelltag kann sich langfristig auf ein anderes Artefakt beziehen; die bei der Implementierung tatsächlich aufgelöste Modellversion sollte nachvollziehbar protokolliert werden. Die Implementierung bleibt durch O-004 bis O-006 blockiert.
+- Nächster sinnvoller Zielbild-Eintrag: O-004
+- Veröffentlichung: Die Dokumentationsänderungen wurden direkt auf `main` committed.

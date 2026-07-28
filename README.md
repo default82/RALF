@@ -2,6 +2,8 @@
 
 RALF ist ein frühes, gemeinschaftlich entwickeltes Projekt für einen anpassbaren lokalen KI-Assistenten. Das Projekt beginnt bewusst klein und praktisch: Zuerst soll eine reproduzierbare Standalone-Installation entstehen, die auf der vorhandenen Infrastruktur tatsächlich läuft. Die spätere Architektur wird aus den dabei gewonnenen Erfahrungen entwickelt und nicht vorab vollständig festgelegt.
 
+RALF entsteht transparent durch Vibe Coding: Menschen geben Zielbild, Entscheidungen und Grenzen vor, während Coding-Agenten die Umsetzung in kleinen, überprüfbaren Schritten unterstützen.
+
 ## Aktueller Meilenstein
 
 Der erste Meilenstein ist eine feste Referenzinstallation für Proxmox:
@@ -33,6 +35,7 @@ Diese Punkte sind Zielrichtung, nicht bereits implementierte Architektur.
 
 - [`AGENTS.md`](AGENTS.md) enthält verbindliche Arbeitsregeln für Codex CLI und andere Coding-Agenten.
 - [`ZIELBILD.md`](ZIELBILD.md) ist die fortlaufend gepflegte Quelle für Ziele, Anweisungen, Entscheidungen und deren Status.
+- [`Ergebnis.md`](Ergebnis.md) protokolliert die Ergebnisse und Fehler der einzelnen Arbeitsdurchläufe.
 - [`LICENSE`](LICENSE) enthält die Projektlizenz.
 
 ## Arbeiten mit Codex CLI

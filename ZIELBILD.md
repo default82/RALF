@@ -95,3 +95,9 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-003 | ABGESCHLOSSEN | Der erste praktische Schritt wurde von einer vollständigen Plattformarchitektur auf eine feste Proxmox-Standalone-Installation reduziert. |
 | A-004 | ABGESCHLOSSEN | Eine endgültige Definition des RALF-Kerns wurde bewusst auf einen späteren Zeitpunkt verschoben. |
 | A-005 | ABGESCHLOSSEN | Das Projekt wurde zunächst unter die Apache License 2.0 gestellt. |
+
+# 5. Verbindlicher Entwicklungsprozess
+
+| ID | Status | Anweisung |
+|---|---|---|
+| P-001 | AKTIV | Nach jedem Arbeitsdurchlauf wird `Ergebnis.md` append-only um Ergebnis oder Fehler, Änderungen, Prüfungen, Blocker und nächsten Zielbild-Schritt ergänzt. Die zugehörigen Repository-Änderungen werden gezielt committed und auf den vorgesehenen Remote-Branch gepusht; technische Commit- oder Pushfehler werden wahrheitsgemäß nachgetragen. |

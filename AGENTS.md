@@ -97,6 +97,14 @@ Vor Abschluss einer Aufgabe:
 4. `ZIELBILD.md` aktualisieren, wenn sich Ziel, Anweisung, Entscheidung oder Status geändert hat.
 5. Offen gebliebene Punkte klar benennen.
 
+## Laufprotokoll und Veröffentlichung
+
+- Nach jedem Arbeitsdurchlauf ist `Ergebnis.md` um einen neuen datierten Eintrag zu erweitern. Bestehende Einträge werden nicht überschrieben.
+- Jeder Eintrag nennt mindestens die bearbeiteten Zielbild-IDs, Ergebnis oder Fehler, geänderte Dateien, tatsächlich ausgeführte Prüfungen, nicht ausgeführte Prüfungen mit Begründung, offene Risiken oder Blocker und den nächsten sinnvollen Zielbild-Eintrag.
+- Das Laufprotokoll wird auch dann gepflegt, wenn die eigentliche Umsetzung fehlschlägt oder ohne Änderung abgebrochen werden muss.
+- Zu jedem Arbeitsdurchlauf gehören ein gezielter Commit der zugehörigen Repository-Dateien und ein Push auf den vorgesehenen Remote-Branch. Lokale Geheimnisse und nicht zum Arbeitsdurchlauf gehörende Dateien werden nicht aufgenommen.
+- Schlägt Commit oder Push technisch fehl, wird der konkrete Fehler im nächsten möglichen Eintrag festgehalten; ein fehlgeschlagener Push darf nicht als erfolgreich gemeldet werden.
+
 ## Aktuelle Definition of Done
 
 Der erste Standalone-Meilenstein ist abgeschlossen, wenn ein reproduzierbarer Installationsweg auf Proxmox einen unprivilegierten LXC mit Modell, Modelllaufzeit und kleiner Weboberfläche erzeugt und anschließend nachweist, dass:

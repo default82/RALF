@@ -66,6 +66,7 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-016 | AKTIV | Open WebUI ist die festgelegte kleine Weboberfläche für RALF Standalone 0.0.1. Sie wird im gemeinsamen LXC betrieben und mit der lokalen Ollama-Instanz verbunden. |
 | M-017 | AKTIV | Die Referenzinstallation wird durch ein auf dem Proxmox-Host gestartetes Bootstrap-Skript ausgeführt. Das Skript erstellt und konfiguriert den LXC und stößt anschließend die Installation und Einrichtung von Ubuntu-Aktualisierungen, Ollama, Referenzmodell und Open WebUI innerhalb des Containers an. |
 | M-018 | AKTIV | Hostname und Proxmox-Bezeichnung des ersten LXC lauten `ralf-standalone`. |
+| M-019 | AKTIV | Die Netzwerkkonfiguration des ersten LXC erfolgt grundsätzlich per DHCP. Für die erste Referenzinstallation wird keine feste IP-Adresse und keine DHCP-Reservierung vorausgesetzt. |
 
 ## Definition of Done
 
@@ -90,7 +91,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | O-003 | ABGESCHLOSSEN | `qwen2.5-coder:7b` ist als erstes Referenzmodell für RALF Standalone 0.0.1 festgelegt. |
 | O-004 | ABGESCHLOSSEN | Open WebUI ist als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. |
 | O-005 | ABGESCHLOSSEN | Die Installation erfolgt durch ein vom Proxmox-Host gestartetes Bootstrap-Skript, das den LXC erstellt, konfiguriert und die Installation im Container anstößt. |
-| O-006 | OFFEN | Hostname und Proxmox-Bezeichnung sind mit `ralf-standalone` festgelegt. Netzwerkvorgaben und grundlegende persistente Verzeichnisse des ersten Containers sind noch festzulegen. |
+| O-006 | OFFEN | Hostname und Proxmox-Bezeichnung sind mit `ralf-standalone` festgelegt. Die Netzwerkkonfiguration erfolgt per DHCP ohne vorausgesetzte Reservierung. Die grundlegenden persistenten Verzeichnisse des ersten Containers sind noch festzulegen. |
 
 # 4. Abgeschlossene Anweisungen und Entscheidungen
 
@@ -107,6 +108,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-009 | ABGESCHLOSSEN | Open WebUI wurde als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. |
 | A-010 | ABGESCHLOSSEN | Ein vom Proxmox-Host gestartetes Bootstrap-Skript wurde als Installationsform für RALF Standalone 0.0.1 festgelegt. |
 | A-011 | ABGESCHLOSSEN | `ralf-standalone` wurde als Hostname und Proxmox-Bezeichnung des ersten LXC festgelegt. |
+| A-012 | ABGESCHLOSSEN | DHCP ohne vorausgesetzte Reservierung wurde als Netzwerkkonfiguration des ersten RALF-Standalone-LXC festgelegt. |
 
 # 5. Verbindlicher Entwicklungsprozess
 

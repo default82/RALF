@@ -155,3 +155,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die konkrete LXC-Erstellung und die Installation von Ubuntu-Aktualisierungen, Ollama, Modell und Open WebUI stehen weiterhin aus. O-008 bleibt für GPU-Unterstützung offen.
 - Nächster sinnvoller Zielbild-Eintrag: M-017 – sichere LXC-Erstellung auf Basis des validierten Plans.
 - Veröffentlichung: Die Änderungen werden gemeinsam committed, gepusht und nach `main` gemergt.
+
+## 2026-07-31 – Sicheren Apply-Pfad für LXC-Erstellung implementiert
+
+- Bearbeitete Zielbild-IDs: M-017, M-023, D-001, P-001
+- Ergebnis: `--apply` wiederholt den vollständigen Preflight, vergleicht den unmittelbaren Plan und ruft anschließend genau einmal `pct create` mit unprivilegiertem LXC, DHCP, Referenzressourcen, Root-Disk und ohne Mountpoints oder GPU-Features auf. Die erzeugte Konfiguration und der gestoppte Status werden read-only geprüft. Bei Create- oder Prüfungsfehlern erfolgt kein automatisches Rollback; der Zustand wird eindeutig ausgegeben.
+- Geänderte Dateien: `scripts/ralf-standalone-bootstrap.sh`, `tests/bootstrap-apply.sh`, `tests/bootstrap-preflight.sh`, `README.md`, `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: `bash -n`, ShellCheck, bestehende Preflight-Tests, Apply-Mocktests für Plan/Check ohne Create, exakte Overrides, belegte VMID, vorhandenen Namen, fehlendes Template, ungültigen Storage, ungültige Bridge, `pct create`-Fehler, erfolgreiche Create-Konfigurationsprüfung, unbekannte und widersprüchliche Optionen sowie `git diff --check`.
+- Nicht ausgeführte Prüfungen: Kein realer `--apply`-Lauf und kein realer LXC wurden erstellt, gestartet, gestoppt oder gelöscht; dies war ausdrücklich ausgeschlossen.
+- Risiken oder Blocker: D-001 bleibt `AKTIV`, bis ein realer LXC erfolgreich erstellt und geprüft wurde. Softwareinstallation und O-008 GPU-Entscheidung bleiben offen. Bei einem fehlgeschlagenen `pct create` wird kein automatisches Rollback versucht.
+- Nächster sinnvoller Zielbild-Eintrag: Ein ausdrücklich beauftragter realer `--apply`-Validierungslauf für D-001.
+- Veröffentlichung: Die Änderungen werden gemeinsam committed, gepusht und nach `main` gemergt.

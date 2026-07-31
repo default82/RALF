@@ -65,11 +65,19 @@ Der erste ungefährliche Teil des Proxmox-Bootstraps prüft ausschließlich die 
 sudo ./scripts/ralf-standalone-bootstrap.sh --plan
 ```
 
-`--check` ist ein kompatibler Alias. Der Plan ermittelt die nächste freie VMID sowie Storage und Bridge nur dann automatisch, wenn jeweils genau eine geeignete Option vorhanden ist. Alternativ können `--vmid`, `--storage`, `--bridge`, `--cores`, `--memory`, `--swap` und `--disk` explizit gesetzt werden. Speicher und Swap werden in MiB, die Root-Disk in GiB angegeben. Ungültige, fehlende oder mehrdeutige Werte brechen ohne LXC-Änderung ab. Die eigentliche Container-Erstellung ist noch nicht implementiert.
+`--check` ist ein kompatibler Alias. Der Plan ermittelt die nächste freie VMID sowie Storage und Bridge nur dann automatisch, wenn jeweils genau eine geeignete Option vorhanden ist. Alternativ können `--vmid`, `--storage`, `--bridge`, `--cores`, `--memory`, `--swap` und `--disk` explizit gesetzt werden. Speicher und Swap werden in MiB, die Root-Disk in GiB angegeben. Ungültige, fehlende oder mehrdeutige Werte brechen ohne LXC-Änderung ab.
+
+Die ausdrückliche Erstellung erfolgt erst mit `--apply`:
+
+```bash
+sudo ./scripts/ralf-standalone-bootstrap.sh --apply
+```
+
+`--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` auf und prüft die erzeugte LXC-Konfiguration anschließend read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts. Ein realer `--apply`-Lauf ist bisher nicht ausgeführt.
 
 ## Status
 
-Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Implementiert ist bislang nur der read-only Bootstrap- und Ressourcenplan; Container-Erstellung, Softwareinstallation und vollständige Definition of Done stehen noch aus.
+Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Implementiert sind der read-only Bootstrap-/Ressourcenplan und der ausdrückliche, noch nicht real ausgeführte Apply-Pfad; Softwareinstallation und vollständige Definition of Done stehen noch aus.
 
 ## Lizenz
 

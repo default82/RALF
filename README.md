@@ -62,14 +62,14 @@ Jeder Arbeitsdurchlauf umfasst einen kleinen überprüfbaren Schritt, relevante 
 Der erste ungefährliche Teil des Proxmox-Bootstraps prüft ausschließlich die Voraussetzungen und verändert keine Container oder Hostkonfigurationen:
 
 ```bash
-sudo ./scripts/ralf-standalone-bootstrap.sh --check
+sudo ./scripts/ralf-standalone-bootstrap.sh --plan
 ```
 
-Der Preflight erwartet einen Proxmox-Host, prüft die benötigten Proxmox-Befehle, sucht im Templatekatalog nach Ubuntu 26.04 und bricht ab, falls bereits ein LXC namens `ralf-standalone` existiert. Die eigentliche Container-Erstellung ist noch nicht implementiert.
+`--check` ist ein kompatibler Alias. Der Plan ermittelt die nächste freie VMID sowie Storage und Bridge nur dann automatisch, wenn jeweils genau eine geeignete Option vorhanden ist. Alternativ können `--vmid`, `--storage`, `--bridge`, `--cores`, `--memory`, `--swap` und `--disk` explizit gesetzt werden. Speicher und Swap werden in MiB, die Root-Disk in GiB angegeben. Ungültige, fehlende oder mehrdeutige Werte brechen ohne LXC-Änderung ab. Die eigentliche Container-Erstellung ist noch nicht implementiert.
 
 ## Status
 
-Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Implementiert ist bislang nur der read-only Bootstrap-Preflight; Container-Erstellung, Softwareinstallation und vollständige Definition of Done stehen noch aus.
+Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Implementiert ist bislang nur der read-only Bootstrap- und Ressourcenplan; Container-Erstellung, Softwareinstallation und vollständige Definition of Done stehen noch aus.
 
 ## Lizenz
 

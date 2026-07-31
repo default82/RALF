@@ -144,3 +144,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: M-017 und D-001 bleiben bis zur Entscheidung O-007 blockiert.
 - Nächster sinnvoller Zielbild-Eintrag: O-007
 - Veröffentlichung: Die Dokumentationsänderungen werden gemeinsam committed, gepusht und nach `main` gemergt.
+
+## 2026-07-31 – O-007 festgelegt und Ressourcenplan implementiert
+
+- Bearbeitete Zielbild-IDs: O-007, M-021, M-022, O-008, P-001
+- Ergebnis: O-007 ist abgeschlossen. Der sichere Plan-/Preflight-Pfad verwendet 4 Kerne, 12288 MiB RAM, 4096 MiB Swap und 40 GiB Root-Disk als feste Referenzwerte. VMID, Storage und Bridge werden eindeutig und nur lesend ermittelt; die sieben vorgesehenen CLI-Parameter überschreiben die Defaults beziehungsweise Auswahl. Mehrdeutige oder ungültige Werte brechen vor jeder Mutation ab. GPU-Passthrough wurde als separate offene Entscheidung O-008 dokumentiert und nicht implementiert.
+- Geänderte Dateien: `scripts/ralf-standalone-bootstrap.sh`, `tests/bootstrap-preflight.sh`, `ZIELBILD.md`, `README.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: `bash -n`, ShellCheck soweit verfügbar, gültige Defaults, gültige CLI-Overrides, belegte VMID, mehrdeutige Storages, mehrdeutige Bridges, ungültiger Speicherwert, unbekannte Option, fehlender Parameter sowie `git diff --check`.
+- Nicht ausgeführte Prüfungen: Keine echte LXC-Erstellung, kein Start/Stop und keine Softwareinstallation; der Planpfad bleibt absichtlich ohne Live-Mutation.
+- Risiken oder Blocker: Die konkrete LXC-Erstellung und die Installation von Ubuntu-Aktualisierungen, Ollama, Modell und Open WebUI stehen weiterhin aus. O-008 bleibt für GPU-Unterstützung offen.
+- Nächster sinnvoller Zielbild-Eintrag: M-017 – sichere LXC-Erstellung auf Basis des validierten Plans.
+- Veröffentlichung: Die Änderungen werden gemeinsam committed, gepusht und nach `main` gemergt.

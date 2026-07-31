@@ -1,6 +1,6 @@
 # ZIELBILD.md
 
-Stand: 2026-07-28
+Stand: 2026-07-31
 
 Diese Datei ist die dauerhaft gepflegte Arbeitsgrundlage für Menschen und Coding-Agenten, die RALF entwickeln. Sie enthält Ziele, verbindliche Anweisungen, Entscheidungen, Grenzen und deren Status. Sie enthält keine vollständigen Überlegungen, Gesprächsprotokolle oder ausführlichen Alternativdiskussionen.
 
@@ -68,6 +68,8 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-018 | AKTIV | Hostname und Proxmox-Bezeichnung des ersten LXC lauten `ralf-standalone`. |
 | M-019 | AKTIV | Die Netzwerkkonfiguration des ersten LXC erfolgt grundsätzlich per DHCP. Für die erste Referenzinstallation wird keine feste IP-Adresse und keine DHCP-Reservierung vorausgesetzt. |
 | M-020 | AKTIV | Für RALF Standalone 0.0.1 werden keine separaten Proxmox-Mountpoints eingerichtet. Persistente Daten liegen im Root-Dateisystem des LXC unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`. Die Sicherung erfolgt zunächst über normale Proxmox-Backups des LXC. |
+| M-021 | AKTIV | Die feste Referenzinstallation verwendet 4 CPU-Kerne, 12288 MiB RAM, 4096 MiB Swap und eine 40-GiB-Root-Disk. Diese Werte sind Referenzwerte der ersten Installation und keine allgemeinen Mindestanforderungen. VMID, Storage und Bridge werden standardmäßig sicher ermittelt; die Werte können über explizite CLI-Parameter überschrieben werden. |
+| M-022 | AKTIV | Der Plan-/Preflight-Pfad validiert alle Ressourcenparameter und bricht bei ungültigen oder unvollständigen Angaben sowie bei nicht eindeutiger automatischer Storage- oder Bridge-Auswahl vor jeder LXC-Mutation mit verständlicher Ausgabe ab. Eine belegte VMID wird niemals überschrieben. |
 
 ## Definition of Done
 
@@ -93,7 +95,8 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | O-004 | ABGESCHLOSSEN | Open WebUI ist als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. |
 | O-005 | ABGESCHLOSSEN | Die Installation erfolgt durch ein vom Proxmox-Host gestartetes Bootstrap-Skript, das den LXC erstellt, konfiguriert und die Installation im Container anstößt. |
 | O-006 | ABGESCHLOSSEN | Hostname und Proxmox-Bezeichnung lauten `ralf-standalone`. Die Netzwerkkonfiguration erfolgt per DHCP ohne vorausgesetzte Reservierung. Persistente Daten verbleiben ohne separate Proxmox-Mountpoints im Root-Dateisystem unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`; die Sicherung erfolgt zunächst über Proxmox-Backups des LXC. |
-| O-007 | OFFEN | Vor der LXC-Erstellung sind VMID, Ziel-Storage, Netzwerk-Bridge, CPU-Anzahl, RAM und Root-Disk-Größe sowie die verbindliche Eingabeform dieser Werte festzulegen. |
+| O-007 | ABGESCHLOSSEN | Für die feste Referenzinstallation gelten 4 CPU-Kerne, 12288 MiB RAM, 4096 MiB Swap und 40 GiB Root-Disk. Die nächste freie VMID wird standardmäßig über Proxmox ermittelt; Storage und Bridge werden nur bei genau einer geeigneten Option automatisch gewählt. `--vmid`, `--storage`, `--bridge`, `--cores`, `--memory`, `--swap` und `--disk` überschreiben die Standardwerte beziehungsweise Auswahl. Mehrdeutige oder fehlende Optionen sowie ungültige Parameter brechen vor jeder Änderung ab. |
+| O-008 | OFFEN | GPU-Unterstützung und insbesondere GPU-Passthrough für RALF Standalone sind nicht entschieden. Eine Umsetzung ist nicht Teil des aktuellen Meilensteins. |
 
 # 4. Abgeschlossene Anweisungen und Entscheidungen
 

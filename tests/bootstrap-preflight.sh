@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# shellcheck disable=SC2016
+
 set -Eeuo pipefail
 
 PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -23,43 +25,47 @@ make_stub() {
   chmod +x "${directory}/${name}"
 }
 
+prepare_stubs() {
+  local directory=$1
+  make_stub "$directory" pveversion 'printf "pve-manager/9.2.4\n"'
+  make_stub "$directory" pveam 'printf "system local:vztmpl/ubuntu-26.04-standard_26.04-1_amd64.tar.zst\n"'
+  make_stub "$directory" pvesh 'case "$*" in */nextid*) printf "2200\n" ;; *) case "${TEST_CASE:-}" in occupied-vmid) printf "[{\"vmid\":2200}]\n" ;; *) printf "[]\n" ;; esac ;; esac'
+  make_stub "$directory" pvesm 'case "${TEST_CASE:-}" in multiple-storage) printf "Name Type Status Total Used Available %%\nlocal dir active 1 0 1 0\nlocal-lvm lvmthin active 1 0 1 0\n" ;; *) printf "Name Type Status Total Used Available %%\nlocal-lvm lvmthin active 1 0 1 0\n" ;; esac'
+  make_stub "$directory" pct 'exit 0'
+  make_stub "$directory" ip 'case "${TEST_CASE:-}" in multiple-bridge) printf "3: vmbr0: <UP>\n4: vmbr1: <UP>\n" ;; *) printf "3: vmbr0: <UP>\n" ;; esac'
+}
+
 run_case() {
   local name=$1
   local expected_status=$2
   local expected_text=$3
+  shift 3
   local stub_dir="${TEST_ROOT}/${name}"
   local output
   local status
 
-  make_stub "$stub_dir" pveversion 'printf "pve-manager/9.2.4\\n"'
-  make_stub "$stub_dir" pveam 'printf "system local:vztmpl/ubuntu-26.04-standard_26.04-1_amd64.tar.zst\\n"'
-  make_stub "$stub_dir" pct 'printf "VMID Status Lock Name\\n"'
-
-  case "$name" in
-    missing-template)
-      make_stub "$stub_dir" pveam 'printf "system local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst\\n"'
-      ;;
-    existing-container)
-      make_stub "$stub_dir" pct 'printf "VMID Status Lock Name\\n2200 stopped - ralf-standalone\\n"'
-      ;;
-  esac
-
+  prepare_stubs "$stub_dir"
   set +e
-  output=$(PATH="${stub_dir}:/usr/bin:/bin" "$SCRIPT" --check 2>&1)
+  output=$(TEST_CASE="$name" PATH="${stub_dir}:/usr/bin:/bin" "$SCRIPT" --plan "$@" 2>&1)
   status=$?
   set -e
 
-  [[ $status == "$expected_status" ]] ||
+  [[ $status == "$expected_status" ]] || {
     printf 'FAIL %s: Status %s statt %s\n%s\n' "$name" "$status" "$expected_status" "$output" >&2
-  [[ $status == "$expected_status" ]] || return 1
-
-  grep -Fq "$expected_text" <<<"$output" ||
+    return 1
+  }
+  grep -Fq "$expected_text" <<<"$output" || {
     printf 'FAIL %s: Ausgabe enthält nicht: %s\n%s\n' "$name" "$expected_text" "$output" >&2
-  grep -Fq "$expected_text" <<<"$output" || return 1
-
+    return 1
+  }
   printf 'PASS %s\n' "$name"
 }
 
-run_case success 0 'Preflight erfolgreich'
-run_case missing-template 1 'Kein Ubuntu-26.04-LXC-Template'
-run_case existing-container 1 'existiert bereits'
+run_case valid-defaults 0 'RAM: 12288 MiB'
+run_case valid-overrides 0 'CPU: 8 Kerne' --vmid 2300 --storage local-lvm --bridge vmbr0 --cores 8 --memory 16384 --swap 8192 --disk 60
+run_case occupied-vmid 1 'bereits belegt'
+run_case multiple-storage 1 'Mehrere geeignete Storage'
+run_case multiple-bridge 1 'Mehrere geeignete Bridge'
+run_case invalid-memory 1 'Ungültiger Wert für --memory' --memory nope
+run_case unknown-option 1 'Unbekannte Option: --wat' --wat
+run_case missing-value 1 'Fehlender Wert für --cores' --cores

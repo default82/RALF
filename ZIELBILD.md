@@ -76,7 +76,7 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 
 | ID | Status | Prüfkriterium |
 |---|---|---|
-| D-001 | AKTIV | Der Installationsweg erstellt den vorgesehenen unprivilegierten LXC auf Proxmox. |
+| D-001 | ABGESCHLOSSEN | Der Installationsweg erstellte den vorgesehenen unprivilegierten LXC auf Proxmox als VMID 100 und die read-only Prüfung bestätigte die Zielkonfiguration. |
 | D-002 | AKTIV | Die kleine Weboberfläche ist nach der Installation erreichbar. |
 | D-003 | AKTIV | Das installierte Modell beantwortet über die Weboberfläche eine Testanfrage. |
 | D-004 | AKTIV | Notwendige Daten und Konfiguration überleben einen Container-Neustart. |
@@ -117,6 +117,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-012 | ABGESCHLOSSEN | DHCP ohne vorausgesetzte Reservierung wurde als Netzwerkkonfiguration des ersten RALF-Standalone-LXC festgelegt. |
 | A-013 | ABGESCHLOSSEN | Die persistenten Verzeichnisse des ersten LXC wurden festgelegt; separate Proxmox-Mountpoints werden in RALF Standalone 0.0.1 nicht verwendet. |
 | A-014 | ABGESCHLOSSEN | `GOAL.md` wurde als allgemeingültiger, wiederverwendbarer Arbeitsauftrag für Codex CLI angelegt und in den Projektdokumenten verankert. |
+| A-015 | ABGESCHLOSSEN | Der erste reale `ralf-standalone`-LXC wurde am 2026-07-31 als VMID 100 erstellt und read-only geprüft. Er ist gestoppt und enthält noch keine RALF-Software. |
 
 # 5. Verbindlicher Entwicklungsprozess
 

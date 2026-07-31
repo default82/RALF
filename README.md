@@ -73,11 +73,11 @@ Die ausdrückliche Erstellung erfolgt erst mit `--apply`:
 sudo ./scripts/ralf-standalone-bootstrap.sh --apply
 ```
 
-`--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` auf und prüft die erzeugte LXC-Konfiguration anschließend read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts. Ein realer `--apply`-Lauf ist bisher nicht ausgeführt.
+`--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` auf und prüft die erzeugte LXC-Konfiguration anschließend read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts.
 
 ## Status
 
-Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Implementiert sind der read-only Bootstrap-/Ressourcenplan und der ausdrückliche, noch nicht real ausgeführte Apply-Pfad; Softwareinstallation und vollständige Definition of Done stehen noch aus.
+Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt und read-only geprüft; er ist aktuell gestoppt und enthält noch keine RALF-Software. Softwareinstallation und die übrigen Definition-of-Done-Punkte stehen noch aus.
 
 ## Lizenz
 

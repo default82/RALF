@@ -77,7 +77,7 @@ sudo ./scripts/ralf-standalone-bootstrap.sh --apply
 
 ## Status
 
-Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt und read-only geprüft; er ist aktuell gestoppt und enthält noch keine RALF-Software. Softwareinstallation und die übrigen Definition-of-Done-Punkte stehen noch aus.
+Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, read-only geprüft und am 2026-07-31 einmalig gestartet; er ist aktuell laufend und enthält noch keine RALF-Software. Die Basisvalidierung ist wegen fehlender DHCP-Netzwerkbereitschaft (`eth0` ist `DOWN`, ohne IPv4-Adresse und Default-Route) noch nicht abgeschlossen. Softwareinstallation und die übrigen Definition-of-Done-Punkte stehen noch aus.
 
 ## Lizenz
 

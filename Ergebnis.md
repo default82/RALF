@@ -177,3 +177,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Der Container ist leer und gestoppt. Ubuntu-Paketupdates, Ollama, `qwen2.5-coder:7b`, Open WebUI und GPU-Unterstützung bleiben offen. O-008 bleibt als GPU-Entscheidung offen.
 - Nächster sinnvoller Zielbild-Eintrag: Kontrolliertes Starten und Vorbereiten des leeren Ubuntu-LXC ohne RALF-Softwareinstallation.
 - Veröffentlichung: Ausschließlich diese Dokumentationsänderungen werden committed, gepusht und nach `main` gemergt.
+
+## 2026-07-31 – Erster LXC-Start und Basisvalidierung blockiert
+
+- Bearbeitete Zielbild-IDs: M-024, M-017, M-023, P-001
+- Ergebnis: Nach ausdrücklicher Freigabe wurde `pct start 100` genau einmal erfolgreich ausgeführt. VMID 100 läuft weiterhin als unprivilegierter `ralf-standalone`-LXC mit unveränderter Zielkonfiguration. Hostname, Ubuntu 26.04 LTS, Architektur `x86_64`, CPU, RAM, Swap, Root-Dateisystem und der erlaubte `/tmp`-Schreib-/Löschtest waren erfolgreich. `systemctl is-system-running` meldete `degraded`. `eth0` blieb auch nach einer begrenzten read-only Bereitschaftsprüfung `DOWN`; es gab keine IPv4-Adresse und keine Default-Route. Gateway-Erreichbarkeit, DNS-Auflösung und HTTPS-Erreichbarkeit der Ubuntu-Paketquelle schlugen deshalb fehl.
+- Geänderte Dateien: `ZIELBILD.md`, `README.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Genau ein `pct start 100`; danach read-only `pct status 100`, `pct config 100`, Hostname, `/etc/os-release`, `uname -m`, `systemctl is-system-running`, IPv4-/Routen-/DNS-Prüfungen, begrenzte DHCP-Bereitschaftsprüfung, Gateway-Ping, DNS-Auflösung, HTTPS-Test, CPU-/Speicher-/Swap-/Root-Dateisystem-Prüfung, temporäre `/tmp`-Datei mit unmittelbarer Entfernung sowie Prüfung, dass die vorgesehenen RALF-Verzeichnisse noch nicht existieren.
+- Nicht ausgeführte Prüfungen: Eine erfolgreiche Netzwerkvalidierung konnte wegen des fehlenden DHCP-Link-/Routenzustands nicht ausgeführt werden. Es wurden keine Updates, Paketinstallationen, RALF-Softwareinstallationen, Konfigurationsänderungen, Neustarts, Stopps, Rollbacks oder weiteren Proxmox-Mutationen durchgeführt.
+- Risiken oder Blocker: Der Container läuft, ist aber ohne funktionsfähige Netzwerkanbindung. Der Blocker ist in einem separaten ausdrücklich freigegebenen Schritt zu diagnostizieren und zu beheben; bis dahin bleibt M-024 aktiv. Die temporäre Testdatei blieb nicht zurück. D-002 bis D-005 bleiben unverändert aktiv.
+- Nächster sinnvoller Zielbild-Eintrag: M-024 – begrenzte Netzwerkdiagnose und anschließende read-only Basisvalidierung; danach erst Vorbereitung des Ubuntu-Systems.
+- Veröffentlichung: Die Dokumentationsänderungen werden gezielt committed und auf den vorgesehenen Remote-Branch gepusht.

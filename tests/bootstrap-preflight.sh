@@ -28,9 +28,9 @@ make_stub() {
 prepare_stubs() {
   local directory=$1
   make_stub "$directory" pveversion 'printf "pve-manager/9.2.4\n"'
-  make_stub "$directory" pveam 'printf "system local:vztmpl/ubuntu-26.04-standard_26.04-1_amd64.tar.zst\n"'
+  make_stub "$directory" pveam 'case "$1" in available) printf "system ubuntu-26.04-standard_26.04-1_amd64.tar.zst\n" ;; list) printf "NAME SIZE\nlocal:vztmpl/ubuntu-26.04-standard_26.04-1_amd64.tar.zst 151\n" ;; esac'
   make_stub "$directory" pvesh 'case "$*" in */nextid*) printf "2200\n" ;; *) case "${TEST_CASE:-}" in occupied-vmid) printf "[{\"vmid\":2200}]\n" ;; *) printf "[]\n" ;; esac ;; esac'
-  make_stub "$directory" pvesm 'case "${TEST_CASE:-}" in multiple-storage) printf "Name Type Status Total Used Available %%\nlocal dir active 1 0 1 0\nlocal-lvm lvmthin active 1 0 1 0\n" ;; *) printf "Name Type Status Total Used Available %%\nlocal-lvm lvmthin active 1 0 1 0\n" ;; esac'
+  make_stub "$directory" pvesm 'case "$*" in *vztmpl*) printf "Name Type Status Total Used Available %%\nlocal dir active 1 0 1 0\n" ;; *) case "${TEST_CASE:-}" in multiple-storage) printf "Name Type Status Total Used Available %%\nlocal dir active 1 0 1 0\nlocal-lvm lvmthin active 1 0 1 0\n" ;; *) printf "Name Type Status Total Used Available %%\nlocal-lvm lvmthin active 1 0 1 0\n" ;; esac ;; esac'
   make_stub "$directory" pct 'exit 0'
   make_stub "$directory" ip 'case "${TEST_CASE:-}" in multiple-bridge) printf "3: vmbr0: <UP>\n4: vmbr1: <UP>\n" ;; *) printf "3: vmbr0: <UP>\n" ;; esac'
 }

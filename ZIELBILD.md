@@ -70,6 +70,7 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-020 | AKTIV | Für RALF Standalone 0.0.1 werden keine separaten Proxmox-Mountpoints eingerichtet. Persistente Daten liegen im Root-Dateisystem des LXC unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`. Die Sicherung erfolgt zunächst über normale Proxmox-Backups des LXC. |
 | M-021 | AKTIV | Die feste Referenzinstallation verwendet 4 CPU-Kerne, 12288 MiB RAM, 4096 MiB Swap und eine 40-GiB-Root-Disk. Diese Werte sind Referenzwerte der ersten Installation und keine allgemeinen Mindestanforderungen. VMID, Storage und Bridge werden standardmäßig sicher ermittelt; die Werte können über explizite CLI-Parameter überschrieben werden. |
 | M-022 | AKTIV | Der Plan-/Preflight-Pfad validiert alle Ressourcenparameter und bricht bei ungültigen oder unvollständigen Angaben sowie bei nicht eindeutiger automatischer Storage- oder Bridge-Auswahl vor jeder LXC-Mutation mit verständlicher Ausgabe ab. Eine belegte VMID wird niemals überschrieben. |
+| M-023 | AKTIV | `--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` für den unprivilegierten `ralf-standalone`-LXC auf und prüft die resultierende Konfiguration read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts. |
 
 ## Definition of Done
 

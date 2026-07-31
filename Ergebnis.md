@@ -166,3 +166,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: D-001 bleibt `AKTIV`, bis ein realer LXC erfolgreich erstellt und geprüft wurde. Softwareinstallation und O-008 GPU-Entscheidung bleiben offen. Bei einem fehlgeschlagenen `pct create` wird kein automatisches Rollback versucht.
 - Nächster sinnvoller Zielbild-Eintrag: Ein ausdrücklich beauftragter realer `--apply`-Validierungslauf für D-001.
 - Veröffentlichung: Die Änderungen werden gemeinsam committed, gepusht und nach `main` gemergt.
+
+## 2026-07-31 – D-001 real validiert
+
+- Bearbeitete Zielbild-IDs: M-017, M-023, D-001, P-001
+- Ergebnis: Der bestätigte Plan wurde genau einmal mit `sudo ./scripts/ralf-standalone-bootstrap.sh --apply` ausgeführt. VMID 100 wurde als unprivilegierter LXC `ralf-standalone` erstellt. Die anschließenden read-only Aufrufe `pct config 100` und `pct status 100` bestätigten die Zielkonfiguration und den Status `stopped`.
+- Geänderte Dateien: `ZIELBILD.md`, `README.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Plan vor Apply; VMID-, Name-, Storage-, Bridge- und Template-Prüfung im Plan; genau ein realer Apply; read-only `pct config 100`; read-only `pct status 100`; Prüfung auf `unprivileged: 1`, 4 Kerne, 12288 MiB RAM, 4096 MiB Swap, 40-GiB-Root-Disk, DHCP über `vmbr0`, keine Mountpoints und keine GPU-Features.
+- Nicht ausgeführte Prüfungen: Keine Softwareinstallation, kein Containerstart, kein Stop nach der Erstellung, kein Rollback, kein zweiter Apply-Versuch und keine weiteren Proxmox-Mutationen.
+- Risiken oder Blocker: Der Container ist leer und gestoppt. Ubuntu-Paketupdates, Ollama, `qwen2.5-coder:7b`, Open WebUI und GPU-Unterstützung bleiben offen. O-008 bleibt als GPU-Entscheidung offen.
+- Nächster sinnvoller Zielbild-Eintrag: Kontrolliertes Starten und Vorbereiten des leeren Ubuntu-LXC ohne RALF-Softwareinstallation.
+- Veröffentlichung: Ausschließlich diese Dokumentationsänderungen werden committed, gepusht und nach `main` gemergt.

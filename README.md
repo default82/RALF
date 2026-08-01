@@ -11,9 +11,9 @@ Der erste Meilenstein ist **RALF Standalone 0.0.1** für Proxmox VE:
 - genau ein unprivilegierter LXC mit dem Namen `ralf-standalone`,
 - `nesting=1` als feste Ubuntu-26.04-Betriebsanforderung im LXC,
 - Ubuntu Server 26.04 LTS,
-- Ollama als Modelllaufzeit,
-- `qwen2.5-coder:7b` als Referenzmodell,
-- Open WebUI als kleine Weboberfläche,
+- ein dauerhaft betriebener, modellfreier Bootstrap als kleine Basis- und Statuskomponente,
+- ein späteres kleines Webinterface für lokalen Status und regelbasierten Setup,
+- Ollama, `qwen2.5-coder:7b` und Open WebUI nur als später auswählbare Komponenten beziehungsweise mögliches Referenzprofil,
 - DHCP ohne vorausgesetzte Reservierung,
 - persistente Daten im Root-Dateisystem des LXC,
 - Installation durch ein vom Proxmox-Host gestartetes Bootstrap-Skript,
@@ -25,10 +25,16 @@ Diese Installation ist vorläufig **RALF Standalone** und noch nicht der endgül
 
 ```text
 /etc/ralf/             Konfiguration
-/var/lib/ralf/ollama/  Modelle und Ollama-Daten
-/var/lib/ralf/webui/   Open-WebUI-Daten und Datenbank
+/var/lib/ralf/ollama/  optionale lokale Modelllaufzeit und Modelle
+/var/lib/ralf/webui/   optionale Weboberflächen-Daten und Datenbank
 /var/log/ralf/         Installations- und Betriebsprotokolle
 ```
+
+Der Bootstrap ist keine Wegwerfkomponente. Er bleibt nach der Erstinstallation als kleine, dauerhaft betriebene RALF-Basis bestehen und soll den allgemeinen Zustand, installierte und erreichbare Komponenten, offene Installations- oder Konfigurationsschritte sowie grundlegende Fehler und Warnungen anzeigen. Er stellt später den regelbasierten Setup-Dialog, nachvollziehbare Installationspläne und ausdrücklich freigegebene Einzelschritte bereit. Ein umfangreiches Administrationsinterface bleibt eine getrennte optionale Komponente.
+
+Der Bootstrap benötigt kein Sprachmodell. Der Setup-Dialog wird zunächst durch einen deterministischen Fragen-, Entscheidungs- und Abhängigkeitsgraphen gesteuert und kann vollständig ohne Ollama, lokales Modell oder externe KI funktionieren. Eine KI-gestützte Gesprächsschicht kann später optional Nutzereingaben in eine strukturierte Zielkonfiguration übersetzen; Validierung, Abhängigkeitsauflösung und Installation bleiben regelbasiert.
+
+Spätere Modellwege werden als Setup-Optionen behandelt: vorhandenen Modellserver verwenden, vorhandenen OpenAI-kompatiblen Endpunkt verwenden, lokalen Modellserver neu installieren, externen Modellanbieter konfigurieren oder zunächst ohne Modell fortfahren. Keiner dieser Wege ist Bestandteil des aktuellen Statusdienst-Grundgerüsts.
 
 ## Langfristige Richtung
 
@@ -91,7 +97,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript vorgesehen. Es wird 
 
 ## Status
 
-Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Er ist aktuell laufend, erhält sein Netzwerk per DHCP und enthält noch keine RALF-Software. Softwareinstallation und die übrigen Definition-of-Done-Punkte stehen noch aus.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime, kein Modell und keine Weboberfläche. Die Umsetzung des kleinen Bootstrap-Statusdienstes ist durch O-009 noch offen; D-002 bis D-005 bleiben offen.
 
 ## Lizenz
 

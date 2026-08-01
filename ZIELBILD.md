@@ -50,10 +50,10 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 |---|---|---|
 | M-001 | AKTIV | Zielplattform des ersten Deployments ist Proxmox VE. |
 | M-002 | AKTIV | Der Installer erzeugt genau einen unprivilegierten LXC-Container. |
-| M-003 | AKTIV | Modelllaufzeit, ein fest ausgewähltes Modell und eine kleine Weboberfläche werden zunächst gemeinsam in diesem Container installiert. |
-| M-004 | AKTIV | Daten, Modell-Dateien und Konfiguration dürfen zunächst lokal und persistent im selben Container gespeichert werden. |
+| M-003 | ERSETZT | Die frühere Vorgabe einer gemeinsamen Pflichtinstallation von Modelllaufzeit, Modell und Weboberfläche gilt nicht mehr. Nachfolger: M-027 und M-028. |
+| M-004 | AKTIV | Daten und Konfiguration dürfen zunächst lokal und persistent im selben Container gespeichert werden; Modell-Dateien werden nur für später ausgewählte Modellkomponenten benötigt. |
 | M-005 | AKTIV | SQLite darf im Container verwendet werden, wenn die ausgewählte Weboberfläche oder eine andere Komponente es benötigt. |
-| M-006 | AKTIV | Betriebssystem, Modelllaufzeit, Modell und Weboberfläche dürfen für diese Referenzinstallation fest vorgegeben werden. |
+| M-006 | ERSETZT | Die frühere Festlegung von Betriebssystem, Modelllaufzeit, Modell und Weboberfläche als gemeinsames Referenzprofil ist nicht mehr Bootstrap-Voraussetzung. Nachfolger: M-027 und M-028. |
 | M-007 | AKTIV | Noch keine automatische Hardwareerkennung, RAM- oder Speicherplatzdimensionierung, Benchmarklogik oder dynamische Modellauswahl implementieren. |
 | M-008 | AKTIV | Noch keine allgemeine Multi-Plattform-, Datenbank-, Adapter-, MCP- oder Provider-Architektur implementieren, sofern sie für diesen Meilenstein nicht zwingend erforderlich ist. |
 | M-009 | AKTIV | Die erste Installation wird als `RALF Standalone` behandelt und nicht vorschnell als endgültiger `ralf-core` definiert. |
@@ -61,19 +61,21 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-011 | AKTIV | Installationsfehler müssen verständlich gemeldet werden. Bestehende Container, VMs, Storages und Netzwerke dürfen nicht stillschweigend verändert oder überschrieben werden. |
 | M-012 | AKTIV | Zugangsdaten, Tokens und andere Geheimnisse dürfen nicht in das Repository gelangen. |
 | M-013 | AKTIV | Der erste LXC verwendet Ubuntu Server 26.04 LTS `Resolute Raccoon`. Für die Installation ist das aktuell verfügbare Proxmox-LXC-Template dieser Serie zu verwenden; anschließend sind alle verfügbaren Sicherheits- und Point-Updates einzuspielen. |
-| M-014 | AKTIV | Ollama ist die festgelegte Modelllaufzeit für RALF Standalone 0.0.1. Ollama und das Referenzmodell werden im selben LXC wie die kleine Weboberfläche betrieben. |
-| M-015 | AKTIV | `qwen2.5-coder:7b` ist das festgelegte Referenzmodell für RALF Standalone 0.0.1 und wird über Ollama im gemeinsamen LXC bereitgestellt. |
-| M-016 | AKTIV | Open WebUI ist die festgelegte kleine Weboberfläche für RALF Standalone 0.0.1. Sie wird im gemeinsamen LXC betrieben und mit der lokalen Ollama-Instanz verbunden. |
-| M-017 | AKTIV | Die Referenzinstallation wird durch ein auf dem Proxmox-Host gestartetes Bootstrap-Skript ausgeführt. Das Skript erstellt und konfiguriert den LXC und stößt anschließend die Installation und Einrichtung von Ubuntu-Aktualisierungen, Ollama, Referenzmodell und Open WebUI innerhalb des Containers an. |
+| M-014 | SPAETER | Ollama bleibt eine mögliche lokale Modelllaufzeit und kann später durch den regelbasierten Setup-Dialog als Komponente ausgewählt werden. Sie ist keine Voraussetzung des Bootstraps. |
+| M-015 | SPAETER | `qwen2.5-coder:7b` bleibt ein mögliches Referenzmodell für ein später ausgewähltes lokales Modellprofil. Es ist keine Voraussetzung des Bootstraps. |
+| M-016 | SPAETER | Open WebUI bleibt eine mögliche spätere Weboberfläche für ein ausgewähltes Modellprofil. Sie ist keine Voraussetzung des modellfreien Bootstrap-Statusdienstes. |
+| M-017 | ERSETZT | Der Host-Bootstrap bleibt die reproduzierbare Basis für Erstellung und Vorbereitung des LXC, stößt aber nicht mehr zwingend die Installation von Ollama, Referenzmodell oder Open WebUI an. Nachfolger: M-027 und M-028. |
 | M-018 | AKTIV | Hostname und Proxmox-Bezeichnung des ersten LXC lauten `ralf-standalone`. |
 | M-019 | AKTIV | Die Netzwerkkonfiguration des ersten LXC erfolgt grundsätzlich per DHCP. Für die erste Referenzinstallation wird keine feste IP-Adresse und keine DHCP-Reservierung vorausgesetzt. |
-| M-020 | AKTIV | Für RALF Standalone 0.0.1 werden keine separaten Proxmox-Mountpoints eingerichtet. Persistente Daten liegen im Root-Dateisystem des LXC unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`. Die Sicherung erfolgt zunächst über normale Proxmox-Backups des LXC. |
+| M-020 | AKTIV | Für RALF Standalone 0.0.1 werden keine separaten Proxmox-Mountpoints eingerichtet. Bootstrap-Konfiguration und Statusdaten liegen zunächst im Root-Dateisystem; die vorbereiteten Pfade `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/` stehen für den Bootstrap beziehungsweise später ausgewählte Komponenten bereit. Die Sicherung erfolgt zunächst über normale Proxmox-Backups des LXC. |
 | M-021 | AKTIV | Die feste Referenzinstallation verwendet 4 CPU-Kerne, 12288 MiB RAM, 4096 MiB Swap und eine 40-GiB-Root-Disk. Diese Werte sind Referenzwerte der ersten Installation und keine allgemeinen Mindestanforderungen. VMID, Storage und Bridge werden standardmäßig sicher ermittelt; die Werte können über explizite CLI-Parameter überschrieben werden. |
 | M-022 | AKTIV | Der Plan-/Preflight-Pfad validiert alle Ressourcenparameter und bricht bei ungültigen oder unvollständigen Angaben sowie bei nicht eindeutiger automatischer Storage- oder Bridge-Auswahl vor jeder LXC-Mutation mit verständlicher Ausgabe ab. Eine belegte VMID wird niemals überschrieben. |
 | M-023 | AKTIV | `--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` für den unprivilegierten `ralf-standalone`-LXC auf und prüft die resultierende Konfiguration read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts. |
 | M-024 | ABGESCHLOSSEN | VMID 100 wurde am 2026-08-01 mit der notwendigen Proxmox-Funktion `nesting=1` und genau einem `pct reboot 100 --timeout 120` kontrolliert neu gestartet. Die read-only Prüfung bestätigte wirksames `nesting=1`, aktive Netzwerkdienste, `eth0`/veth-Link, DHCP-IPv4, Default-Route, Gateway, DNS und HTTPS-Erreichbarkeit einer Ubuntu-Paketquelle. Die DHCP-Adresse bleibt dynamisch und ist keine dauerhafte Zusicherung. |
 | M-025 | ABGESCHLOSSEN | Der Bootstrap erstellt die Ubuntu-26.04-Referenzinstallation von Anfang an mit `features: nesting=1` und prüft diese Einstellung nach `pct create` exakt. Diese Betriebsanforderung ist für systemd-Basisdienste im unprivilegierten Ubuntu-26.04-LXC nachgewiesen und gilt nicht als allgemeine Vorgabe für spätere Betriebssysteme oder Plattformen. |
 | M-026 | ABGESCHLOSSEN | Das separate Gastskript prüft Ubuntu 26.04, amd64/x86_64, systemd, Netzwerk, DNS, Ubuntu-Paketquelle und dpkg, führt danach nichtinteraktiv `apt-get update` sowie `apt-get full-upgrade` aus und legt die vier festgelegten RALF-Basisverzeichnisse mit `root:root` und Modus `0750` idempotent an. Ein erforderlicher Neustart wird nur gemeldet; Ollama, Modell, Open WebUI, Docker, Podman, Datenbanken, GPU-Komponenten und weitere RALF-Software sind nicht Teil dieses Schritts. |
+| M-027 | AKTIV | Der Bootstrap bleibt nach der Erstinstallation als kleine dauerhaft betriebene RALF-Basis bestehen und entwickelt sich zu einem modellfreien Status- und Basisverwaltungsdienst mit kleinem Webinterface. Die erste Version zeigt den lokalen Basiszustand, installierte und erreichbare Komponenten, offene Setup-Schritte sowie grundlegende Fehler und Warnungen. Ein umfangreiches Administrationsinterface bleibt getrennt und optional. |
+| M-028 | AKTIV | Modellruntime, Modell und zusätzliche Weboberfläche sind spätere auswählbare Komponenten. Der regelbasierte Setup-Dialog muss später vorhandene Modellserver, OpenAI-kompatible Endpunkte, eine lokale Modellserver-Neuinstallation, externe Anbieter und einen zunächst modellfreien Betrieb abbilden können. Für den aktuellen Schritt wird keiner dieser Wege implementiert. |
 
 ## Definition of Done
 
@@ -94,13 +96,14 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | ID | Status | Offene Entscheidung |
 |---|---|---|
 | O-001 | ABGESCHLOSSEN | Als Betriebssystem des ersten LXC ist Ubuntu Server 26.04 LTS `Resolute Raccoon` festgelegt. Verwendet wird das aktuell verfügbare Proxmox-LXC-Template der Serie mit anschließenden Sicherheits- und Point-Updates. |
-| O-002 | ABGESCHLOSSEN | Ollama ist als Modelllaufzeit für RALF Standalone 0.0.1 festgelegt. |
-| O-003 | ABGESCHLOSSEN | `qwen2.5-coder:7b` ist als erstes Referenzmodell für RALF Standalone 0.0.1 festgelegt. |
-| O-004 | ABGESCHLOSSEN | Open WebUI ist als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. |
+| O-002 | ERSETZT | Die frühere Festlegung von Ollama als verpflichtende Modelllaufzeit ist aufgehoben. Nachfolger: M-028 und A-020. |
+| O-003 | ERSETZT | Die frühere Festlegung von `qwen2.5-coder:7b` als verpflichtendem Referenzmodell ist aufgehoben. Nachfolger: M-028 und A-020. |
+| O-004 | ERSETZT | Die frühere Festlegung von Open WebUI als verpflichtender Weboberfläche ist aufgehoben. Nachfolger: M-028 und A-020. |
 | O-005 | ABGESCHLOSSEN | Die Installation erfolgt durch ein vom Proxmox-Host gestartetes Bootstrap-Skript, das den LXC erstellt, konfiguriert und die Installation im Container anstößt. |
 | O-006 | ABGESCHLOSSEN | Hostname und Proxmox-Bezeichnung lauten `ralf-standalone`. Die Netzwerkkonfiguration erfolgt per DHCP ohne vorausgesetzte Reservierung. Persistente Daten verbleiben ohne separate Proxmox-Mountpoints im Root-Dateisystem unter `/etc/ralf/`, `/var/lib/ralf/ollama/`, `/var/lib/ralf/webui/` und `/var/log/ralf/`; die Sicherung erfolgt zunächst über Proxmox-Backups des LXC. |
 | O-007 | ABGESCHLOSSEN | Für die feste Referenzinstallation gelten 4 CPU-Kerne, 12288 MiB RAM, 4096 MiB Swap und 40 GiB Root-Disk. Die nächste freie VMID wird standardmäßig über Proxmox ermittelt; Storage und Bridge werden nur bei genau einer geeigneten Option automatisch gewählt. `--vmid`, `--storage`, `--bridge`, `--cores`, `--memory`, `--swap` und `--disk` überschreiben die Standardwerte beziehungsweise Auswahl. Mehrdeutige oder fehlende Optionen sowie ungültige Parameter brechen vor jeder Änderung ab. |
 | O-008 | OFFEN | GPU-Unterstützung und insbesondere GPU-Passthrough für RALF Standalone sind nicht entschieden. Eine Umsetzung ist nicht Teil des aktuellen Meilensteins. |
+| O-009 | OFFEN | Mit welcher möglichst kleinen, wartbaren Technik werden Bootstrap-Dienst und kleines Webinterface umgesetzt? Die Entscheidung muss geringe Ressourcenanforderungen, Betrieb ohne Docker, Eignung für Ubuntu 26.04, einen lokalen systemd-Dienst, optionale SQLite-Nutzung, Wartbarkeit durch Codex und Menschen, eine klare Trennung von read-only Status und mutierenden Setup-Aktionen sowie spätere Erweiterbarkeit um Fragenkatalog und Installationsplaner berücksichtigen. Eine unnötig große Framework-Abhängigkeit ist zu vermeiden. |
 
 # 4. Abgeschlossene Anweisungen und Entscheidungen
 
@@ -112,9 +115,9 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-004 | ABGESCHLOSSEN | Eine endgültige Definition des RALF-Kerns wurde bewusst auf einen späteren Zeitpunkt verschoben. |
 | A-005 | ABGESCHLOSSEN | Das Projekt wurde zunächst unter die Apache License 2.0 gestellt. |
 | A-006 | ABGESCHLOSSEN | Ubuntu Server 26.04 LTS `Resolute Raccoon` wurde als Betriebssystem für den ersten RALF-Standalone-LXC festgelegt. |
-| A-007 | ABGESCHLOSSEN | Ollama wurde als Modelllaufzeit für RALF Standalone 0.0.1 festgelegt. |
-| A-008 | ABGESCHLOSSEN | `qwen2.5-coder:7b` wurde als Referenzmodell für RALF Standalone 0.0.1 festgelegt. |
-| A-009 | ABGESCHLOSSEN | Open WebUI wurde als kleine Weboberfläche für RALF Standalone 0.0.1 festgelegt. |
+| A-007 | ERSETZT | Die frühere Pflichtentscheidung für Ollama wurde durch die optionale Komponentenauswahl ersetzt. Nachfolger: A-020. |
+| A-008 | ERSETZT | Die frühere Pflichtentscheidung für `qwen2.5-coder:7b` wurde durch die optionale Komponentenauswahl ersetzt. Nachfolger: A-020. |
+| A-009 | ERSETZT | Die frühere Pflichtentscheidung für Open WebUI wurde durch die optionale Komponentenauswahl ersetzt. Nachfolger: A-020. |
 | A-010 | ABGESCHLOSSEN | Ein vom Proxmox-Host gestartetes Bootstrap-Skript wurde als Installationsform für RALF Standalone 0.0.1 festgelegt. |
 | A-011 | ABGESCHLOSSEN | `ralf-standalone` wurde als Hostname und Proxmox-Bezeichnung des ersten LXC festgelegt. |
 | A-012 | ABGESCHLOSSEN | DHCP ohne vorausgesetzte Reservierung wurde als Netzwerkkonfiguration des ersten RALF-Standalone-LXC festgelegt. |
@@ -124,6 +127,9 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-016 | ABGESCHLOSSEN | Der erste kontrollierte Start von VMID 100 wurde am 2026-08-01 nach Aktivierung von `nesting=1` read-only validiert. Der laufende, weiterhin leere LXC erhält Netzwerk per DHCP; die Adresse ist nicht dauerhaft festgelegt. |
 | A-017 | ABGESCHLOSSEN | Der reproduzierbare Bootstrap übergibt `--features nesting=1` beim einzigen `pct create`-Aufruf und lehnt nachträgliche oder zusätzliche LXC-Features in der read-only Konfigurationsprüfung ab. |
 | A-018 | ABGESCHLOSSEN | Die Ubuntu-Vorbereitung ist als getrenntes Gastskript mit read-only `--plan` und mutierendem `--apply` umgesetzt. Vor Mutationen werden OS, Architektur, systemd, Netzwerk, DNS, Paketquelle und dpkg geprüft; nach der Aktualisierung werden ausschließlich die vier RALF-Basisverzeichnisse auf `root:root`/`0750` gesetzt. Ein Neustart wird nicht automatisch ausgeführt. |
+| A-019 | ABGESCHLOSSEN | Der Bootstrap bleibt dauerhaft als kleine modellfreie RALF-Basis für Statusanzeige, regelbasierten Setup-Dialog, Installationsplan und ausdrücklich freigegebene Einzelschritte bestehen; ein großes Administrationsinterface bleibt getrennt und optional. |
+| A-020 | ABGESCHLOSSEN | Ollama, `qwen2.5-coder:7b` und Open WebUI waren zunächst feste Bestandteile des Standalone-Plans und sind nun spätere auswählbare Komponenten. Der Bootstrap benötigt kein Modell; Fragen-, Entscheidungs- und Abhängigkeitsauflösung bleiben zunächst deterministisch und regelbasiert. |
+| A-021 | ABGESCHLOSSEN | Der erreichte technische Ausgangszustand bleibt erhalten: VMID 100 ist ein laufender unprivilegierter Ubuntu-26.04-LXC mit `nesting=1`, funktionierendem Netzwerk, aktualisiertem Paketstand, vorbereiteten RALF-Basisverzeichnissen sowie reproduzierbaren Host- und Gastskripten. |
 
 # 5. Verbindlicher Entwicklungsprozess
 

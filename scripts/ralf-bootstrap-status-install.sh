@@ -27,6 +27,7 @@ APT_INSTALLED='unknown'
 INSTALL_STATE='unbekannt'
 WHEEL=''
 RECOVERABLE_TEMP_VENV=''
+TEMP_VENV_PATH=''
 TEMP_VENV_REMOVED=0
 NEW_VENV_CREATED=0
 APT_INSTALL_SUCCEEDED=0
@@ -69,7 +70,7 @@ fail() {
   printf '  Letzter mutierender Schritt: %s\n' "$LAST_MUTATION" >&2
   printf '  Installationszustand: %s\n' "$INSTALL_STATE" >&2
   printf '  Python: %s; ensurepip: %s; venv-Paket: %s; installiert: %s; Candidate: %s\n' "${PYTHON_VERSION:-unbekannt}" "$ENSUREPIP_VERSION" "${VENV_PACKAGE:-unbekannt}" "$APT_INSTALLED" "${APT_CANDIDATE:-unbekannt}" >&2
-  printf '  Fehlgeschlagenes Venv: %s; entfernt: %s; neue Venv begonnen: %s; Paketinstallation erfolgreich: %s\n' "${RECOVERABLE_TEMP_VENV:-keines}" "$TEMP_VENV_REMOVED" "$NEW_VENV_CREATED" "$APT_INSTALL_SUCCEEDED" >&2
+  printf '  Fehlgeschlagenes Venv: %s; entfernt: %s; neue Venv begonnen: %s (%s); Paketinstallation erfolgreich: %s\n' "${RECOVERABLE_TEMP_VENV:-keines}" "$TEMP_VENV_REMOVED" "$NEW_VENV_CREATED" "${TEMP_VENV_PATH:-kein Pfad}" "$APT_INSTALL_SUCCEEDED" >&2
   printf '  Nächster manueller Schritt: erreichten Zustand prüfen; kein automatischer Rollback oder zweiter Versuch.\n' >&2
   exit 1
 }
@@ -432,9 +433,10 @@ install_runtime() {
     ((VENV_AVAILABLE == 1)) || fail 'ensurepip ist nach der venv-Paketinstallation weiterhin nicht verfügbar.'
   fi
   temp_venv=$(mktemp -d "$bootstrap_root/.venv-build.XXXXXX")
+  TEMP_VENV_PATH=$temp_venv
+  NEW_VENV_CREATED=1
   LAST_MUTATION='temporäre Python-Umgebung erstellen'
   python3 -m venv "$temp_venv" || fail 'Temporäre Python-Umgebung konnte nicht erstellt werden.'
-  NEW_VENV_CREATED=1
   [[ -x "$temp_venv/bin/python" ]] || fail 'Die temporäre Python-Umgebung enthält kein ausführbares Python.'
   "$temp_venv/bin/python" -m pip --version >/dev/null 2>&1 || fail 'Pip ist in der temporären Python-Umgebung nicht funktionsfähig.'
   LAST_MUTATION='gepinnten Runtime-Abhängigkeiten installieren'

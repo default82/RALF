@@ -32,7 +32,7 @@ prepare_stubs() {
   make_stub "$directory" pvesh 'printf "pvesh %s\n" "$*" >> "$CALL_LOG"; case "$*" in */nextid*) printf "2200\n" ;; *) case "${TEST_CASE:-}" in occupied-vmid) printf "[{\"vmid\":2200}]\n" ;; *) printf "[]\n" ;; esac ;; esac'
   make_stub "$directory" pvesm 'case "$*" in *vztmpl*) printf "Name Type Status Total Used Available %%\nlocal dir active 1 0 1 0\n" ;; *) printf "Name Type Status Total Used Available %%\nlocal-lvm lvmthin active 1 0 1 0\n" ;; esac'
   make_stub "$directory" ip 'case "${TEST_CASE:-}" in multiple-bridge) printf "3: vmbr0: <UP>\n4: vmbr1: <UP>\n" ;; *) printf "3: vmbr0: <UP>\n" ;; esac'
-  make_stub "$directory" pct 'printf "%s\n" "$*" >> "$PCT_LOG"; case "$1" in list) case "${TEST_CASE:-}" in existing-name) printf "VMID Status Lock Name\n2300 stopped - ralf-standalone\n" ;; *) printf "VMID Status Lock Name\n" ;; esac ;; config) [[ -e "$CREATED" ]] || exit 1; printf "unprivileged: 1\nhostname: ralf-standalone\ncores: %s\nmemory: %s\nswap: %s\nrootfs: %s:vm-2200-disk-0,size=%sG\nnet0: name=eth0,bridge=%s,ip=dhcp,type=veth\n" "$EXPECT_CORES" "$EXPECT_MEMORY" "$EXPECT_SWAP" "$EXPECT_STORAGE" "$EXPECT_DISK" "$EXPECT_BRIDGE" ;; status) [[ -e "$CREATED" ]] || exit 1; printf "status: stopped\n" ;; create) case "${TEST_CASE:-}" in create-failure) printf "mock pct create failed\n" >&2; exit 7 ;; *) touch "$CREATED"; printf "mock pct create succeeded\n" ;; esac ;; *) exit 1 ;; esac'
+  make_stub "$directory" pct 'printf "%s\n" "$*" >> "$PCT_LOG"; case "$1" in list) case "${TEST_CASE:-}" in existing-name) printf "VMID Status Lock Name\n2300 stopped - ralf-standalone\n" ;; *) printf "VMID Status Lock Name\n" ;; esac ;; config) [[ -e "$CREATED" ]] || exit 1; printf "unprivileged: 1\nhostname: ralf-standalone\ncores: %s\nmemory: %s\nswap: %s\nrootfs: %s:vm-2200-disk-0,size=%sG\nnet0: name=eth0,bridge=%s,ip=dhcp,type=veth\n" "$EXPECT_CORES" "$EXPECT_MEMORY" "$EXPECT_SWAP" "$EXPECT_STORAGE" "$EXPECT_DISK" "$EXPECT_BRIDGE"; case "${TEST_CASE:-}" in missing-feature) ;; unexpected-features) printf "features: nesting=1,keyctl=1\n" ;; *) printf "features: nesting=1\n" ;; esac ;; status) [[ -e "$CREATED" ]] || exit 1; printf "status: stopped\n" ;; create) case "${TEST_CASE:-}" in create-failure) printf "mock pct create failed\n" >&2; exit 7 ;; *) touch "$CREATED"; printf "mock pct create succeeded\n" ;; esac ;; *) exit 1 ;; esac'
 }
 
 run_case() {
@@ -77,16 +77,20 @@ run_case() {
     apply-success)
       [[ $(grep -Ec '^create ' "$pct_log") == 1 ]] || { printf 'FAIL %s: nicht genau ein pct create\n' "$name" >&2; return 1; }
       grep -Fq 'create 2200 local:vztmpl/ubuntu-26.04-standard' "$pct_log" || { printf 'FAIL %s: VMID/Template fehlen\n' "$name" >&2; return 1; }
-      grep -Fq -- '--unprivileged 1 --cores 8 --memory 16384 --swap 8192 --rootfs local-lvm:60 --net0 name=eth0,bridge=vmbr0,ip=dhcp,type=veth' "$pct_log" || { printf 'FAIL %s: Ressourcenwerte fehlen\n' "$name" >&2; return 1; }
+      grep -Fq -- '--unprivileged 1 --cores 8 --memory 16384 --swap 8192 --rootfs local-lvm:60 --net0 name=eth0,bridge=vmbr0,ip=dhcp,type=veth --features nesting=1 --ostype ubuntu' "$pct_log" || { printf 'FAIL %s: Ressourcen oder nesting fehlen\n' "$name" >&2; return 1; }
+      if grep -Eq -- '--(mp[0-9]*|mount|gpu|dev)' "$pct_log"; then printf 'FAIL %s: unerwartete Mountpoint-/GPU-Option\n' "$name" >&2; return 1; fi
       ;;
     create-failure)
+      [[ $(grep -Ec '^create ' "$pct_log") == 1 ]] || { printf 'FAIL %s: pct create nicht genau einmal aufgerufen\n' "$name" >&2; return 1; }
+      ;;
+    missing-feature|unexpected-features)
       [[ $(grep -Ec '^create ' "$pct_log") == 1 ]] || { printf 'FAIL %s: pct create nicht genau einmal aufgerufen\n' "$name" >&2; return 1; }
       ;;
   esac
 }
 
-run_case plan-no-create 0 'Plan erfolgreich' --plan
-run_case check-no-create 0 'Plan erfolgreich' --check
+run_case plan-no-create 0 'LXC-Features: nesting=1' --plan
+run_case check-no-create 0 'LXC-Features: nesting=1' --check
 EXPECT_CORES=8 EXPECT_MEMORY=16384 EXPECT_SWAP=8192 EXPECT_STORAGE=local-lvm EXPECT_DISK=60 EXPECT_BRIDGE=vmbr0 \
   run_case apply-success 0 'Container erstellt: ja' --apply --vmid 2200 --storage local-lvm --bridge vmbr0 --cores 8 --memory 16384 --swap 8192 --disk 60
 run_case occupied-vmid 1 'bereits belegt' --apply --vmid 2200
@@ -95,5 +99,7 @@ run_case missing-template 1 'Kein Ubuntu-26.04-LXC-Template' --apply
 run_case invalid-storage 1 'nicht als geeignete aktive Option' --apply --storage missing
 run_case invalid-bridge 1 'nicht als geeignete aktive Option' --apply --bridge vmbr9
 run_case create-failure 1 'Container erstellt: nein bestätigt' --apply
+run_case missing-feature 1 'LXC-Features müssen exakt' --apply
+run_case unexpected-features 1 'LXC-Features müssen exakt' --apply
 run_case unknown-option 1 'Unbekannte Option: --wat' --apply --wat
 run_case conflicting-mode 1 'Widersprüchliche Ausführungsmodi' --plan --apply

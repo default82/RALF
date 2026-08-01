@@ -8,6 +8,7 @@ readonly DEFAULT_CORES=4
 readonly DEFAULT_MEMORY_MIB=12288
 readonly DEFAULT_SWAP_MIB=4096
 readonly DEFAULT_DISK_GIB=40
+readonly LXC_FEATURES='nesting=1'
 
 MODE=""
 VMID=""
@@ -248,6 +249,7 @@ print_plan() {
   printf '  VMID: %s\n' "$VMID"
   printf '  Name: %s\n' "$CONTAINER_NAME"
   printf '  Template: %s\n' "$TEMPLATE"
+  printf '  LXC-Features: %s\n' "$LXC_FEATURES"
   printf '  Storage: %s\n' "$STORAGE"
   printf '  Bridge: %s\n' "$BRIDGE"
   printf '  CPU: %s Kerne\n' "$CORES"
@@ -286,12 +288,12 @@ verify_created_config() {
     printf 'Fehler: DHCP-Bridge-Konfiguration stimmt nicht.\n' >&2
     return 1
   fi
-  if grep -Eq '^mp[0-9]+:' <<<"$config"; then
-    printf 'Fehler: Die erzeugte Konfiguration enthält unerwartete Mountpoints.\n' >&2
+  if ! grep -Fxq "features: ${LXC_FEATURES}" <<<"$config"; then
+    printf 'Fehler: LXC-Features müssen exakt "features: %s" sein.\n' "$LXC_FEATURES" >&2
     return 1
   fi
-  if grep -Eq '^features:.*(keyctl|nesting|fuse|mount|mknod)' <<<"$config"; then
-    printf 'Fehler: Die erzeugte Konfiguration enthält unnötige privilegierte Features.\n' >&2
+  if grep -Eq '^mp[0-9]+:' <<<"$config"; then
+    printf 'Fehler: Die erzeugte Konfiguration enthält unerwartete Mountpoints.\n' >&2
     return 1
   fi
 }
@@ -337,6 +339,7 @@ run_apply() {
     --swap "$SWAP_MIB" \
     --rootfs "${STORAGE}:${DISK_GIB}" \
     --net0 "name=eth0,bridge=${BRIDGE},ip=dhcp,type=veth" \
+    --features "$LXC_FEATURES" \
     --ostype ubuntu 2>&1); then
     printf '%s\n' "$create_output" >&2
     report_failed_create

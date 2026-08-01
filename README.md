@@ -9,6 +9,7 @@ RALF entsteht transparent durch Vibe Coding: Menschen geben Zielbild, Entscheidu
 Der erste Meilenstein ist **RALF Standalone 0.0.1** für Proxmox VE:
 
 - genau ein unprivilegierter LXC mit dem Namen `ralf-standalone`,
+- `nesting=1` als feste Ubuntu-26.04-Betriebsanforderung im LXC,
 - Ubuntu Server 26.04 LTS,
 - Ollama als Modelllaufzeit,
 - `qwen2.5-coder:7b` als Referenzmodell,
@@ -74,6 +75,8 @@ sudo ./scripts/ralf-standalone-bootstrap.sh --apply
 ```
 
 `--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` auf und prüft die erzeugte LXC-Konfiguration anschließend read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts.
+
+Der `pct create`-Aufruf setzt für die Ubuntu-26.04-Referenzinstallation fest `--features nesting=1`. Die Nachprüfung akzeptiert ausschließlich `features: nesting=1`; zusätzliche Features, Mountpoints oder GPU-Konfigurationen führen zum Fehler. Diese Einstellung ist keine allgemeine Anforderung späterer Betriebssysteme oder Plattformen.
 
 ## Status
 

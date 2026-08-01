@@ -246,3 +246,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die DHCP-Adresse `10.10.200.11` ist dynamisch und nicht dauerhaft zugesichert. `nesting=1` erweitert die Container-Sicht auf procfs/sysfs und bleibt als notwendige Betriebsfunktion gesetzt. D-002 bis D-005 bleiben unverändert aktiv.
 - Nächster sinnvoller Zielbild-Eintrag: M-013/M-017/M-020 – kontrollierte Vorbereitung des Ubuntu-Systems mit Updates und festgelegten Basisverzeichnissen, weiterhin ohne Ollama, Modell oder Open WebUI.
 - Veröffentlichung: Dieser Eintrag wurde in Commit `d1221f5` gezielt committed und auf `origin/main` gepusht; `secrets/` blieb ungetrackt und unverändert.
+
+## 2026-08-01 – `nesting=1` reproduzierbar im Bootstrap verankert
+
+- Bearbeitete Zielbild-IDs: M-025, A-017, P-001
+- Ergebnis: Der einzige `pct create`-Aufruf übergibt für die Ubuntu-26.04-Referenzinstallation explizit `--features nesting=1`. Plan und Check zeigen `LXC-Features: nesting=1`; die read-only Nachprüfung akzeptiert ausschließlich `features: nesting=1` und lehnt fehlende oder zusätzliche Features ab. VMID 100 wurde ausschließlich read-only geprüft und nicht verändert.
+- Geänderte Dateien: `scripts/ralf-standalone-bootstrap.sh`, `tests/bootstrap-apply.sh`, `README.md`, `ZIELBILD.md`, `Ergebnis.md`
+- Ausgeführte Prüfungen: Pflichtdokumente, jüngste Ergebnisse und Git-Status gelesen; `main`/`origin/main` und der Ausschluss von `secrets/` geprüft; read-only `pct status 100`, `pct config 100 --current 1`, `pct pending 100`; `bash -n`; ShellCheck; vollständige Preflight-Mocktests; Apply-Mocktests für Plan/Check ohne Create, exakte Ressourcen- und Feature-Übergabe, genau einen Create-Aufruf, belegte VMID, vorhandenen Namen, fehlendes Template, ungültigen Storage, ungültige Bridge, Create-Fehler, fehlende oder zusätzliche Features, unbekannte und widersprüchliche Optionen; `git diff --check`; Prüfung eindeutiger Zielbild-IDs und Status von M-025, A-017 sowie D-002 bis D-005.
+- Nicht ausgeführte Prüfungen: Kein realer `--apply`- oder `pct create`-Lauf; kein `pct set`, `pct reboot`, `pct start`, `pct stop`, keine Paket- oder Softwareinstallation und keine Änderung an VMID 100.
+- Risiken oder Blocker: `nesting=1` ist als Ubuntu-26.04-spezifische Betriebsanforderung der Referenzinstallation festgelegt und nicht als allgemeine Vorgabe späterer Betriebssysteme oder Plattformen. D-002 bis D-005 bleiben aktiv; Ollama, Modell und Open WebUI sind weiterhin nicht installiert.
+- Nächster sinnvoller Zielbild-Eintrag: M-013/M-017/M-020 – kontrollierte Ubuntu-Vorbereitung mit Updates und festgelegten Basisverzeichnissen, weiterhin ohne Ollama, Modell oder Open WebUI.
+- Veröffentlichung: Dieser Eintrag wird gemeinsam mit den Implementierungs- und Dokumentationsänderungen gezielt committed und auf `origin/main` gepusht.

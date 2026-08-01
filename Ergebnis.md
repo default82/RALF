@@ -403,3 +403,13 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen oder Änderungen: Kein Resume-Apply, keine Paketinstallation und keine weitere Proxmox- oder Container-Mutation.
 - Risiken oder Blocker: VMID 100 bleibt im dokumentierten `recoverable_venv_failure`; vor einem Resume-Apply ist eine neue ausdrückliche Nutzerfreigabe erforderlich.
 - Nächster sinnvoller Zielbild-Eintrag: M-027 – erneuter read-only Resume-Plan und danach genau ein freigegebener Resume-Apply-Lauf.
+
+## 2026-08-01 – Fehlerausgabe des Venv-Pfads präzisiert
+
+- Bearbeitete Zielbild-IDs: M-031, P-001
+- Ergebnis: Der Gastinstaller merkt sich den temporären Venv-Pfad bereits unmittelbar nach `mktemp` und meldet ihn auch bei einem Fehler der eigentlichen Venv-Erstellung. Damit bleibt der erreichte Zustand bei einem erneuten Fehler eindeutig nachvollziehbar; die Ensurepip-Reihenfolge und der Resume-Schutz bleiben unverändert.
+- Geänderte Dateien: `scripts/ralf-bootstrap-status-install.sh`, `Ergebnis.md`.
+- Ausgeführte Prüfungen: `bash -n`, ShellCheck, Gast-Resume-Mocktests, Host-Deployment-Mocktests und `git diff --check`.
+- Nicht ausgeführte Prüfungen oder Änderungen: Kein Resume-Apply, keine Paketinstallation, keine Entfernung des temporären Venvs und keine Proxmox-/Containeränderung.
+- Risiken oder Blocker: VMID 100 bleibt im dokumentierten `recoverable_venv_failure`; eine neue ausdrückliche Freigabe ist vor dem realen Resume-Apply erforderlich.
+- Nächster sinnvoller Zielbild-Eintrag: M-027 – read-only Resume-Plan und genau ein freigegebener Resume-Apply-Lauf.

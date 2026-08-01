@@ -16,6 +16,7 @@ readonly ROOT_PREFIX="${RALF_INSTALL_ROOT:-}"
 MODE=''
 BUNDLE=''
 RESUME=0
+REPAIR_VENV=0
 PREFLIGHT_COMPLETED=0
 LAST_MUTATION='keine'
 VENV_AVAILABLE=0
@@ -43,6 +44,9 @@ version_file=$(target_path '/opt/ralf/bootstrap/VERSION')
 config_dir=$(target_path '/etc/ralf/bootstrap')
 config_file=$(target_path '/etc/ralf/bootstrap/config.toml')
 state_dir=$(target_path '/var/lib/ralf/bootstrap')
+install_marker=$(target_path '/opt/ralf/bootstrap/.venv-install-in-progress')
+repair_marker=$(target_path '/opt/ralf/bootstrap/.venv-repair-in-progress')
+state_db=$(target_path '/var/lib/ralf/bootstrap/state.db')
 unit_file=$(target_path '/etc/systemd/system/ralf-bootstrap.service')
 unit_dir=$(target_path '/etc/systemd/system')
 os_release_file=$(target_path '/etc/os-release')
@@ -60,6 +64,8 @@ Aufruf:
   ralf-bootstrap-status-install.sh --apply --bundle /run/ralf-bootstrap-install
   ralf-bootstrap-status-install.sh --resume --bundle /run/ralf-bootstrap-install
   ralf-bootstrap-status-install.sh --resume --apply --bundle /run/ralf-bootstrap-install
+  ralf-bootstrap-status-install.sh --repair-venv --plan --bundle /run/ralf-bootstrap-install
+  ralf-bootstrap-status-install.sh --repair-venv --apply --bundle /run/ralf-bootstrap-install
 EOF
   exit 2
 }
@@ -89,6 +95,7 @@ parse_args() {
       --plan) select_mode plan; shift ;;
       --apply) select_mode apply; shift ;;
       --resume) RESUME=1; shift ;;
+      --repair-venv) REPAIR_VENV=1; shift ;;
       --bundle)
         (($# >= 2)) || fail '--bundle benötigt einen Wert.'
         BUNDLE=$2
@@ -98,7 +105,10 @@ parse_args() {
       *) fail "Unbekannte Option: $1" ;;
     esac
   done
-  if [[ -z $MODE && $RESUME == 1 ]]; then
+  if ((RESUME == 1 && REPAIR_VENV == 1)); then
+    fail '--resume und --repair-venv dürfen nicht gemeinsam verwendet werden.'
+  fi
+  if [[ -z $MODE && ( $RESUME == 1 || $REPAIR_VENV == 1 ) ]]; then
     MODE=plan
   fi
   [[ -n $MODE ]] || usage
@@ -112,7 +122,7 @@ check_command() {
 
 check_commands() {
   local command_name
-  for command_name in apt-cache apt-get awk dpkg find fuser getent grep groupadd id install ip mktemp pgrep python3 sha256sum sort stat systemctl uname useradd wget; do
+  for command_name in apt-cache apt-get awk dpkg find fuser getent grep groupadd head id install ip mktemp mountpoint pgrep python3 sha256sum sleep sort stat systemctl uname useradd wget; do
     check_command "$command_name"
   done
 }
@@ -282,12 +292,112 @@ check_recoverable_shape() {
     [[ $actual == "$RECOVERABLE_TEMP_VENV" ]] || return 1
   done < <(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -print)
   ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 -type d -name '.app-build.*' -print -quit | grep -q . || return 1
-  for path in "$app_dir" "$venv_dir" "$version_file" "$config_dir" "$state_dir" "$unit_file" "$(target_path '/var/lib/ralf/bootstrap/state.db')"; do
+  for path in "$app_dir" "$venv_dir" "$version_file" "$config_dir" "$state_dir" "$unit_file" "$state_db"; do
     [[ ! -e $path ]] || return 1
   done
   [[ ! -e $unit_file ]] || return 1
   ! systemctl is-enabled ralf-bootstrap.service >/dev/null 2>&1 || return 1
   ! systemctl is-active ralf-bootstrap.service >/dev/null 2>&1 || return 1
+  port_is_free || return 1
+}
+
+permissions_match() {
+  local metadata path owner mode actual
+  for metadata in \
+    "$bootstrap_root|root:$EXPECTED_GROUP|750" \
+    "$app_dir|root:$EXPECTED_GROUP|750" \
+    "$venv_dir|root:$EXPECTED_GROUP|750" \
+    "$app_dir/$WHEEL|root:$EXPECTED_GROUP|640" \
+    "$app_dir/runtime.lock|root:$EXPECTED_GROUP|640" \
+    "$version_file|root:$EXPECTED_GROUP|640" \
+    "$config_dir|root:$EXPECTED_GROUP|750" \
+    "$config_file|root:$EXPECTED_GROUP|640" \
+    "$state_dir|$EXPECTED_USER:$EXPECTED_GROUP|750" \
+    "$unit_file|root:root|644"; do
+    IFS='|' read -r path owner mode <<<"$metadata"
+    [[ -e $path ]] || return 1
+    actual=$(stat -c '%U:%G|%a' "$path" 2>/dev/null) || return 1
+    [[ $actual == "$owner|$mode" ]] || return 1
+  done
+  [[ ! -e $state_db ]]
+}
+
+check_installed_package_versions() {
+  "$venv_dir/bin/python" - "$BUNDLE/runtime.lock" <<'PY'
+import importlib.metadata
+import sys
+
+expected = {}
+for line in open(sys.argv[1], encoding='utf-8'):
+    line = line.strip()
+    if line and not line.startswith('#'):
+        name, version = line.split('==', 1)
+        expected[name] = version
+expected['ralf-bootstrap'] = '0.1.0'
+for name, version in expected.items():
+    if importlib.metadata.version(name) != version:
+        raise SystemExit(1)
+PY
+}
+
+check_installed_artifact_hashes() {
+  local artifact
+  for artifact in "$WHEEL" runtime.lock; do
+    [[ $(sha256sum "$app_dir/$artifact" | cut -d' ' -f1) == $(sha256sum "$BUNDLE/$artifact" | cut -d' ' -f1) ]] || return 1
+  done
+  [[ $(sha256sum "$config_file" | cut -d' ' -f1) == $(sha256sum "$BUNDLE/config.toml" | cut -d' ' -f1) ]] || return 1
+  [[ $(sha256sum "$unit_file" | cut -d' ' -f1) == $(sha256sum "$BUNDLE/ralf-bootstrap.service" | cut -d' ' -f1) ]]
+}
+
+venv_shebang_is_moved() {
+  local shebang path moved=0
+  [[ -x $venv_dir/bin/gunicorn && ! -L $venv_dir ]] || return 1
+  while IFS= read -r path; do
+    [[ $path == "$venv_dir/bin/python" ]] && continue
+    shebang=$(head -n 1 "$path" 2>/dev/null || true)
+    case $shebang in
+      '#!'"$venv_dir"'/bin/python'*)
+        [[ -x ${shebang#\#!} ]] || return 1
+        ;;
+      '#!'*/.venv-build.*/bin/python*)
+        [[ $shebang =~ ^#!/opt/ralf/bootstrap/\.venv-build\.[^/]+/bin/python[0-9.]*$ ]] || return 1
+        [[ ! -e ${shebang#\#!} ]] || return 1
+        moved=1
+        ;;
+      '#!'*) return 1 ;;
+    esac
+  done < <(find "$venv_dir/bin" -maxdepth 1 -type f -perm /111 -print)
+  ((moved == 1))
+}
+
+check_moved_venv_shape() {
+  local exec_status
+  [[ -d $bootstrap_root && ! -L $venv_dir ]] || return 1
+  [[ -f $venv_dir/pyvenv.cfg && -x $venv_dir/bin/python ]] || return 1
+  [[ $(cat "$version_file" 2>/dev/null) == "$EXPECTED_VERSION" ]] || return 1
+  permissions_match || return 1
+  check_installed_artifact_hashes || return 1
+  check_installed_package_versions || return 1
+  [[ ! -e $install_marker && ! -e $repair_marker ]] || return 1
+  ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 \( -name '.venv-build.*' -o -name '.app-build.*' \) -print -quit | grep -q . || return 1
+  venv_shebang_is_moved || return 1
+  systemctl is-enabled ralf-bootstrap.service >/dev/null 2>&1 || return 1
+  exec_status=$(systemctl show ralf-bootstrap.service -p ExecMainStatus --value 2>/dev/null || true)
+  [[ $exec_status == 203 ]] || return 1
+  ! pgrep -x gunicorn >/dev/null 2>&1 || return 1
+  port_is_free || return 1
+  return 0
+}
+
+check_direct_venv_failure_shape() {
+  [[ -f $install_marker && -d $venv_dir && ! -L $venv_dir ]] || return 1
+  [[ $(stat -c '%U:%G|%a' "$bootstrap_root" 2>/dev/null) == "root:$EXPECTED_GROUP|750" ]] || return 1
+  [[ -f $venv_dir/pyvenv.cfg ]] || return 1
+  while IFS= read -r actual; do
+    [[ $actual == "$install_marker" || $actual == "$venv_dir" ]] || return 1
+  done < <(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -print)
+  [[ ! -e $app_dir && ! -e $config_dir && ! -e $state_dir && ! -e $unit_file && ! -e $state_db ]] || return 1
+  ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 -name '.app-build.*' -print -quit | grep -q . || return 1
   port_is_free || return 1
 }
 
@@ -304,24 +414,19 @@ check_install_state() {
   done
   if [[ ! -e $bootstrap_root && ${#existing[@]} == 0 ]]; then
     INSTALL_STATE='absent'
-  elif ((${#existing[@]} == ${#markers[@]})) && [[ ! -e $(target_path '/var/lib/ralf/bootstrap/state.db') ]]; then
+  elif check_moved_venv_shape; then
+    INSTALL_STATE='recoverable_moved_venv_exec_failure'
+  elif ((${#existing[@]} == ${#markers[@]})) && [[ ! -e $state_db ]]; then
     INSTALL_STATE='complete'
   elif check_recoverable_shape; then
     INSTALL_STATE='recoverable_venv_failure'
+  elif check_direct_venv_failure_shape; then
+    INSTALL_STATE='recoverable_direct_venv_failure'
   else
     INSTALL_STATE='partial'
   fi
   if [[ $INSTALL_STATE == complete ]]; then
-    local artifact installed
-    for artifact in "$WHEEL" runtime.lock; do
-      installed="$app_dir/$artifact"
-      [[ $(sha256sum "$installed" | cut -d' ' -f1) == $(sha256sum "$BUNDLE/$artifact" | cut -d' ' -f1) ]] ||
-        fail "Vorhandenes Artefakt weicht vom Bundle ab: $artifact."
-    done
-    [[ $(sha256sum "$config_file" | cut -d' ' -f1) == $(sha256sum "$BUNDLE/config.toml" | cut -d' ' -f1) ]] ||
-      fail 'Vorhandene config.toml weicht vom Bundle ab.'
-    [[ $(sha256sum "$unit_file" | cut -d' ' -f1) == $(sha256sum "$BUNDLE/ralf-bootstrap.service" | cut -d' ' -f1) ]] ||
-      fail 'Vorhandene systemd-Unit weicht vom Bundle ab.'
+    check_installed_artifact_hashes || fail 'Vorhandene Installationsartefakte weichen vom Bundle ab.'
   fi
   if [[ $INSTALL_STATE == absent ]] && { [[ -e "$unit_file" ]] || [[ -n $(getent passwd "$EXPECTED_USER" || true) ]] || [[ -n $(getent group "$EXPECTED_GROUP" || true) ]]; }; then
     fail 'Benutzer, Gruppe oder systemd-Unit ist ohne vollständige Installation vorhanden.'
@@ -364,11 +469,20 @@ check_preflight() {
   check_user_group
   check_install_state
   check_port
-  if [[ $RESUME == 1 && $INSTALL_STATE != recoverable_venv_failure ]]; then
-    fail "Resume ist nur für recoverable_venv_failure zulässig; erkannt: $INSTALL_STATE."
+  if [[ $RESUME == 1 && $INSTALL_STATE != recoverable_venv_failure && $INSTALL_STATE != recoverable_direct_venv_failure ]]; then
+    fail "Resume ist nur für einen bekannten Venv-Teilzustand zulässig; erkannt: $INSTALL_STATE."
   fi
-  if [[ $MODE == apply && $RESUME == 0 && $INSTALL_STATE == recoverable_venv_failure ]]; then
+  if [[ $REPAIR_VENV == 1 && $INSTALL_STATE != recoverable_moved_venv_exec_failure ]]; then
+    fail "--repair-venv ist nur für recoverable_moved_venv_exec_failure zulässig; erkannt: $INSTALL_STATE."
+  fi
+  if [[ $MODE == apply && $RESUME == 0 && $REPAIR_VENV == 0 && $INSTALL_STATE == recoverable_venv_failure ]]; then
     fail 'Der erkannte recoverable_venv_failure darf nicht mit --apply fortgesetzt werden; verwende ausdrücklich --resume --apply.'
+  fi
+  if [[ $MODE == apply && $RESUME == 0 && $REPAIR_VENV == 0 && $INSTALL_STATE == recoverable_direct_venv_failure ]]; then
+    fail 'Der erkannte recoverable_direct_venv_failure darf nicht mit --apply fortgesetzt werden; verwende ausdrücklich --resume --apply.'
+  fi
+  if [[ $REPAIR_VENV == 0 && $INSTALL_STATE == recoverable_moved_venv_exec_failure ]]; then
+    fail 'Der erkannte recoverable_moved_venv_exec_failure darf nicht mit --apply oder --resume fortgesetzt werden; verwende ausdrücklich --repair-venv.'
   fi
   if [[ $INSTALL_STATE == partial ]]; then
     fail 'Eine teilweise oder abweichende Bootstrap-Installation ist nicht automatisch behandelbar.'
@@ -396,10 +510,17 @@ print_plan() {
     printf '  Python-venv: verfügbar; keine Paketinstallation hierfür erforderlich.\n'
   fi
   printf '  Runtime-Quelle: exakt gepinnte Pakete über HTTPS von PyPI; Runtime-Artefakte sind noch nicht gehasht.\n'
-  if [[ $INSTALL_STATE == recoverable_venv_failure ]]; then
+  if [[ $INSTALL_STATE == recoverable_moved_venv_exec_failure ]]; then
+    printf '  Reparaturzustand: recoverable_moved_venv_exec_failure; Gunicorn-Shebang: %s\n' "$(head -n 1 "$venv_dir/bin/gunicorn" 2>/dev/null || true)"
+    printf '  Reparatur: Dienst stoppen, ausschließlich %s neu und direkt erstellen; kein Shebang-Umschreiben.\n' "$venv_dir"
+    printf '  Exakte Reihenfolge: stop/warten, Venv validieren und entfernen, Marker anlegen, Venv direkt erstellen, Lock+Wheel installieren, Pfade prüfen, Marker entfernen, reset-failed, einmalig starten, Endpunkte prüfen.\n'
+    printf '  Nicht geplant: Benutzer/Gruppe, python3.14-venv, apt update/upgrade, Übertragung, enable, Containerneustart, state.db oder Rollback.\n'
+  elif [[ $INSTALL_STATE == recoverable_venv_failure ]]; then
     printf '  Fehlgeschlagenes temporäres Venv: %s\n' "$RECOVERABLE_TEMP_VENV"
     printf '  Resume-Bereinigung: ausschließlich dieses Verzeichnis; keine Benutzer-, Gruppen- oder Bundle-Löschung.\n'
-  elif [[ $RESUME == 0 ]]; then
+  elif [[ $INSTALL_STATE == recoverable_direct_venv_failure ]]; then
+    printf '  Unterbrochene direkte Venv: %s; Resume entfernt ausschließlich diesen validierten Zielpfad.\n' "$venv_dir"
+  elif [[ $RESUME == 0 && $REPAIR_VENV == 0 ]]; then
     printf '  Normaler --apply behandelt recoverable_venv_failure nicht; verwende --resume --apply.\n'
   fi
 }
@@ -419,36 +540,41 @@ ensure_user_group() {
   check_user_group
 }
 
-install_runtime() {
-  local temp_venv
-  if [[ $RESUME == 1 ]]; then
-    [[ $RECOVERABLE_TEMP_VENV == "$bootstrap_root"/.venv-build.* && -d $RECOVERABLE_TEMP_VENV ]] ||
-      fail 'Das validierte fehlgeschlagene Venv-Verzeichnis ist nicht mehr eindeutig vorhanden.'
-    LAST_MUTATION="validiertes fehlgeschlagenes Venv entfernen: $RECOVERABLE_TEMP_VENV"
-    rm -rf -- "$RECOVERABLE_TEMP_VENV"
-    TEMP_VENV_REMOVED=1
+validate_final_venv() {
+  local python_path=$venv_dir/bin/python shebang
+  [[ -x $python_path && -f $venv_dir/pyvenv.cfg && ! -L $venv_dir ]] || fail 'Die endgültige Python-Umgebung ist unvollständig oder ein Symlink.'
+  "$python_path" - "$venv_dir" <<'PY' || fail 'sys.prefix verweist nicht auf die endgültige Venv.'
+import pathlib
+import sys
+expected = pathlib.Path(sys.argv[1]).resolve()
+actual = pathlib.Path(sys.prefix).resolve()
+if actual != expected or not pathlib.Path(sys.executable).resolve().is_relative_to(expected):
+    raise SystemExit(f'{actual} != {expected}')
+PY
+  "$python_path" -m pip --version | grep -Fq "$venv_dir" || fail 'Pip verweist nicht auf die endgültige Venv.'
+  "$python_path" -c 'import gunicorn, ralf_bootstrap' || fail 'Gunicorn oder ralf_bootstrap ist nicht importierbar.'
+  shebang=$(head -n 1 "$venv_dir/bin/gunicorn" 2>/dev/null) || fail 'Gunicorn-Skript fehlt.'
+  case $shebang in
+    "#!$venv_dir/bin/python"*) ;;
+    *) fail "Gunicorn-Shebang verweist nicht auf den endgültigen Interpreter: $shebang" ;;
+  esac
+  [[ -x ${shebang#\#!} ]] || fail 'Der im Gunicorn-Shebang referenzierte Interpreter fehlt.'
+  if find "$venv_dir/bin" -maxdepth 1 -type f -perm /111 -exec grep -IlF '.venv-build.' {} + 2>/dev/null | grep -q .; then
+    fail 'Ein ausführbares Venv-Skript verweist noch auf einen verschobenen .venv-build.-Pfad.'
   fi
-  if ((VENV_AVAILABLE == 0)); then
-    LAST_MUTATION="Paket $VENV_PACKAGE installieren"
-    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y "$VENV_PACKAGE" || fail "Die notwendige venv-Paketinstallation ist fehlgeschlagen: $VENV_PACKAGE."
-    APT_INSTALL_SUCCEEDED=1
-    check_venv_capability
-    ((VENV_AVAILABLE == 1)) || fail 'ensurepip ist nach der venv-Paketinstallation weiterhin nicht verfügbar.'
-  fi
-  temp_venv=$(mktemp -d "$bootstrap_root/.venv-build.XXXXXX")
-  TEMP_VENV_PATH=$temp_venv
-  NEW_VENV_CREATED=1
-  LAST_MUTATION='temporäre Python-Umgebung erstellen'
-  python3 -m venv "$temp_venv" || fail 'Temporäre Python-Umgebung konnte nicht erstellt werden.'
-  [[ -x "$temp_venv/bin/python" ]] || fail 'Die temporäre Python-Umgebung enthält kein ausführbares Python.'
-  "$temp_venv/bin/python" -m pip --version >/dev/null 2>&1 || fail 'Pip ist in der temporären Python-Umgebung nicht funktionsfähig.'
+}
+
+install_runtime_contents() {
+  local python_path=$venv_dir/bin/python
+  [[ -x $python_path ]] || fail 'Die endgültige Python-Umgebung enthält kein ausführbares Python.'
+  "$python_path" -m pip --version >/dev/null 2>&1 || fail 'Pip ist in der endgültigen Python-Umgebung nicht funktionsfähig.'
   LAST_MUTATION='gepinnten Runtime-Abhängigkeiten installieren'
-  "$temp_venv/bin/python" -m pip install --disable-pip-version-check --no-input --index-url "$INDEX_URL" --requirement "$BUNDLE/runtime.lock" ||
+  "$python_path" -m pip install --disable-pip-version-check --no-input --index-url "$INDEX_URL" --requirement "$BUNDLE/runtime.lock" ||
     fail 'Installation der gepinnten Runtime-Abhängigkeiten ist fehlgeschlagen.'
   LAST_MUTATION='geprüftes RALF-Wheel installieren'
-  "$temp_venv/bin/python" -m pip install --disable-pip-version-check --no-input --no-deps "$BUNDLE/$WHEEL" ||
+  "$python_path" -m pip install --disable-pip-version-check --no-input --no-deps "$BUNDLE/$WHEEL" ||
     fail 'Installation des geprüften RALF-Wheels ist fehlgeschlagen.'
-  "$temp_venv/bin/python" - "$BUNDLE/runtime.lock" <<'PY' || fail 'Installierte Paketversionen entsprechen nicht dem Runtime-Lock.'
+  "$python_path" - "$BUNDLE/runtime.lock" <<'PY' || fail 'Installierte Paketversionen entsprechen nicht dem Runtime-Lock.'
 import importlib.metadata
 import sys
 
@@ -465,10 +591,95 @@ for name, version in expected.items():
     if actual != version:
         raise SystemExit(f'{name}: erwartet {version}, gefunden {actual}')
 PY
-  LAST_MUTATION='temporäre Python-Umgebung an Zielpfad verschieben'
-  mv "$temp_venv" "$venv_dir"
+  validate_final_venv
+}
+
+install_runtime() {
+  if [[ $RESUME == 1 ]]; then
+    if [[ $INSTALL_STATE == recoverable_venv_failure ]]; then
+      [[ $RECOVERABLE_TEMP_VENV == "$bootstrap_root"/.venv-build.* && -d $RECOVERABLE_TEMP_VENV ]] ||
+        fail 'Das validierte fehlgeschlagene Venv-Verzeichnis ist nicht mehr eindeutig vorhanden.'
+      LAST_MUTATION="validiertes fehlgeschlagenes Venv entfernen: $RECOVERABLE_TEMP_VENV"
+      rm -rf -- "$RECOVERABLE_TEMP_VENV"
+      TEMP_VENV_REMOVED=1
+    elif [[ $INSTALL_STATE == recoverable_direct_venv_failure ]]; then
+      [[ $venv_dir == "$(target_path '/opt/ralf/bootstrap/venv')" && -d $venv_dir && ! -L $venv_dir ]] || fail 'Direkte Venv ist nicht sicher für den Resume freigegeben.'
+      LAST_MUTATION="validierte direkte Venv entfernen: $venv_dir"
+      rm -rf -- "$venv_dir"
+      TEMP_VENV_REMOVED=1
+    fi
+  fi
+  if ((VENV_AVAILABLE == 0)); then
+    LAST_MUTATION="Paket $VENV_PACKAGE installieren"
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y "$VENV_PACKAGE" || fail "Die notwendige venv-Paketinstallation ist fehlgeschlagen: $VENV_PACKAGE."
+    APT_INSTALL_SUCCEEDED=1
+    check_venv_capability
+    ((VENV_AVAILABLE == 1)) || fail 'ensurepip ist nach der venv-Paketinstallation weiterhin nicht verfügbar.'
+  fi
+  LAST_MUTATION='direkte Python-Umgebung am endgültigen Zielpfad erstellen'
+  python3 -m venv "$venv_dir" || fail 'Python-Umgebung am endgültigen Zielpfad konnte nicht erstellt werden.'
+  TEMP_VENV_PATH=$venv_dir
+  NEW_VENV_CREATED=1
+  install_runtime_contents
+}
+
+write_marker() {
+  local path=$1 kind=$2
+  install -m 0640 -o root -g "$EXPECTED_GROUP" /dev/null "$path"
+  printf 'bootstrap_version=%s\noperation=%s\n' "$EXPECTED_VERSION" "$kind" >"$path"
+  chown root:"$EXPECTED_GROUP" "$path"
+  chmod 0640 "$path"
+}
+
+wait_for_service_stop() {
+  local attempt=0
+  while ((attempt < 30)); do
+    ((attempt += 1))
+    if ! systemctl is-active --quiet ralf-bootstrap.service; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail 'ralf-bootstrap.service blieb nach dem Stoppen aktiv.'
+}
+
+repair_venv_apply() {
+  check_preflight
+  [[ $INSTALL_STATE == recoverable_moved_venv_exec_failure ]] || fail "Reparaturzustand ist nicht mehr gültig: $INSTALL_STATE."
+  LAST_MUTATION='ralf-bootstrap.service kontrolliert stoppen'
+  systemctl stop ralf-bootstrap.service || fail 'ralf-bootstrap.service konnte nicht gestoppt werden.'
+  wait_for_service_stop
+  ! pgrep -x gunicorn >/dev/null 2>&1 || fail 'Ein Gunicorn-Prozess läuft nach dem Stoppen weiterhin.'
+  port_is_free || fail '127.0.0.1:8080 ist nach dem Stoppen weiterhin belegt.'
+  check_moved_venv_shape || fail 'Der nachgewiesene verschobene Venv-Zustand hat sich vor der Entfernung verändert.'
+  write_marker "$repair_marker" 'repair-venv'
+  LAST_MUTATION="ausschließlich endgültige fehlerhafte Venv entfernen: $venv_dir"
+  [[ $venv_dir == "$(target_path '/opt/ralf/bootstrap/venv')" && -d $venv_dir && ! -L $venv_dir ]] || fail 'Der Venv-Pfad ist nicht exakt für die Reparatur freigegeben.'
+  if mountpoint -q "$venv_dir"; then
+    fail 'Die Venv ist ein Mountpoint und darf nicht entfernt werden.'
+  fi
+  rm -rf -- "$venv_dir"
+  TEMP_VENV_REMOVED=1
+  LAST_MUTATION='Python-Umgebung direkt am endgültigen Reparaturpfad erstellen'
+  python3 -m venv "$venv_dir" || fail 'Die neue Venv konnte am endgültigen Pfad nicht erstellt werden.'
+  TEMP_VENV_PATH=$venv_dir
+  NEW_VENV_CREATED=1
+  install_runtime_contents
   chown -R root:"$EXPECTED_GROUP" "$venv_dir"
   chmod 0750 "$venv_dir"
+  validate_final_venv
+  if command -v systemd-analyze >/dev/null 2>&1; then
+    systemd-analyze verify "$unit_file" || fail 'Die vorhandene systemd-Unit ist ungültig.'
+  fi
+  LAST_MUTATION='systemd-Fehlerzustand zurücksetzen'
+  systemctl reset-failed ralf-bootstrap.service
+  LAST_MUTATION='ralf-bootstrap.service einmalig starten'
+  systemctl start ralf-bootstrap.service || fail 'ralf-bootstrap.service konnte nach der Venv-Reparatur nicht gestartet werden.'
+  check_installed_permissions
+  validate_service
+  LAST_MUTATION='Reparaturmarkierung nach vollständiger Validierung entfernen'
+  rm -f -- "$repair_marker"
+  printf 'Venv-Reparatur erfolgreich; die Umgebung wurde direkt unter %s erstellt.\n' "$venv_dir"
 }
 
 install_files() {
@@ -526,9 +737,7 @@ activate_service() {
   systemctl start ralf-bootstrap.service
 }
 
-validate_service() {
-  systemctl is-enabled ralf-bootstrap.service >/dev/null || fail 'ralf-bootstrap.service ist nicht aktiviert.'
-  systemctl is-active ralf-bootstrap.service >/dev/null || fail 'ralf-bootstrap.service ist nicht aktiv.'
+probe_service_http() {
   python3 - <<'PY'
 import json
 from urllib.request import Request, urlopen
@@ -552,11 +761,28 @@ for path in ('/healthz', '/api/v1/status', '/'):
 PY
 }
 
+validate_service() {
+  local attempt=0
+  systemctl is-enabled ralf-bootstrap.service >/dev/null || fail 'ralf-bootstrap.service ist nicht aktiviert.'
+  while ((attempt < 20)); do
+    ((attempt += 1))
+    if systemctl is-active ralf-bootstrap.service >/dev/null 2>&1 && probe_service_http; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail 'ralf-bootstrap.service wurde nicht rechtzeitig aktiv oder die lokalen Endpunkte waren nicht erreichbar.'
+}
+
 main() {
   parse_args "$@"
   check_preflight
   print_plan
   if [[ $MODE == plan ]]; then
+    exit 0
+  fi
+  if ((REPAIR_VENV == 1)); then
+    repair_venv_apply
     exit 0
   fi
   if [[ $INSTALL_STATE == complete ]]; then
@@ -570,11 +796,15 @@ main() {
     ensure_user_group
     install -d -m 0750 -o root -g "$EXPECTED_GROUP" "$bootstrap_root"
   fi
+  if [[ ! -e $install_marker ]]; then
+    write_marker "$install_marker" 'install-venv'
+  fi
   install_runtime
   install_files
   check_installed_permissions
   activate_service
   validate_service
+  rm -f -- "$install_marker"
   printf 'Installation erfolgreich; ralf-bootstrap läuft als %s auf 127.0.0.1:8080.\n' "$EXPECTED_USER"
 }
 

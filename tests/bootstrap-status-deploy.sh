@@ -29,8 +29,10 @@ elif [[ $1 == exec ]]; then
   elif [[ ${1:-} == python3 && ${2:-} == -m ]]; then
     printf 'usage: venv\n'
   elif [[ ${1:-} == python3 && ${2:-} == -c ]]; then
-    if [[ ${TEST_RESUME_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]]; then
+    if [[ ${TEST_RESUME_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]] || [[ ${TEST_REPAIR_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]]; then
       printf 'valid\n'
+    elif [[ ${TEST_REPAIR_STATE:-0} == 1 ]]; then
+      printf 'recoverable_moved_venv_exec_failure\n'
     elif [[ ${TEST_RESUME_STATE:-0} == 1 ]]; then
       printf 'recoverable_venv_failure\n'
     else
@@ -41,7 +43,7 @@ elif [[ $1 == exec ]]; then
   elif [[ ${1:-} == sha256sum ]]; then
     :
   elif [[ ${1:-} == bash ]]; then
-    [[ ${TEST_GUEST_FAILURE:-0} == 1 ]] && exit 17
+    if [[ ${TEST_GUEST_FAILURE:-0} == 1 ]]; then exit 17; fi
   elif [[ ${1:-} == rm ]]; then
     :
   elif [[ ${1:-} == install ]]; then
@@ -128,6 +130,47 @@ run_normal_apply_rejects_resume() {
   printf 'PASS normal-apply-resume-rejection\n'
 }
 
+run_repair_case() {
+  local name=$1 mode output status
+  local dir="$TEST_ROOT/$name" bin="$TEST_ROOT/$name/bin"
+  mkdir -p "$bin"
+  make_pct "$bin"
+  [[ $name == repair-apply || $name == repair-failure ]] && mode=--apply || mode=--plan
+  set +e
+  output=$(TEST_REPAIR_STATE=1 TEST_GUEST_FAILURE="$([[ $name == repair-failure ]] && printf 1 || printf 0)" PCT_LOG="$dir/pct.log" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --repair-venv "$mode" --vmid 100 2>&1)
+  status=$?
+  set -e
+  if [[ $name == repair-plan ]]; then
+    [[ $status == 0 ]] && grep -Fq 'Venv-Reparaturplan erfolgreich' <<<"$output"
+    if grep -q '^push ' "$dir/pct.log"; then return 1; fi
+    [[ $(grep -c -- '--repair-venv --plan' "$dir/pct.log") == 1 ]]
+    printf 'PASS repair-plan-no-transfer\n'
+  elif [[ $name == repair-failure ]]; then
+    [[ $status == 1 ]] && [[ $(grep -c -- '--repair-venv --apply' "$dir/pct.log") == 1 ]]
+    if grep -q 'rm -rf -- /run/ralf-bootstrap-install' "$dir/pct.log"; then return 1; fi
+    printf 'PASS repair-failure-no-retry\n'
+  else
+    [[ $status == 0 ]] && grep -Fq 'Venv-Reparatur erfolgreich' <<<"$output"
+    if grep -q '^push ' "$dir/pct.log"; then return 1; fi
+    [[ $(grep -c -- '--repair-venv --apply' "$dir/pct.log") == 1 ]]
+    [[ $(grep -c 'rm -rf -- /run/ralf-bootstrap-install' "$dir/pct.log") == 1 ]]
+    printf 'PASS repair-apply-no-transfer\n'
+  fi
+}
+
+run_normal_apply_rejects_moved() {
+  local dir="$TEST_ROOT/normal-moved-reject" bin="$TEST_ROOT/normal-moved-reject/bin" output status
+  mkdir -p "$bin"
+  make_pct "$bin"
+  set +e
+  output=$(TEST_REPAIR_STATE=1 PCT_LOG="$dir/pct.log" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --apply --vmid 100 2>&1)
+  status=$?
+  set -e
+  [[ $status == 1 ]] && grep -Fq 'repair-venv' <<<"$output"
+  if grep -q '^push ' "$dir/pct.log"; then return 1; fi
+  printf 'PASS normal-apply-moved-rejection\n'
+}
+
 run_case plan
 run_case apply
 run_case failure
@@ -135,3 +178,7 @@ run_resume_case resume-plan
 run_resume_case resume-apply
 run_resume_case resume-failure
 run_normal_apply_rejects_resume
+run_repair_case repair-plan
+run_repair_case repair-apply
+run_repair_case repair-failure
+run_normal_apply_rejects_moved

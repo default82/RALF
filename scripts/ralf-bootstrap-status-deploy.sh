@@ -17,6 +17,7 @@ readonly BUILD_PYTHON="${RALF_BUILD_PYTHON:-python3}"
 
 MODE=''
 RESUME=0
+REPAIR_VENV=0
 VMID=''
 BUNDLE_DIR=''
 WHEEL=''
@@ -30,6 +31,8 @@ Aufruf:
   ralf-bootstrap-status-deploy.sh --apply --vmid <VMID>
   ralf-bootstrap-status-deploy.sh --resume --vmid <VMID>
   ralf-bootstrap-status-deploy.sh --resume --apply --vmid <VMID>
+  ralf-bootstrap-status-deploy.sh --repair-venv --plan --vmid <VMID>
+  ralf-bootstrap-status-deploy.sh --repair-venv --apply --vmid <VMID>
 EOF
   exit 2
 }
@@ -56,6 +59,7 @@ parse_args() {
       --plan) select_mode plan; shift ;;
       --apply) select_mode apply; shift ;;
       --resume) RESUME=1; shift ;;
+      --repair-venv) REPAIR_VENV=1; shift ;;
       --vmid)
         (($# >= 2)) || fail '--vmid benötigt einen Wert.'
         VMID=$2
@@ -65,7 +69,10 @@ parse_args() {
       *) fail "Unbekannte Option: $1" ;;
     esac
   done
-  if [[ -z $MODE && $RESUME == 1 ]]; then
+  if ((RESUME == 1 && REPAIR_VENV == 1)); then
+    fail '--resume und --repair-venv dürfen nicht gemeinsam verwendet werden.'
+  fi
+  if [[ -z $MODE && ( $RESUME == 1 || $REPAIR_VENV == 1 ) ]]; then
     MODE=plan
   fi
   [[ -n $MODE && -n $VMID ]] || usage
@@ -104,15 +111,37 @@ import pwd
 import socket
 import stat
 import subprocess
+import re
 
 root = Path("/opt/ralf/bootstrap")
 final = [Path("/opt/ralf/bootstrap/app"), Path("/opt/ralf/bootstrap/venv"), Path("/opt/ralf/bootstrap/VERSION"), Path("/etc/ralf/bootstrap"), Path("/etc/ralf/bootstrap/config.toml"), Path("/var/lib/ralf/bootstrap"), Path("/etc/systemd/system/ralf-bootstrap.service")]
 state_db = Path("/var/lib/ralf/bootstrap/state.db")
+install_marker = root / ".venv-install-in-progress"
 if not root.exists() and not any(path.exists() for path in final):
     print("absent")
 elif all(path.exists() for path in final) and not state_db.exists():
-    print("complete")
+    moved = False
+    try:
+        venv = Path("/opt/ralf/bootstrap/venv")
+        shebang = (venv / "bin/gunicorn").read_text(encoding="utf-8").splitlines()[0]
+        old = re.fullmatch(r"#!(/opt/ralf/bootstrap/\.venv-build\.[^/]+/bin/python[0-9.]*)", shebang)
+        moved = bool(old and not Path(old.group(1)).exists())
+        moved = moved and not list(root.glob(".venv-build.*")) and not list(root.glob(".app-build.*"))
+        moved = moved and subprocess.run(["systemctl", "is-enabled", "ralf-bootstrap.service"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        status = subprocess.run(["systemctl", "show", "ralf-bootstrap.service", "-p", "ExecMainStatus", "--value"], capture_output=True, text=True, check=False).stdout.strip()
+        moved = moved and status == "203" and subprocess.run(["pgrep", "-x", "gunicorn"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0
+        sock = socket.socket()
+        try:
+            sock.bind(("127.0.0.1", 8080))
+        except OSError:
+            moved = False
+        finally:
+            sock.close()
+    except (OSError, IndexError):
+        moved = False
+    print("recoverable_moved_venv_exec_failure" if moved else "complete")
 else:
+    direct_failure = False
     try:
         user = pwd.getpwnam("ralf-bootstrap")
         group = grp.getgrnam("ralf-bootstrap")
@@ -136,19 +165,38 @@ else:
             and len(temps) == 1 and direct_entries == temps and not app_temps and all(not path.exists() for path in final) and not state_db.exists()
             and service_absent and service_inactive and port_free
         )
+        direct_failure = (
+            root.is_dir() and root_stat.st_uid == pwd.getpwnam("root").pw_uid and root_stat.st_gid == group.gr_gid and stat.S_IMODE(root_stat.st_mode) == 0o750
+            and user.pw_gid == group.gr_gid and user.pw_dir == "/nonexistent" and user.pw_shell == "/usr/sbin/nologin"
+            and install_marker.is_file() and Path("/opt/ralf/bootstrap/venv").is_dir()
+            and not Path("/opt/ralf/bootstrap/venv").is_symlink()
+            and (root / "venv").joinpath("pyvenv.cfg").is_file()
+            and len(direct_entries) == 2 and set(direct_entries) == {install_marker, root / "venv"}
+            and all(not path.exists() for path in (Path("/opt/ralf/bootstrap/app"), Path("/etc/ralf/bootstrap"), Path("/var/lib/ralf/bootstrap"), Path("/etc/systemd/system/ralf-bootstrap.service"), state_db))
+            and service_absent and service_inactive and port_free
+        )
     except (KeyError, OSError):
         recoverable = False
-    print("recoverable_venv_failure" if recoverable else "partial")
+        direct_failure = False
+    print("recoverable_venv_failure" if recoverable else ("recoverable_direct_venv_failure" if direct_failure else "partial"))
 ') || fail 'Zielzustand im Gast konnte nicht ermittelt werden.'
   TARGET_STATE=$existing_state
   case $TARGET_STATE in
     absent) ;;
     complete) printf 'Hinweis: vollständige vorhandene Installation erkannt; der Gast-Installer prüft sie idempotent.\n' ;;
     recoverable_venv_failure) printf 'Hinweis: recoverable_venv_failure erkannt; nur --resume darf diesen Teilzustand behandeln.\n' ;;
+    recoverable_direct_venv_failure) printf 'Hinweis: recoverable_direct_venv_failure erkannt; nur --resume darf diesen Teilzustand behandeln.\n' ;;
+    recoverable_moved_venv_exec_failure) printf 'Hinweis: recoverable_moved_venv_exec_failure erkannt; nur --repair-venv darf diesen Zustand behandeln.\n' ;;
     *) fail 'Im Gast ist eine teilweise oder abweichende Installation vorhanden.' ;;
   esac
   if [[ $MODE == apply && $RESUME == 0 && $TARGET_STATE == recoverable_venv_failure ]]; then
     fail 'recoverable_venv_failure erkannt; normaler --apply bleibt gesperrt. Verwende ausdrücklich --resume --apply.'
+  fi
+  if [[ $TARGET_STATE == recoverable_moved_venv_exec_failure && $REPAIR_VENV == 0 ]]; then
+    fail 'recoverable_moved_venv_exec_failure erkannt; normaler Apply/Resume bleibt gesperrt. Verwende ausdrücklich --repair-venv.'
+  fi
+  if [[ $MODE == apply && $RESUME == 0 && $REPAIR_VENV == 0 && $TARGET_STATE == recoverable_direct_venv_failure ]]; then
+    fail 'recoverable_direct_venv_failure erkannt; normaler --apply bleibt gesperrt. Verwende ausdrücklich --resume --apply.'
   fi
   if [[ $TARGET_STATE == absent ]]; then
     if pct exec "$VMID" -- getent passwd ralf-bootstrap >/dev/null 2>&1; then
@@ -219,12 +267,23 @@ run_guest_resume() {
   fi
 }
 
+run_guest_repair() {
+  local guest_mode=$1
+  if [[ $guest_mode == plan ]]; then
+    pct exec "$VMID" -- bash -s -- --repair-venv --plan --bundle "$REMOTE_BUNDLE" <"$INSTALL_SCRIPT" ||
+      fail 'Der read-only Venv-Reparaturplan im Gast ist fehlgeschlagen.'
+  else
+    pct exec "$VMID" -- bash -s -- --repair-venv --apply --bundle "$REMOTE_BUNDLE" <"$INSTALL_SCRIPT" ||
+      fail 'Die Venv-Reparatur im Gast ist fehlgeschlagen; Bundle und erreichter Zustand bleiben zur Prüfung erhalten.'
+  fi
+}
+
 resume_preflight() {
   require_files
   check_container
   check_guest_read_only
-  [[ $TARGET_STATE == recoverable_venv_failure ]] ||
-    fail "Resume ist nur für recoverable_venv_failure zulässig; erkannt: $TARGET_STATE."
+  [[ $TARGET_STATE == recoverable_venv_failure || $TARGET_STATE == recoverable_direct_venv_failure ]] ||
+    fail "Resume ist nur für einen bekannten Venv-Teilzustand zulässig; erkannt: $TARGET_STATE."
   check_remote_bundle
 }
 
@@ -243,6 +302,31 @@ run_resume_apply() {
   pct exec "$VMID" -- rm -rf -- "$REMOTE_BUNDLE" ||
     fail 'Resume erfolgreich, aber temporäre Gastartefakte konnten nicht entfernt werden.'
   printf 'Resume erfolgreich; VMID %s wurde nicht neugestartet.\n' "$VMID"
+}
+
+repair_preflight() {
+  require_files
+  check_container
+  check_guest_read_only
+  [[ $TARGET_STATE == recoverable_moved_venv_exec_failure ]] ||
+    fail "Venv-Reparatur ist nur für recoverable_moved_venv_exec_failure zulässig; erkannt: $TARGET_STATE."
+  check_remote_bundle
+}
+
+run_repair_plan() {
+  repair_preflight
+  run_guest_repair plan
+  printf 'Venv-Reparaturplan erfolgreich; VMID %s wurde nicht verändert.\n' "$VMID"
+  printf '  Zustand: recoverable_moved_venv_exec_failure\n'
+  printf '  Venv wird ausschließlich direkt unter /opt/ralf/bootstrap/venv neu erstellt; kein Shebang wird umgeschrieben.\n'
+  printf '  Keine Übertragung, Paketinstallation oder Benutzer-/Gruppenmutation im Plan.\n'
+}
+
+run_repair_apply() {
+  repair_preflight
+  run_guest_repair apply
+  pct exec "$VMID" -- rm -rf -- "$REMOTE_BUNDLE" || fail 'Venv-Reparatur erfolgreich, aber temporäre Gastartefakte konnten nicht entfernt werden.'
+  printf 'Venv-Reparatur erfolgreich; VMID %s wurde nicht neugestartet.\n' "$VMID"
 }
 
 build_wheel() {
@@ -336,6 +420,14 @@ apply_bundle() {
 main() {
   parse_args "$@"
   trap cleanup_local EXIT
+  if ((REPAIR_VENV == 1)); then
+    if [[ $MODE == plan ]]; then
+      run_repair_plan
+    else
+      run_repair_apply
+    fi
+    exit 0
+  fi
   if ((RESUME == 1)); then
     if [[ $MODE == plan ]]; then
       run_resume_plan

@@ -307,4 +307,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen: Keine Code-, Shell-, Installations- oder Infrastrukturprüfungen, da dieser Arbeitsdurchlauf ausschließlich Dokumentation und Zielbild ändert.
 - Risiken oder Blocker: Die minimale Technik für Bootstrap-Dienst und Webinterface ist mit O-009 weiterhin offen. Der modellfreie Statusdienst und sein kleines Webinterface sind noch nicht implementiert; es wurden keine Framework- oder Programmiersprachenentscheidungen vorweggenommen.
 - Nächster sinnvoller Zielbild-Eintrag: O-009 – Entscheidung über die möglichst kleine technische Umsetzung des dauerhaften Bootstrap- und Statusdienstes.
-- Veröffentlichung: Dieser Dokumentationslauf wird gezielt committed und auf `origin/main` gepusht; Code, VMID 100 und `secrets/` bleiben unverändert beziehungsweise ausgeschlossen.
+- Veröffentlichung: Dieser Dokumentationslauf wurde in Commit `ab5e6b6` gezielt committed und auf `origin/main` gepusht; Code und VMID 100 blieben unverändert, `secrets/` blieb ausgeschlossen.

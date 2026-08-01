@@ -1,6 +1,6 @@
 # ZIELBILD.md
 
-Stand: 2026-07-31
+Stand: 2026-08-01
 
 Diese Datei ist die dauerhaft gepflegte Arbeitsgrundlage für Menschen und Coding-Agenten, die RALF entwickeln. Sie enthält Ziele, verbindliche Anweisungen, Entscheidungen, Grenzen und deren Status. Sie enthält keine vollständigen Überlegungen, Gesprächsprotokolle oder ausführlichen Alternativdiskussionen.
 
@@ -71,7 +71,7 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-021 | AKTIV | Die feste Referenzinstallation verwendet 4 CPU-Kerne, 12288 MiB RAM, 4096 MiB Swap und eine 40-GiB-Root-Disk. Diese Werte sind Referenzwerte der ersten Installation und keine allgemeinen Mindestanforderungen. VMID, Storage und Bridge werden standardmäßig sicher ermittelt; die Werte können über explizite CLI-Parameter überschrieben werden. |
 | M-022 | AKTIV | Der Plan-/Preflight-Pfad validiert alle Ressourcenparameter und bricht bei ungültigen oder unvollständigen Angaben sowie bei nicht eindeutiger automatischer Storage- oder Bridge-Auswahl vor jeder LXC-Mutation mit verständlicher Ausgabe ab. Eine belegte VMID wird niemals überschrieben. |
 | M-023 | AKTIV | `--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` für den unprivilegierten `ralf-standalone`-LXC auf und prüft die resultierende Konfiguration read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts. |
-| M-024 | AKTIV | VMID 100 wird einmalig kontrolliert gestartet und anschließend ausschließlich read-only validiert. Der Schritt ist erst abgeschlossen, wenn Ubuntu-Basiszustand und DHCP-Netzwerk (IPv4-Adresse, Default-Route, Gateway, DNS und HTTPS-Erreichbarkeit einer Ubuntu-Paketquelle) nachgewiesen sind. Im aktuellen Lauf blieb `eth0` ohne IPv4-Adresse und Default-Route `DOWN`; es erfolgte keine automatische Reparatur oder Stop-Aktion. |
+| M-024 | ABGESCHLOSSEN | VMID 100 wurde am 2026-08-01 mit der notwendigen Proxmox-Funktion `nesting=1` und genau einem `pct reboot 100 --timeout 120` kontrolliert neu gestartet. Die read-only Prüfung bestätigte wirksames `nesting=1`, aktive Netzwerkdienste, `eth0`/veth-Link, DHCP-IPv4, Default-Route, Gateway, DNS und HTTPS-Erreichbarkeit einer Ubuntu-Paketquelle. Die DHCP-Adresse bleibt dynamisch und ist keine dauerhafte Zusicherung. |
 
 ## Definition of Done
 
@@ -119,6 +119,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-013 | ABGESCHLOSSEN | Die persistenten Verzeichnisse des ersten LXC wurden festgelegt; separate Proxmox-Mountpoints werden in RALF Standalone 0.0.1 nicht verwendet. |
 | A-014 | ABGESCHLOSSEN | `GOAL.md` wurde als allgemeingültiger, wiederverwendbarer Arbeitsauftrag für Codex CLI angelegt und in den Projektdokumenten verankert. |
 | A-015 | ABGESCHLOSSEN | Der erste reale `ralf-standalone`-LXC wurde am 2026-07-31 als VMID 100 erstellt und read-only geprüft. Er ist gestoppt und enthält noch keine RALF-Software. |
+| A-016 | ABGESCHLOSSEN | Der erste kontrollierte Start von VMID 100 wurde am 2026-08-01 nach Aktivierung von `nesting=1` read-only validiert. Der laufende, weiterhin leere LXC erhält Netzwerk per DHCP; die Adresse ist nicht dauerhaft festgelegt. |
 
 # 5. Verbindlicher Entwicklungsprozess
 

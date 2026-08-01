@@ -212,3 +212,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Der Container läuft ohne funktionierendes Netzwerk. Die Pending-Konfiguration enthält weiterhin `features: nesting=1`, obwohl die aktuelle Konfiguration dieses Feature nicht enthält. M-024 darf nicht abgeschlossen werden. Ein neuer, ausdrücklich freigegebener Schritt muss zuerst einen auf diesem Host unterstützten Lifecycle-Befehl und das Auflösen der Pending-Änderung festlegen.
 - Nächster sinnvoller Zielbild-Eintrag: M-024 – unterstützten Proxmox-Lifecycle-Befehl und sicheren Umgang mit der verbleibenden Pending-Konfiguration entscheiden; danach read-only Netzwerkvalidierung wiederholen.
 - Veröffentlichung: Dieser Eintrag wurde in Commit `928188b` gezielt committed und auf `origin/main` gepusht; `secrets/` blieb ungetrackt und unverändert.
+
+## 2026-08-01 – Ausstehende features-Änderung bereinigt
+
+- Bearbeitete Zielbild-IDs: M-024, P-001
+- Ergebnis: Nach read-only Preflight von Status, aktueller Konfiguration und Pending-Konfiguration wurde `pct set 100 --revert features` genau einmal erfolgreich ausgeführt. Die anschließenden read-only Prüfungen bestätigen VMID 100 als `running`, eine aktuelle Konfiguration ohne `features` sowie keine ausstehende `features`-Änderung. Das Netzwerk wurde in diesem Bereinigungsschritt nicht verändert oder erneut konfiguriert.
+- Geänderte Dateien: `Ergebnis.md`
+- Ausgeführte Prüfungen: Vollständige Pflichtdokumente und jüngste Ergebnisse gelesen; Git-Synchronität und Secrets-Status geprüft; read-only `pct status 100`, `pct config 100 --current 1`, `pct pending 100` vor der Mutation; genau ein `pct set 100 --revert features`; danach ausschließlich `pct config 100 --current 1`, `pct pending 100` und `pct status 100`; `git diff --check`.
+- Nicht ausgeführte Prüfungen: Keine Netzwerk- oder Gastdienstprüfung, da dieser Auftrag ausschließlich die Pending-Bereinigung vorsah. Kein Reboot, Shutdown, Stop, Start, Paket- oder Softwarelauf und keine weitere Konfigurationsänderung.
+- Risiken oder Blocker: M-024 bleibt unverändert `AKTIV`; das zuvor diagnostizierte Netzwerkproblem ist weiterhin offen und wurde nicht erneut validiert. `secrets/` blieb ungetrackt und unverändert.
+- Nächster sinnvoller Zielbild-Eintrag: M-024 – separater, ausdrücklich freigegebener Reparaturschritt mit einem auf diesem Host unterstützten Proxmox-Lifecycle-Befehl.
+- Veröffentlichung: Dieser Eintrag wird gezielt committed und auf den vorgesehenen Remote-Branch gepusht.

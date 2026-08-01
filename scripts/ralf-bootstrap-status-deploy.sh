@@ -16,6 +16,7 @@ readonly UNIT_FILE="$PROJECT_ROOT/deploy/bootstrap-status/ralf-bootstrap.service
 readonly BUILD_PYTHON="${RALF_BUILD_PYTHON:-python3}"
 
 MODE=''
+RESUME=0
 VMID=''
 BUNDLE_DIR=''
 WHEEL=''
@@ -27,6 +28,8 @@ usage() {
 Aufruf:
   ralf-bootstrap-status-deploy.sh --plan --vmid <VMID>
   ralf-bootstrap-status-deploy.sh --apply --vmid <VMID>
+  ralf-bootstrap-status-deploy.sh --resume --vmid <VMID>
+  ralf-bootstrap-status-deploy.sh --resume --apply --vmid <VMID>
 EOF
   exit 2
 }
@@ -52,6 +55,7 @@ parse_args() {
     case $1 in
       --plan) select_mode plan; shift ;;
       --apply) select_mode apply; shift ;;
+      --resume) RESUME=1; shift ;;
       --vmid)
         (($# >= 2)) || fail '--vmid benötigt einen Wert.'
         VMID=$2
@@ -61,6 +65,9 @@ parse_args() {
       *) fail "Unbekannte Option: $1" ;;
     esac
   done
+  if [[ -z $MODE && $RESUME == 1 ]]; then
+    MODE=plan
+  fi
   [[ -n $MODE && -n $VMID ]] || usage
   [[ $VMID =~ ^[0-9]+$ && $VMID -ge 100 && $VMID -le 999999999 ]] || fail "Ungültige VMID: $VMID."
 }
@@ -87,25 +94,61 @@ check_guest_read_only() {
   local version existing_state
   version=$(pct exec "$VMID" -- python3 --version 2>&1) || fail 'Python-Version im Gast konnte nicht gelesen werden.'
   grep -Eq '^Python 3\.(1[2-9]|[2-9][0-9])\.' <<<"$version" || fail "Python erfüllt nicht die Mindestversion 3.12: $version"
-  pct exec "$VMID" -- python3 -m venv --help >/dev/null 2>&1 ||
-    printf 'Hinweis: python3 -m venv fehlt; Apply darf ausschließlich das passende Ubuntu-venv-Paket installieren.\n'
+  if ! pct exec "$VMID" -- python3 -c 'import ensurepip, venv; print(ensurepip.version())' >/dev/null 2>&1; then
+    printf 'Hinweis: ensurepip/venv ist nicht vollständig verfügbar; der Gastinstaller ermittelt das passende pythonX.Y-venv-Paket.\n'
+  fi
   existing_state=$(pct exec "$VMID" -- python3 -c '
 from pathlib import Path
-markers = [Path("/opt/ralf/bootstrap"), Path("/opt/ralf/bootstrap/app"), Path("/opt/ralf/bootstrap/venv"), Path("/opt/ralf/bootstrap/VERSION"), Path("/etc/ralf/bootstrap"), Path("/etc/ralf/bootstrap/config.toml"), Path("/var/lib/ralf/bootstrap"), Path("/etc/systemd/system/ralf-bootstrap.service")]
-present = sum(path.exists() for path in markers)
-if present == 0:
+import grp
+import pwd
+import socket
+import stat
+import subprocess
+
+root = Path("/opt/ralf/bootstrap")
+final = [Path("/opt/ralf/bootstrap/app"), Path("/opt/ralf/bootstrap/venv"), Path("/opt/ralf/bootstrap/VERSION"), Path("/etc/ralf/bootstrap"), Path("/etc/ralf/bootstrap/config.toml"), Path("/var/lib/ralf/bootstrap"), Path("/etc/systemd/system/ralf-bootstrap.service")]
+state_db = Path("/var/lib/ralf/bootstrap/state.db")
+if not root.exists() and not any(path.exists() for path in final):
     print("absent")
-elif present == len(markers) and not Path("/var/lib/ralf/bootstrap/state.db").exists():
+elif all(path.exists() for path in final) and not state_db.exists():
     print("complete")
 else:
-    print("partial")
+    try:
+        user = pwd.getpwnam("ralf-bootstrap")
+        group = grp.getgrnam("ralf-bootstrap")
+        root_stat = root.stat()
+        temps = sorted(root.glob(".venv-build.*"))
+        app_temps = list(root.glob(".app-build.*"))
+        service_absent = not Path("/etc/systemd/system/ralf-bootstrap.service").exists()
+        service_inactive = all(subprocess.run(["systemctl", action, "ralf-bootstrap.service"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0 for action in ("is-enabled", "is-active"))
+        sock = socket.socket()
+        try:
+            sock.bind(("127.0.0.1", 8080))
+            port_free = True
+        except OSError:
+            port_free = False
+        finally:
+            sock.close()
+        recoverable = (
+            root.is_dir() and root_stat.st_uid == pwd.getpwnam("root").pw_uid and root_stat.st_gid == group.gr_gid and stat.S_IMODE(root_stat.st_mode) == 0o750
+            and user.pw_gid == group.gr_gid and user.pw_dir == "/nonexistent" and user.pw_shell == "/usr/sbin/nologin"
+            and len(temps) == 1 and not app_temps and all(not path.exists() for path in final) and not state_db.exists()
+            and service_absent and service_inactive and port_free
+        )
+    except (KeyError, OSError):
+        recoverable = False
+    print("recoverable_venv_failure" if recoverable else "partial")
 ') || fail 'Zielzustand im Gast konnte nicht ermittelt werden.'
   TARGET_STATE=$existing_state
   case $TARGET_STATE in
     absent) ;;
     complete) printf 'Hinweis: vollständige vorhandene Installation erkannt; der Gast-Installer prüft sie idempotent.\n' ;;
+    recoverable_venv_failure) printf 'Hinweis: recoverable_venv_failure erkannt; nur --resume darf diesen Teilzustand behandeln.\n' ;;
     *) fail 'Im Gast ist eine teilweise oder abweichende Installation vorhanden.' ;;
   esac
+  if [[ $MODE == apply && $RESUME == 0 && $TARGET_STATE == recoverable_venv_failure ]]; then
+    fail 'recoverable_venv_failure erkannt; normaler --apply bleibt gesperrt. Verwende ausdrücklich --resume --apply.'
+  fi
   if [[ $TARGET_STATE == absent ]]; then
     if pct exec "$VMID" -- getent passwd ralf-bootstrap >/dev/null 2>&1; then
       fail 'Der Benutzer ralf-bootstrap ist bereits vorhanden.'
@@ -124,6 +167,81 @@ else:
       fail 'Port 127.0.0.1:8080 ist laut ss belegt.'
     fi
   fi
+}
+
+check_remote_bundle() {
+  local state
+  state=$(pct exec "$VMID" -- python3 -c '
+import hashlib
+from pathlib import Path
+import re
+
+bundle = Path("/run/ralf-bootstrap-install")
+files = {path.name for path in bundle.iterdir() if path.is_file()}
+wheels = sorted(name for name in files if re.fullmatch(r"ralf_bootstrap-0\.1\.0-.+\.whl", name))
+expected = {"SHA256SUMS", "runtime.lock", "config.toml", "ralf-bootstrap.service", "ralf-bootstrap-status-install.sh"}
+if len(wheels) != 1 or files != expected | {wheels[0]}:
+    print("invalid")
+else:
+    valid = True
+    entries = {}
+    for line in (bundle / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) != 2:
+            valid = False
+            break
+        digest, name = parts
+        if name in entries:
+            valid = False
+            break
+        entries[name] = digest
+    if set(entries) != files:
+        valid = False
+    for name, digest in entries.items():
+        path = bundle / name
+        if Path(name).name != name or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            valid = False
+            break
+    print("valid" if valid else "invalid")
+') || fail 'Vorhandenes Resume-Bundle konnte nicht gelesen werden.'
+  [[ $state == valid ]] || fail 'Das vorhandene Resume-Bundle ist unvollständig oder enthält unerwartete Dateien.'
+}
+
+run_guest_resume() {
+  local guest_mode=$1
+  if [[ $guest_mode == plan ]]; then
+    pct exec "$VMID" -- bash -s -- --resume --plan --bundle "$REMOTE_BUNDLE" <"$INSTALL_SCRIPT" ||
+      fail 'Der read-only Resume-Plan im Gast ist fehlgeschlagen.'
+  else
+    pct exec "$VMID" -- bash -s -- --resume --apply --bundle "$REMOTE_BUNDLE" <"$INSTALL_SCRIPT" ||
+      fail 'Der Gast-Resume ist fehlgeschlagen; Bundle und erreichten Zustand unverändert zur Prüfung belassen.'
+  fi
+}
+
+resume_preflight() {
+  require_files
+  check_container
+  check_guest_read_only
+  [[ $TARGET_STATE == recoverable_venv_failure ]] ||
+    fail "Resume ist nur für recoverable_venv_failure zulässig; erkannt: $TARGET_STATE."
+  check_remote_bundle
+}
+
+run_resume_plan() {
+  resume_preflight
+  run_guest_resume plan
+  printf 'Resume-Plan erfolgreich; VMID %s wurde nicht verändert.\n' "$VMID"
+  printf '  Zustand: recoverable_venv_failure\n'
+  printf '  Vorhandenes Bundle: %s (Prüfsummen erfolgreich)\n' "$REMOTE_BUNDLE"
+  printf '  Bei --resume --apply: genau ein Gast-Resume ohne erneute Artefaktübertragung.\n'
+}
+
+run_resume_apply() {
+  resume_preflight
+  run_guest_resume apply
+  pct exec "$VMID" -- rm -rf -- "$REMOTE_BUNDLE" ||
+    fail 'Resume erfolgreich, aber temporäre Gastartefakte konnten nicht entfernt werden.'
+  printf 'Resume erfolgreich; VMID %s wurde nicht neugestartet.\n' "$VMID"
 }
 
 build_wheel() {
@@ -210,13 +328,21 @@ apply_bundle() {
   done
   pct exec "$VMID" -- bash "$REMOTE_BUNDLE/ralf-bootstrap-status-install.sh" --apply --bundle "$REMOTE_BUNDLE" ||
     fail 'Gast-Installationsskript ist fehlgeschlagen; temporäre Gastartefakte bleiben erhalten.'
-  pct exec "$VMID" -- rm -rf "$REMOTE_BUNDLE" || fail 'Erfolgreiche Installation, aber temporäre Gastartefakte konnten nicht entfernt werden.'
+  pct exec "$VMID" -- rm -rf -- "$REMOTE_BUNDLE" || fail 'Erfolgreiche Installation, aber temporäre Gastartefakte konnten nicht entfernt werden.'
   printf 'Deployment erfolgreich; VMID %s wurde nicht neugestartet.\n' "$VMID"
 }
 
 main() {
   parse_args "$@"
   trap cleanup_local EXIT
+  if ((RESUME == 1)); then
+    if [[ $MODE == plan ]]; then
+      run_resume_plan
+    else
+      run_resume_apply
+    fi
+    exit 0
+  fi
   if [[ $MODE == plan ]]; then
     run_plan
     exit 0

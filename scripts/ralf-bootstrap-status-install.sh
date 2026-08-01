@@ -15,12 +15,21 @@ readonly ROOT_PREFIX="${RALF_INSTALL_ROOT:-}"
 
 MODE=''
 BUNDLE=''
+RESUME=0
 PREFLIGHT_COMPLETED=0
 LAST_MUTATION='keine'
 VENV_AVAILABLE=0
 VENV_PACKAGE=''
+PYTHON_VERSION=''
+ENSUREPIP_VERSION='unavailable'
+APT_CANDIDATE=''
+APT_INSTALLED='unknown'
 INSTALL_STATE='unbekannt'
 WHEEL=''
+RECOVERABLE_TEMP_VENV=''
+TEMP_VENV_REMOVED=0
+NEW_VENV_CREATED=0
+APT_INSTALL_SUCCEEDED=0
 
 target_path() {
   printf '%s%s' "$ROOT_PREFIX" "$1"
@@ -48,6 +57,8 @@ usage() {
 Aufruf:
   ralf-bootstrap-status-install.sh --plan --bundle /run/ralf-bootstrap-install
   ralf-bootstrap-status-install.sh --apply --bundle /run/ralf-bootstrap-install
+  ralf-bootstrap-status-install.sh --resume --bundle /run/ralf-bootstrap-install
+  ralf-bootstrap-status-install.sh --resume --apply --bundle /run/ralf-bootstrap-install
 EOF
   exit 2
 }
@@ -57,6 +68,8 @@ fail() {
   printf '  Preflight abgeschlossen: %s\n' "$([[ $PREFLIGHT_COMPLETED == 1 ]] && printf 'ja' || printf 'nein')" >&2
   printf '  Letzter mutierender Schritt: %s\n' "$LAST_MUTATION" >&2
   printf '  Installationszustand: %s\n' "$INSTALL_STATE" >&2
+  printf '  Python: %s; ensurepip: %s; venv-Paket: %s; installiert: %s; Candidate: %s\n' "${PYTHON_VERSION:-unbekannt}" "$ENSUREPIP_VERSION" "${VENV_PACKAGE:-unbekannt}" "$APT_INSTALLED" "${APT_CANDIDATE:-unbekannt}" >&2
+  printf '  Fehlgeschlagenes Venv: %s; entfernt: %s; neue Venv begonnen: %s; Paketinstallation erfolgreich: %s\n' "${RECOVERABLE_TEMP_VENV:-keines}" "$TEMP_VENV_REMOVED" "$NEW_VENV_CREATED" "$APT_INSTALL_SUCCEEDED" >&2
   printf '  Nächster manueller Schritt: erreichten Zustand prüfen; kein automatischer Rollback oder zweiter Versuch.\n' >&2
   exit 1
 }
@@ -74,6 +87,7 @@ parse_args() {
     case $1 in
       --plan) select_mode plan; shift ;;
       --apply) select_mode apply; shift ;;
+      --resume) RESUME=1; shift ;;
       --bundle)
         (($# >= 2)) || fail '--bundle benötigt einen Wert.'
         BUNDLE=$2
@@ -83,6 +97,9 @@ parse_args() {
       *) fail "Unbekannte Option: $1" ;;
     esac
   done
+  if [[ -z $MODE && $RESUME == 1 ]]; then
+    MODE=plan
+  fi
   [[ -n $MODE ]] || usage
   [[ -n $BUNDLE ]] || fail '--bundle ist erforderlich.'
   [[ $BUNDLE == /* && $BUNDLE != */ ]] || fail '--bundle muss ein absoluter Verzeichnispfad sein.'
@@ -94,7 +111,7 @@ check_command() {
 
 check_commands() {
   local command_name
-  for command_name in apt-get awk dpkg find fuser getent grep groupadd id install ip pgrep python3 sha256sum sort stat systemctl uname useradd wget; do
+  for command_name in apt-cache apt-get awk dpkg find fuser getent grep groupadd id install ip mktemp pgrep python3 sha256sum sort stat systemctl uname useradd wget; do
     check_command "$command_name"
   done
 }
@@ -111,19 +128,50 @@ check_os() {
   [[ ${VERSION_ID:-} == "$EXPECTED_UBUNTU" ]] || fail "Nicht unterstützte Ubuntu-Version: ${VERSION_ID:-unbekannt}."
 }
 
+check_venv_capability() {
+  local ensurepip_output
+  if ensurepip_output=$(python3 -c 'import ensurepip, venv; print(ensurepip.version())' 2>/dev/null) && [[ $ensurepip_output =~ ^[0-9][0-9A-Za-z.+~-]*$ ]]; then
+    VENV_AVAILABLE=1
+    ENSUREPIP_VERSION=$ensurepip_output
+  else
+    VENV_AVAILABLE=0
+    ENSUREPIP_VERSION='unavailable'
+  fi
+}
+
+check_apt_candidate() {
+  local policy candidate codename
+  [[ $VENV_PACKAGE =~ ^python3\.[0-9]+-venv$ ]] || fail "Unsicherer Venv-Paketname: $VENV_PACKAGE."
+  policy=$(apt-cache policy "$VENV_PACKAGE" 2>/dev/null) || fail "apt-cache policy konnte $VENV_PACKAGE nicht prüfen."
+  candidate=$(awk '$1 == "Candidate:" { print $2; exit }' <<<"$policy")
+  [[ $candidate =~ ^[0-9][0-9A-Za-z.+:~_-]*$ && $candidate != '(none)' ]] ||
+    fail "Kein installierbarer Candidate für $VENV_PACKAGE verfügbar."
+  codename=${VERSION_CODENAME:-}
+  [[ $codename == resolute ]] || fail "Ubuntu-Codename ist für die Paketquellenprüfung nicht eindeutig: ${codename:-unbekannt}."
+  APT_INSTALLED=$(awk '$1 == "Installed:" { print $2; exit }' <<<"$policy")
+  [[ -n $APT_INSTALLED && $APT_INSTALLED != '(none)' ]] &&
+    [[ $APT_INSTALLED =~ ^[0-9][0-9A-Za-z.+:~_-]*$ ]] || [[ $APT_INSTALLED == '(none)' ]] ||
+    fail "Unerwarteter Installationsstatus für $VENV_PACKAGE: ${APT_INSTALLED:-unbekannt}."
+  grep -Eq "^[[:space:]]*[0-9]+[[:space:]]+https?://[^[:space:]]+[[:space:]]+${codename}([[:space:]/-]|$)" <<<"$policy" ||
+    fail "Candidate $candidate für $VENV_PACKAGE stammt nicht nachweisbar aus einer konfigurierten Ubuntu-$EXPECTED_UBUNTU-Quelle."
+  APT_CANDIDATE=$candidate
+}
+
 check_architecture_and_python() {
   local architecture python_version major minor
   architecture=$(uname -m 2>/dev/null) || fail 'Architektur konnte nicht ermittelt werden.'
   [[ $architecture == amd64 || $architecture == x86_64 ]] || fail "Nicht unterstützte Architektur: $architecture."
   python_version=$(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])') ||
     fail 'Python 3 konnte nicht ausgeführt werden.'
-  IFS=. read -r major minor _ <<<"$python_version"
+  [[ $python_version =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || fail "Unerwartete Python-Versionsausgabe: $python_version."
+  major=${BASH_REMATCH[1]}
+  minor=${BASH_REMATCH[2]}
   ((major > 3 || (major == 3 && minor >= 12))) || fail "Python $python_version ist zu alt; mindestens 3.12 ist erforderlich."
-  if python3 -m venv --help >/dev/null 2>&1; then
-    VENV_AVAILABLE=1
-  else
-    VENV_AVAILABLE=0
-    VENV_PACKAGE="python${major}.${minor}-venv"
+  PYTHON_VERSION="$python_version"
+  VENV_PACKAGE="python${major}.${minor}-venv"
+  check_venv_capability
+  if ((VENV_AVAILABLE == 0)); then
+    check_apt_candidate
   fi
 }
 
@@ -200,8 +248,11 @@ check_user_group() {
     return 0
   fi
   [[ -n $passwd_line && -n $group_line ]] || fail 'Benutzer und Gruppe sind nur teilweise vorhanden.'
-  IFS=: read -r _ _ _ user_gid _ user_home user_shell <<<"$passwd_line"
+  local user_uid
+  IFS=: read -r _ _ user_uid user_gid _ user_home user_shell <<<"$passwd_line"
   IFS=: read -r _ _ group_gid _ <<<"$group_line"
+  [[ $user_uid =~ ^[0-9]+$ && $user_uid -ge 100 && $user_uid -lt 1000 && $user_gid =~ ^[0-9]+$ && $user_gid -ge 100 && $user_gid -lt 1000 ]] ||
+    fail 'Vorhandener ralf-bootstrap-Benutzer oder dessen Gruppe ist kein Systemkonto.'
   [[ $user_home == "$EXPECTED_HOME" && $user_shell == "$EXPECTED_SHELL" && $user_gid == "$group_gid" ]] ||
     fail 'Vorhandener ralf-bootstrap-Benutzer entspricht nicht dem Sollzustand.'
   groups=$(id -Gn "$EXPECTED_USER")
@@ -211,10 +262,35 @@ check_user_group() {
   fi
 }
 
+find_recoverable_temp() {
+  local -a candidates
+  mapfile -t candidates < <(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -type d -name '.venv-build.*' -printf '%p\n' | sort)
+  ((${#candidates[@]} == 1)) || return 1
+  RECOVERABLE_TEMP_VENV=${candidates[0]}
+}
+
+check_recoverable_shape() {
+  local actual
+  [[ -d $bootstrap_root ]] || return 1
+  actual=$(stat -c '%U:%G|%a' "$bootstrap_root" 2>/dev/null) || return 1
+  [[ $actual == "root:$EXPECTED_GROUP|750" ]] || return 1
+  [[ -n $(getent passwd "$EXPECTED_USER" || true) && -n $(getent group "$EXPECTED_GROUP" || true) ]] || return 1
+  check_user_group
+  find_recoverable_temp || return 1
+  ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 -type d -name '.app-build.*' -print -quit | grep -q . || return 1
+  for path in "$app_dir" "$venv_dir" "$version_file" "$config_dir" "$state_dir" "$unit_file" "$(target_path '/var/lib/ralf/bootstrap/state.db')"; do
+    [[ ! -e $path ]] || return 1
+  done
+  [[ ! -e $unit_file ]] || return 1
+  ! systemctl is-enabled ralf-bootstrap.service >/dev/null 2>&1 || return 1
+  ! systemctl is-active ralf-bootstrap.service >/dev/null 2>&1 || return 1
+  port_is_free || return 1
+}
+
 check_install_state() {
   local -a markers existing
   markers=(
-    "$bootstrap_root" "$app_dir" "$app_dir/$WHEEL" "$app_dir/runtime.lock"
+    "$app_dir" "$app_dir/$WHEEL" "$app_dir/runtime.lock"
     "$venv_dir" "$venv_dir/bin/gunicorn" "$version_file"
     "$config_dir" "$config_file" "$state_dir" "$unit_file"
   )
@@ -222,13 +298,14 @@ check_install_state() {
   for marker in "${markers[@]}"; do
     [[ -e $marker ]] && existing+=("$marker")
   done
-  if ((${#existing[@]} == 0)); then
+  if [[ ! -e $bootstrap_root && ${#existing[@]} == 0 ]]; then
     INSTALL_STATE='absent'
   elif ((${#existing[@]} == ${#markers[@]})) && [[ ! -e $(target_path '/var/lib/ralf/bootstrap/state.db') ]]; then
     INSTALL_STATE='complete'
+  elif check_recoverable_shape; then
+    INSTALL_STATE='recoverable_venv_failure'
   else
     INSTALL_STATE='partial'
-    fail 'Eine teilweise oder abweichende Bootstrap-Installation ist vorhanden; sie wird nicht überschrieben.'
   fi
   if [[ $INSTALL_STATE == complete ]]; then
     local artifact installed
@@ -283,6 +360,15 @@ check_preflight() {
   check_user_group
   check_install_state
   check_port
+  if [[ $RESUME == 1 && $INSTALL_STATE != recoverable_venv_failure ]]; then
+    fail "Resume ist nur für recoverable_venv_failure zulässig; erkannt: $INSTALL_STATE."
+  fi
+  if [[ $MODE == apply && $RESUME == 0 && $INSTALL_STATE == recoverable_venv_failure ]]; then
+    fail 'Der erkannte recoverable_venv_failure darf nicht mit --apply fortgesetzt werden; verwende ausdrücklich --resume --apply.'
+  fi
+  if [[ $INSTALL_STATE == partial ]]; then
+    fail 'Eine teilweise oder abweichende Bootstrap-Installation ist nicht automatisch behandelbar.'
+  fi
   PREFLIGHT_COMPLETED=1
 }
 
@@ -291,6 +377,10 @@ print_plan() {
   printf '  Bundle: %s\n' "$BUNDLE"
   printf '  Wheel: %s (Version %s)\n' "$WHEEL" "$EXPECTED_VERSION"
   printf '  Installationszustand: %s\n' "$INSTALL_STATE"
+  printf '  Python: %s; venv: %s; ensurepip: %s\n' "$PYTHON_VERSION" "$([[ $VENV_AVAILABLE == 1 ]] && printf verfügbar || printf fehlt)" "$ENSUREPIP_VERSION"
+  if ((VENV_AVAILABLE == 0)); then
+    printf '  Benötigtes Paket: %s; installiert: %s; Candidate: %s\n' "$VENV_PACKAGE" "$APT_INSTALLED" "${APT_CANDIDATE:-unbekannt}"
+  fi
   printf '  Ziel: /opt/ralf/bootstrap/{app,venv,VERSION}\n'
   printf '  Konfiguration: /etc/ralf/bootstrap/config.toml\n'
   printf '  Zustandspfad: /var/lib/ralf/bootstrap/ (state.db wird nicht angelegt)\n'
@@ -302,6 +392,12 @@ print_plan() {
     printf '  Python-venv: verfügbar; keine Paketinstallation hierfür erforderlich.\n'
   fi
   printf '  Runtime-Quelle: exakt gepinnte Pakete über HTTPS von PyPI; Runtime-Artefakte sind noch nicht gehasht.\n'
+  if [[ $INSTALL_STATE == recoverable_venv_failure ]]; then
+    printf '  Fehlgeschlagenes temporäres Venv: %s\n' "$RECOVERABLE_TEMP_VENV"
+    printf '  Resume-Bereinigung: ausschließlich dieses Verzeichnis; keine Benutzer-, Gruppen- oder Bundle-Löschung.\n'
+  elif [[ $RESUME == 0 ]]; then
+    printf '  Normaler --apply behandelt recoverable_venv_failure nicht; verwende --resume --apply.\n'
+  fi
 }
 
 ensure_user_group() {
@@ -321,14 +417,26 @@ ensure_user_group() {
 
 install_runtime() {
   local temp_venv
-  temp_venv=$(mktemp -d "$bootstrap_root/.venv-build.XXXXXX")
+  if [[ $RESUME == 1 ]]; then
+    [[ $RECOVERABLE_TEMP_VENV == "$bootstrap_root"/.venv-build.* && -d $RECOVERABLE_TEMP_VENV ]] ||
+      fail 'Das validierte fehlgeschlagene Venv-Verzeichnis ist nicht mehr eindeutig vorhanden.'
+    LAST_MUTATION="validiertes fehlgeschlagenes Venv entfernen: $RECOVERABLE_TEMP_VENV"
+    rm -rf -- "$RECOVERABLE_TEMP_VENV"
+    TEMP_VENV_REMOVED=1
+  fi
   if ((VENV_AVAILABLE == 0)); then
     LAST_MUTATION="Paket $VENV_PACKAGE installieren"
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y "$VENV_PACKAGE" || fail "Die notwendige venv-Paketinstallation ist fehlgeschlagen: $VENV_PACKAGE."
-    python3 -m venv --help >/dev/null 2>&1 || fail 'python3 -m venv ist nach der Paketinstallation weiterhin nicht verfügbar.'
+    APT_INSTALL_SUCCEEDED=1
+    check_venv_capability
+    ((VENV_AVAILABLE == 1)) || fail 'ensurepip ist nach der venv-Paketinstallation weiterhin nicht verfügbar.'
   fi
+  temp_venv=$(mktemp -d "$bootstrap_root/.venv-build.XXXXXX")
   LAST_MUTATION='temporäre Python-Umgebung erstellen'
   python3 -m venv "$temp_venv" || fail 'Temporäre Python-Umgebung konnte nicht erstellt werden.'
+  NEW_VENV_CREATED=1
+  [[ -x "$temp_venv/bin/python" ]] || fail 'Die temporäre Python-Umgebung enthält kein ausführbares Python.'
+  "$temp_venv/bin/python" -m pip --version >/dev/null 2>&1 || fail 'Pip ist in der temporären Python-Umgebung nicht funktionsfähig.'
   LAST_MUTATION='gepinnten Runtime-Abhängigkeiten installieren'
   "$temp_venv/bin/python" -m pip install --disable-pip-version-check --no-input --index-url "$INDEX_URL" --requirement "$BUNDLE/runtime.lock" ||
     fail 'Installation der gepinnten Runtime-Abhängigkeiten ist fehlgeschlagen.'
@@ -447,13 +555,16 @@ main() {
     exit 0
   fi
   if [[ $INSTALL_STATE == complete ]]; then
+    [[ $RESUME == 0 ]] || fail 'Eine vollständige Installation darf nicht im Resume-Modus erneut verarbeitet werden.'
     check_installed_permissions
     validate_service
     printf 'Bereits vollständige Installation erkannt; es wurden keine Dateien ersetzt.\n'
     exit 0
   fi
-  ensure_user_group
-  install -d -m 0750 -o root -g "$EXPECTED_GROUP" "$bootstrap_root"
+  if [[ $INSTALL_STATE == absent ]]; then
+    ensure_user_group
+    install -d -m 0750 -o root -g "$EXPECTED_GROUP" "$bootstrap_root"
+  fi
   install_runtime
   install_files
   check_installed_permissions

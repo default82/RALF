@@ -78,16 +78,27 @@ Diese Punkte sind Zielrichtung, nicht bereits implementierte Architektur.
 
 ## Deployment des Statusdienstes
 
-Der reproduzierbare Deploymentpfad ist vorbereitet, aber noch nicht in VMID 100 ausgeführt. Der Host-Plan prüft den laufenden Container, baut das aktuelle Wheel und zeigt die SHA-256-Prüfsummen aller übertragenen Artefakte:
+Der reproduzierbare Deploymentpfad prüft den laufenden Container, baut das aktuelle Wheel und zeigt die SHA-256-Prüfsummen aller übertragenen Artefakte:
 
 ```bash
 sudo ./scripts/ralf-bootstrap-status-deploy.sh --plan --vmid 100
 sudo ./scripts/ralf-bootstrap-status-deploy.sh --apply --vmid 100
 ```
 
+Vor dem Erzeugen einer Virtualenv prüft der Gastinstaller nicht nur das `venv`-Modul, sondern auch `ensurepip` und dessen eingebettete Pip-Version. Fehlt `ensurepip`, wird im Plan das aus dem Interpreter abgeleitete Paket (bei Python 3.14: `python3.14-venv`) samt Apt-Candidate angezeigt. Installiert wird ausschließlich dieses Paket; danach wird die Prüfung wiederholt.
+
+Ein normaler `--apply` behandelt keine unvollständige Installation automatisch. Der nachgewiesene Teilzustand aus Benutzer/Gruppe, Bootstrap-Basisverzeichnis und genau einem fehlgeschlagenen temporären `.venv-build.*`-Verzeichnis ist ausschließlich über den ausdrücklich benannten Resume-Pfad behandelbar:
+
+```bash
+sudo ./scripts/ralf-bootstrap-status-deploy.sh --resume --vmid 100
+sudo ./scripts/ralf-bootstrap-status-deploy.sh --resume --apply --vmid 100
+```
+
+Der Resume-Pfad validiert Bundle, Prüfsummen, Paketquellen, Locks und den exakten Teilzustand erneut. Er entfernt ausschließlich das eindeutig erkannte fehlgeschlagene temporäre Venv-Verzeichnis, installiert bei Bedarf das passende `pythonX.Y-venv`-Paket und setzt danach die reguläre Installation fort. Bei jeder anderen Teilinstallation wird ohne Änderung abgebrochen; es gibt keinen breiten Löschvorgang, keinen automatischen Rollback und keinen zweiten Versuch.
+
 Bei `--apply` werden Wheel, Runtime-Lock, Konfiguration, systemd-Unit, Gast-Installationsskript und Prüfsummenmanifest ausschließlich nach `/run/ralf-bootstrap-install/` übertragen. Der Gastpfad richtet den unprivilegierten Benutzer, die Virtualenv und den Dienst `ralf-bootstrap.service` ein. Gunicorn verwendet den Einstiegspunkt `ralf_bootstrap.wsgi:app` und bindet ausschließlich an `127.0.0.1:8080`; `/var/lib/ralf/bootstrap/state.db` wird in diesem Schritt nicht angelegt.
 
-Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen.
+Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen. Der reale erste Applyversuch in VMID 100 blieb wegen fehlendem `ensurepip` vor der Venv-Erstellung unvollständig; die Installation gilt daher noch nicht als erfolgreich und benötigt einen neuen, ausdrücklich freigegebenen Resume-Plan.
 
 ## Projektdokumente
 

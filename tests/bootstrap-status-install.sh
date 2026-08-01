@@ -41,32 +41,34 @@ make_stubs() {
   mkdir -p "$bin"
   make_stub "$bin" id 'if [[ ${TEST_NON_ROOT:-0} == 1 ]]; then printf "1000\n"; elif [[ ${1:-} == -Gn ]]; then printf "ralf-bootstrap\n"; else printf "0\n"; fi'
   make_stub "$bin" uname 'printf "x86_64\n"'
-  make_stub "$bin" systemctl 'case "$*" in "is-system-running") printf "running\n";; "is-enabled"*) printf "enabled\n";; "is-active"*) printf "active\n";; esac'
+  make_stub "$bin" systemctl 'case "$1" in is-system-running) printf "running\n";; is-enabled) [[ -f "$TEST_STATE/service" ]] && printf "enabled\n" || exit 1;; is-active) [[ -f "$TEST_STATE/service" ]] && printf "active\n" || exit 1;; enable|start) touch "$TEST_STATE/service";; daemon-reload|status) :;; *) exit 0;; esac'
   make_stub "$bin" ip 'printf "default via 192.0.2.1 dev eth0\n"'
   make_stub "$bin" getent 'case "$1" in ahostsv4) printf "192.0.2.1 STREAM archive.ubuntu.com\n";; passwd) [[ -f "$TEST_STATE/user" ]] && printf "ralf-bootstrap:x:997:997::/nonexistent:/usr/sbin/nologin\n" || exit 2;; group) [[ -f "$TEST_STATE/group" ]] && printf "ralf-bootstrap:x:997:\n" || exit 2;; esac'
   make_stub "$bin" dpkg 'exit 0'
   make_stub "$bin" pgrep 'exit 1'
   make_stub "$bin" fuser 'exit 1'
   make_stub "$bin" wget 'exit 0'
-  make_stub "$bin" groupadd 'touch "$TEST_STATE/group"'
-  make_stub "$bin" useradd 'touch "$TEST_STATE/user"'
+  make_stub "$bin" groupadd 'touch "$TEST_STATE/group"; printf "groupadd\n" >>"$TEST_LOG"'
+  make_stub "$bin" useradd 'touch "$TEST_STATE/user"; printf "useradd\n" >>"$TEST_LOG"'
+  make_stub "$bin" apt-cache 'if [[ ${TEST_NO_CANDIDATE:-0} == 1 ]]; then printf "%s\n" "Installed: (none)" "Candidate: (none)"; else printf "%s\n" "Installed: (none)" "Candidate: 3.14.4-1" " 500 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 Packages"; fi'
+  make_stub "$bin" apt-get 'printf "apt-get %s\n" "$*" >>"$TEST_LOG"; [[ ${TEST_APT_FAIL:-0} == 1 ]] && exit 23; touch "$TEST_STATE/apt-installed"'
   make_stub "$bin" chown 'exit 0'
   make_stub "$bin" systemd-analyze 'exit 0'
   make_stub "$bin" stat 'case "$*" in *"VERSION"*) printf "root:ralf-bootstrap|640\n";; *"config.toml"*) printf "root:ralf-bootstrap|640\n";; *"runtime.lock"*|*".whl"*) printf "root:ralf-bootstrap|640\n";; *"ralf-bootstrap.service"*) printf "root:root|644\n";; *"/var/lib/ralf/bootstrap"*) printf "ralf-bootstrap:ralf-bootstrap|750\n";; *) printf "root:ralf-bootstrap|750\n";; esac'
   make_stub "$bin" install 'args=(); while (($#)); do case $1 in -o|-g) shift;; *) args+=("$1");; esac; shift; done; exec /usr/bin/install "${args[@]}"'
-  make_stub "$bin" python3 'if [[ ${1:-} == -c && ${2:-} == *socket* && ${TEST_PORT_BUSY:-0} == 1 ]]; then exit 1; elif [[ ${1:-} == - && $# == 1 && ${TEST_PORT_BUSY:-0} == 1 ]]; then exit 1; elif [[ ${1:-} == -m && ${2:-} == venv && ${3:-} != --help ]]; then dir=$3; mkdir -p "$dir/bin"; printf "%s\n" "#!/usr/bin/env bash" "if [[ \${1:-} == -m || \${1:-} == - ]]; then exit 0; fi" >"$dir/bin/python"; printf "%s\n" "#!/usr/bin/env bash" "exit 0" >"$dir/bin/gunicorn"; chmod +x "$dir/bin/python" "$dir/bin/gunicorn"; elif [[ ${1:-} == - && $# == 1 ]]; then exit 0; else exec /usr/bin/python3 "$@"; fi'
+  make_stub "$bin" python3 'if [[ ${1:-} == --version ]]; then printf "Python %s\n" "${TEST_PY_VERSION:-3.14.4}"; elif [[ ${1:-} == -c && ${2:-} == *ensurepip* ]]; then if [[ ${TEST_ENSUREPIP:-1} == 1 || -f "$TEST_STATE/apt-installed" ]]; then printf "25.0.1\n"; else exit 1; fi; elif [[ ${1:-} == -c && ${2:-} == *sys.version_info* ]]; then printf "%s\n" "${TEST_PY_VERSION:-3.14.4}"; elif [[ ${1:-} == -c && ${2:-} == *socket* && ${TEST_PORT_BUSY:-0} == 1 ]]; then exit 1; elif [[ ${1:-} == - && $# == 1 && ${TEST_PORT_BUSY:-0} == 1 ]]; then exit 1; elif [[ ${1:-} == -m && ${2:-} == venv && ${3:-} == --help ]]; then printf "usage: venv\n"; elif [[ ${1:-} == -m && ${2:-} == venv && ${3:-} != --help ]]; then dir=$3; mkdir -p "$dir/bin"; printf "venv-created\n" >>"$TEST_LOG"; printf "%s\n" "#!/usr/bin/env bash" "exit 0" >"$dir/bin/python"; printf "%s\n" "#!/usr/bin/env bash" "exit 0" >"$dir/bin/gunicorn"; chmod +x "$dir/bin/python" "$dir/bin/gunicorn"; elif [[ ${1:-} == - && $# == 1 ]]; then exit 0; else exec /usr/bin/python3 "$@"; fi'
 }
 
 run_case() {
   local mode=$1 name=$2
   local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state"
   mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
-  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' >"$root/etc/os-release"
+  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
   make_bundle "$bundle"
   make_stubs "$bin"
   local output status
   set +e
-  output=$(TEST_NON_ROOT="$([[ $name == non-root ]] && printf 1 || printf 0)" TEST_STATE="$state" RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" "--$mode" --bundle "$bundle" 2>&1)
+  output=$(TEST_NON_ROOT="$([[ $name == non-root ]] && printf 1 || printf 0)" TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=1 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" "--$mode" --bundle "$bundle" 2>&1)
   status=$?
   set -e
   if [[ $name == non-root ]]; then
@@ -91,19 +93,103 @@ run_bundle_failure() {
   local name=$1
   local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state"
   mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
-  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' >"$root/etc/os-release"
+  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
   make_bundle "$bundle"
   make_stubs "$bin"
   if [[ $name == bad-checksum ]]; then printf '%s\n' 'broken' >"$bundle/SHA256SUMS"; fi
   if [[ $name == partial ]]; then mkdir -p "$root/opt/ralf/bootstrap"; fi
   local output status
   set +e
-  output=$(TEST_PORT_BUSY="$([[ $name == busy-port ]] && printf 1 || printf 0)" TEST_STATE="$state" RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --plan --bundle "$bundle" 2>&1)
+  output=$(TEST_PORT_BUSY="$([[ $name == busy-port ]] && printf 1 || printf 0)" TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=1 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --plan --bundle "$bundle" 2>&1)
   status=$?
   set -e
   [[ $status == 1 ]]
   grep -Fq 'Fehler:' <<<"$output"
   printf 'PASS %s\n' "$name"
+}
+
+run_missing_ensurepip_plan() {
+  local name=missing-ensurepip output
+  local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state"
+  mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
+  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
+  make_bundle "$bundle"; make_stubs "$bin"
+  TEST_STATE="$state" TEST_ENSUREPIP=0 PATH="$bin:/usr/bin:/bin" "$bin/python3" -m venv --help >/dev/null
+  output=$(TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=0 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --plan --bundle "$bundle" 2>&1)
+  grep -Fq 'python3.14-venv' <<<"$output"
+  [[ ! -e "$state/apt-installed" && ! -e "$root/opt" ]]
+  printf 'PASS ensurepip-missing-plan\n'
+}
+
+run_failure_case() {
+  local name=$1 output status
+  local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state"
+  mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
+  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
+  make_bundle "$bundle"; make_stubs "$bin"
+  set +e
+  output=$(TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=0 TEST_APT_FAIL=1 TEST_NO_CANDIDATE="$([[ $name == no-candidate ]] && printf 1 || printf 0)" TEST_PY_VERSION="$([[ $name == bad-python ]] && printf invalid || printf 3.14.4)" RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --apply --bundle "$bundle" 2>&1)
+  status=$?
+  set -e
+  [[ $status == 1 ]] && grep -Fq 'Fehler:' <<<"$output"
+  if [[ $name == apt-failure ]]; then
+    [[ ! -e "$state/apt-installed" ]] && ! grep -q venv-created "$state/commands.log" 2>/dev/null
+  fi
+  printf 'PASS %s\n' "$name"
+}
+
+run_resume_case() {
+  local name=$1 output status
+  local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state"
+  mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$root/opt/ralf/bootstrap/.venv-build.failed" "$state"
+  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
+  touch "$state/user" "$state/group"
+  make_bundle "$bundle"; make_stubs "$bin"
+  set +e
+  output=$(TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=0 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --resume --plan --bundle "$bundle" 2>&1)
+  status=$?
+  set -e
+  [[ $status == 0 ]] && grep -Fq 'recoverable_venv_failure' <<<"$output"
+  [[ -d "$root/opt/ralf/bootstrap/.venv-build.failed" && ! -e "$state/apt-installed" ]]
+  printf 'PASS resume-plan\n'
+  set +e
+  output=$(TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=0 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --apply --bundle "$bundle" 2>&1)
+  status=$?
+  set -e
+  [[ $status == 1 ]] && grep -Fq 'verwende ausdrücklich --resume --apply' <<<"$output"
+  printf 'PASS normal-apply-rejects-resume-state\n'
+  output=$(TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=0 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --resume --apply --bundle "$bundle" 2>&1)
+  grep -Fq 'Installation erfolgreich' <<<"$output"
+  [[ ! -e "$root/opt/ralf/bootstrap/.venv-build.failed" && -d "$root/opt/ralf/bootstrap/venv" ]]
+  grep -Fq 'apt-get install' "$state/commands.log"
+  [[ $(grep -n 'apt-get install' "$state/commands.log" | cut -d: -f1) -lt $(grep -n '^venv-created$' "$state/commands.log" | cut -d: -f1) ]]
+  [[ $(grep -Ec '^(groupadd|useradd)$' "$state/commands.log" || true) == 0 ]]
+  [[ ! -e "$root/var/lib/ralf/bootstrap/state.db" ]]
+  printf 'PASS resume-apply\n'
+}
+
+run_resume_rejection() {
+  local name=$1
+  local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state" output status
+  mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$root/opt/ralf/bootstrap/.venv-build.one" "$state"
+  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
+  touch "$state/user" "$state/group"
+  case $name in
+    two-venvs) mkdir "$root/opt/ralf/bootstrap/.venv-build.two" ;;
+    app-temp) mkdir "$root/opt/ralf/bootstrap/.app-build.one" ;;
+    state-db) mkdir -p "$root/var/lib/ralf/bootstrap"; touch "$root/var/lib/ralf/bootstrap/state.db" ;;
+    unit) mkdir -p "$root/etc/systemd/system"; touch "$root/etc/systemd/system/ralf-bootstrap.service" ;;
+    invalid-bundle) ;;
+  esac
+  make_bundle "$bundle"; make_stubs "$bin"
+  [[ $name != invalid-bundle ]] || printf 'broken\n' >"$bundle/SHA256SUMS"
+  set +e
+  output=$(TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=0 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --resume --plan --bundle "$bundle" 2>&1)
+  status=$?
+  set -e
+  [[ $status == 1 ]] && grep -Fq 'Fehler:' <<<"$output"
+  [[ -d "$root/opt/ralf/bootstrap/.venv-build.one" && ! -e "$state/apt-installed" ]]
+  printf 'PASS resume-rejects-%s\n' "$name"
 }
 
 run_case plan plan
@@ -112,3 +198,13 @@ run_case apply non-root
 run_bundle_failure bad-checksum
 run_bundle_failure busy-port
 run_bundle_failure partial
+run_missing_ensurepip_plan
+run_failure_case no-candidate
+run_failure_case bad-python
+run_failure_case apt-failure
+run_resume_case recoverable
+run_resume_rejection two-venvs
+run_resume_rejection app-temp
+run_resume_rejection state-db
+run_resume_rejection unit
+run_resume_rejection invalid-bundle

@@ -1,0 +1,23 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  background: #f4f6f8;
+  color: #1f2933;
+}
+
+body { margin: 0; }
+.container { max-width: 60rem; margin: 0 auto; padding: 1rem; }
+section { background: #fff; border: 1px solid #d9e2ec; border-radius: .4rem; margin: 1rem 0; padding: 1rem; }
+h1, h2 { color: #102a43; }
+h1 { margin-bottom: .25rem; }
+h2 { font-size: 1.2rem; margin-top: 0; }
+.eyebrow { color: #52606d; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; }
+dl { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr; gap: .45rem 1rem; margin: 0; }
+dt { font-weight: 600; }
+dd { margin: 0; overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid #d9e2ec; padding: .5rem; text-align: left; }
+@media (max-width: 38rem) {
+  dl { grid-template-columns: 1fr; gap: .2rem; }
+  dd { margin-bottom: .5rem; }
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RALF Bootstrap Status</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <p class="eyebrow">RALF Bootstrap</p>
+      <h1>Lokaler Status</h1>
+      <p>Read-only Übersicht, zuletzt ermittelt: <time>{{ status.collected_at or 'unbekannt' }}</time></p>
+    </header>
+
+    <section aria-labelledby="bootstrap-heading">
+      <h2 id="bootstrap-heading">Bootstrap</h2>
+      <dl>
+        <dt>Version</dt><dd>{{ status.bootstrap.version|default('unbekannt') }}</dd>
+        <dt>Einrichtungsstand</dt><dd>{{ status.setup.status|default('unbekannt') }}</dd>
+        <dt>Betriebsmodus</dt><dd>{{ status.bootstrap.mode|default('read-only') }}</dd>
+        <dt>SQLite</dt><dd>{{ status.bootstrap.sqlite.status|default('unknown') }}</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="system-heading">
+      <h2 id="system-heading">System</h2>
+      <dl>
+        <dt>Hostname</dt><dd>{{ status.system.hostname|default('unbekannt') }}</dd>
+        <dt>Betriebssystem</dt><dd>{{ status.system.os_name|default('unbekannt') }} {{ status.system.os_version|default('') }}</dd>
+        <dt>Architektur</dt><dd>{{ status.system.architecture|default('unbekannt') }}</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="network-heading">
+      <h2 id="network-heading">Netzwerk</h2>
+      <dl>
+        <dt>Zustand</dt><dd>{{ status.network.status|default('unknown') }}</dd>
+        <dt>IPv4-Adressen</dt><dd>{{ status.network.ipv4_addresses|join(', ') if status.network.ipv4_addresses is defined else 'unbekannt' }}</dd>
+        <dt>Default-Route</dt><dd>{{ status.network.default_route|default('unknown') }}</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="resources-heading">
+      <h2 id="resources-heading">Ressourcen</h2>
+      <dl>
+        <dt>Root-Dateisystem</dt><dd>{{ status.resources.root_filesystem.used_percent|default('unbekannt') }} % belegt</dd>
+        <dt>Arbeitsspeicher</dt><dd>{{ status.resources.memory.available_bytes|default('unbekannt') }} Bytes verfügbar</dd>
+        <dt>Swap</dt><dd>{{ status.resources.swap.free_bytes|default('unbekannt') }} Bytes frei</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="services-heading">
+      <h2 id="services-heading">Dienste</h2>
+      <dl>
+        <dt>systemd</dt><dd>{{ status.services.systemd|default('unknown') }}</dd>
+        <dt>Bootstrap-Prozess</dt><dd>{{ status.services.bootstrap|default('unknown') }}</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="components-heading">
+      <h2 id="components-heading">Komponenten</h2>
+      <table>
+        <thead><tr><th scope="col">Komponente</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+        {% for component in status.components|default([]) %}
+          <tr><td>{{ component.id }}</td><td>{{ component.status }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="warnings-heading">
+      <h2 id="warnings-heading">Warnungen</h2>
+      {% if status.warnings %}
+      <ul>{% for warning in status.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+      {% else %}<p>Keine Warnungen.</p>{% endif %}
+    </section>
+  </main>
+</body>
+</html>

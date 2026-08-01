@@ -36,6 +36,12 @@ Der Bootstrap benötigt kein Sprachmodell. Der Setup-Dialog wird zunächst durch
 
 Spätere Modellwege werden als Setup-Optionen behandelt: vorhandenen Modellserver verwenden, vorhandenen OpenAI-kompatiblen Endpunkt verwenden, lokalen Modellserver neu installieren, externen Modellanbieter konfigurieren oder zunächst ohne Modell fortfahren. Keiner dieser Wege ist Bestandteil des aktuellen Statusdienst-Grundgerüsts.
 
+## Technische Grundlage des Statusdienstes
+
+Der künftige Bootstrap-Statusdienst wird mit Python 3, Flask, Jinja, eingebettetem `sqlite3`, Gunicorn und systemd umgesetzt. Die erste read-only Oberfläche bietet `GET /`, `GET /healthz` und `GET /api/v1/status`, rendert lokale HTML-/CSS-Dateien und bindet ausschließlich an `127.0.0.1:8080`. Sie ist damit zunächst nicht aus dem LAN erreichbar.
+
+Der Dienst läuft später unprivilegiert als `ralf-bootstrap` und führt keine Paket-, systemd- oder Proxmox-Mutationen aus. Die erste Implementierung benötigt kein Modell und keine Modellruntime; mutierende Setup-Aktionen sowie eine sichere LAN-Freigabe werden in getrennten offenen Entscheidungen behandelt. Die technische Umsetzung ist festgelegt, aber noch nicht installiert.
+
 ## Langfristige Richtung
 
 RALF soll später:
@@ -97,7 +103,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript vorgesehen. Es wird 
 
 ## Status
 
-Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime, kein Modell und keine Weboberfläche. Die Umsetzung des kleinen Bootstrap-Statusdienstes ist durch O-009 noch offen; D-002 bis D-005 bleiben offen.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime, kein Modell und keine Weboberfläche. Die technische Grundlage ist durch O-009 entschieden; die Umsetzung des kleinen Bootstrap-Statusdienstes sowie die offenen Sicherheitsentscheidungen O-010 und O-011 stehen noch aus. D-002 bis D-005 bleiben offen.
 
 ## Lizenz
 

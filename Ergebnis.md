@@ -222,4 +222,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen: Keine Netzwerk- oder Gastdienstprüfung, da dieser Auftrag ausschließlich die Pending-Bereinigung vorsah. Kein Reboot, Shutdown, Stop, Start, Paket- oder Softwarelauf und keine weitere Konfigurationsänderung.
 - Risiken oder Blocker: M-024 bleibt unverändert `AKTIV`; das zuvor diagnostizierte Netzwerkproblem ist weiterhin offen und wurde nicht erneut validiert. `secrets/` blieb ungetrackt und unverändert.
 - Nächster sinnvoller Zielbild-Eintrag: M-024 – separater, ausdrücklich freigegebener Reparaturschritt mit einem auf diesem Host unterstützten Proxmox-Lifecycle-Befehl.
-- Veröffentlichung: Dieser Eintrag wird gezielt committed und auf den vorgesehenen Remote-Branch gepusht.
+- Veröffentlichung: Dieser Eintrag wurde in Commit `1a9481b` gezielt committed und auf `origin/main` gepusht; `secrets/` blieb ungetrackt und unverändert.

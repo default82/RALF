@@ -392,4 +392,14 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen oder Änderungen: Kein `--resume --apply`, kein `apt-get install`, keine Entfernung des vorhandenen `.venv-build.*`, keine erneute Übertragung, kein Dienststart, kein Reboot/Stop/Start, keine Proxmox- oder Softwaremutation und keine Änderung an `secrets/`. Die erste read-only Resume-Planprüfung schlug zunächst wegen einer fehlerhaften relativen Manifestprüfung fehl; die Prüfung wurde korrigiert und anschließend erfolgreich read-only wiederholt. Dadurch entstand keine Infrastrukturänderung.
 - Risiken oder Blocker: Die reale Installation ist weiterhin nicht erfolgreich abgeschlossen. Vor dem Resume bleibt eine ausdrückliche Freigabe für den read-only geprüften einmaligen Resume-Apply erforderlich; ein Paketlauf kann bei Fehlern einen Teilzustand hinterlassen. Runtime-PyPI-Artefakte sind weiterhin versioniert, aber nicht verpflichtend per Hash gepinnt.
 - Nächster sinnvoller Zielbild-Eintrag: M-027 – neuen read-only Resume-Plan anzeigen, anschließend ausdrückliche Freigabe für genau einen `--resume --apply`-Lauf und danach ausschließlich read-only Dienstvalidierung.
-- Veröffentlichung: Noch nicht veröffentlicht; Commit, Push und Merge erfolgen nach Abschluss der abschließenden Repositoryprüfung. `secrets/` bleibt ungetrackt und ausgeschlossen.
+- Veröffentlichung: Zum Zeitpunkt dieses Eintrags noch nicht veröffentlicht; Commit, Push und Merge erfolgen nach Abschluss der abschließenden Repositoryprüfung. `secrets/` bleibt ungetrackt und ausgeschlossen.
+
+## 2026-08-01 – Veröffentlichung des Ensurepip-/Resume-Arbeitsdurchlaufs
+
+- Bearbeitete Zielbild-IDs: M-031, A-025, P-001
+- Ergebnis: Der Ensurepip-/Resume-Arbeitsdurchlauf wurde nach den abschließenden Prüfungen veröffentlicht. Die Repositoryänderungen sind in Merge-Commit `5246b01` über Pull Request #14 auf `main` gemergt und nach `origin/main` synchronisiert.
+- Geänderte Dateien: Nur die bereits im Arbeitsdurchlauf geprüften Skripte, Shelltests, `README.md`, `ZIELBILD.md` und `Ergebnis.md`; `secrets/` wurde nicht gestaged.
+- Ausgeführte Prüfungen: `git status -sb`, `git diff --check`, Secrets-Ausschluss und Prüfung des Merge-Zustands.
+- Nicht ausgeführte Prüfungen oder Änderungen: Kein Resume-Apply, keine Paketinstallation und keine weitere Proxmox- oder Container-Mutation.
+- Risiken oder Blocker: VMID 100 bleibt im dokumentierten `recoverable_venv_failure`; vor einem Resume-Apply ist eine neue ausdrückliche Nutzerfreigabe erforderlich.
+- Nächster sinnvoller Zielbild-Eintrag: M-027 – erneuter read-only Resume-Plan und danach genau ein freigegebener Resume-Apply-Lauf.

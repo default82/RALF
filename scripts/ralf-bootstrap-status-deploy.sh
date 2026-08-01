@@ -104,9 +104,11 @@ check_guest_read_only() {
   if ! pct exec "$VMID" -- python3 -c 'import ensurepip, venv; print(ensurepip.version())' >/dev/null 2>&1; then
     printf 'Hinweis: ensurepip/venv ist nicht vollständig verfügbar; der Gastinstaller ermittelt das passende pythonX.Y-venv-Paket.\n'
   fi
+  # shellcheck disable=SC2026
   existing_state=$(pct exec "$VMID" -- python3 -c '
 from pathlib import Path
 import grp
+import os
 import pwd
 import socket
 import stat
@@ -117,12 +119,66 @@ root = Path("/opt/ralf/bootstrap")
 final = [Path("/opt/ralf/bootstrap/app"), Path("/opt/ralf/bootstrap/venv"), Path("/opt/ralf/bootstrap/VERSION"), Path("/etc/ralf/bootstrap"), Path("/etc/ralf/bootstrap/config.toml"), Path("/var/lib/ralf/bootstrap"), Path("/etc/systemd/system/ralf-bootstrap.service")]
 state_db = Path("/var/lib/ralf/bootstrap/state.db")
 install_marker = root / ".venv-install-in-progress"
+repair_marker = root / ".venv-repair-in-progress"
+
+def service_state_is_inactive():
+    active = subprocess.run(["systemctl", "show", "ralf-bootstrap.service", "-p", "ActiveState", "--value"], capture_output=True, text=True, check=False).stdout.strip()
+    sub = subprocess.run(["systemctl", "show", "ralf-bootstrap.service", "-p", "SubState", "--value"], capture_output=True, text=True, check=False).stdout.strip()
+    return active == "inactive" and sub == "dead"
+
+def repair_marker_is_valid():
+    try:
+        marker_stat = repair_marker.stat()
+        return (
+            repair_marker.is_file() and not repair_marker.is_symlink()
+            and marker_stat.st_uid == pwd.getpwnam("root").pw_uid
+            and marker_stat.st_gid == grp.getgrnam("ralf-bootstrap").gr_gid
+            and stat.S_IMODE(marker_stat.st_mode) == 0o640
+            and repair_marker.read_text(encoding="utf-8") == "bootstrap_version=0.1.0\noperation=repair-venv\n"
+        )
+    except (KeyError, OSError):
+        return False
+
+def venv_semantics_are_valid():
+    venv = Path("/opt/ralf/bootstrap/venv")
+    launcher = venv / "bin/python"
+    if not venv.is_dir() or venv.is_symlink() or not (venv / "pyvenv.cfg").is_file() or not os.access(launcher, os.X_OK):
+        return False
+    probe = subprocess.run([
+        str(launcher), "-c", "import os, pathlib, sys, sysconfig; expected=pathlib.Path('/opt/ralf/bootstrap/venv').resolve(); assert pathlib.Path(sys.prefix).resolve() == expected; assert pathlib.Path(sys.exec_prefix).resolve() == expected; assert sys.prefix != sys.base_prefix and sys.exec_prefix != sys.base_exec_prefix; assert sys.executable and os.path.samefile(sys.executable, expected / 'bin/python'); assert pathlib.Path(sysconfig.get_paths()['purelib']).resolve().is_relative_to(expected)"
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    return probe.returncode == 0
+
 if not root.exists() and not any(path.exists() for path in final):
     print("absent")
 elif all(path.exists() for path in final) and not state_db.exists():
+    marker_present = repair_marker.exists()
+    repair_validation = False
     moved = False
     try:
         venv = Path("/opt/ralf/bootstrap/venv")
+        root_stat = root.stat()
+        venv_stat = venv.stat()
+        entries = list(root.iterdir())
+        repair_validation = (
+            marker_present and repair_marker_is_valid()
+            and root_stat.st_uid == pwd.getpwnam("root").pw_uid
+            and root_stat.st_gid == grp.getgrnam("ralf-bootstrap").gr_gid
+            and stat.S_IMODE(root_stat.st_mode) == 0o750
+            and venv_stat.st_uid == pwd.getpwnam("root").pw_uid
+            and venv_stat.st_gid == pwd.getpwnam("root").pw_gid
+            and stat.S_IMODE(venv_stat.st_mode) == 0o755
+            and set(entries) == {Path("/opt/ralf/bootstrap/app"), venv, Path("/opt/ralf/bootstrap/VERSION"), repair_marker}
+            and not install_marker.exists()
+            and venv_semantics_are_valid()
+            and (venv / "bin/gunicorn").read_text(encoding="utf-8").splitlines()[0] == "#!/opt/ralf/bootstrap/venv/bin/python"
+            and not list(root.glob(".venv-build.*"))
+            and not list(root.glob(".app-build.*"))
+            and (not Path("/var/lib/ralf/bootstrap/state.db").exists())
+            and subprocess.run(["systemctl", "is-enabled", "ralf-bootstrap.service"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+            and service_state_is_inactive()
+            and subprocess.run(["pgrep", "-x", "gunicorn"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0
+        )
         shebang = (venv / "bin/gunicorn").read_text(encoding="utf-8").splitlines()[0]
         old = re.fullmatch(r"#!(/opt/ralf/bootstrap/\.venv-build\.[^/]+/bin/python[0-9.]*)", shebang)
         moved = bool(old and not Path(old.group(1)).exists())
@@ -139,7 +195,10 @@ elif all(path.exists() for path in final) and not state_db.exists():
             sock.close()
     except (OSError, IndexError):
         moved = False
-    print("recoverable_moved_venv_exec_failure" if moved else "complete")
+    if marker_present:
+        print("recoverable_venv_repair_validation_failure" if repair_validation else "partial")
+    else:
+        print("recoverable_moved_venv_exec_failure" if moved else "complete")
 else:
     direct_failure = False
     try:
@@ -187,6 +246,7 @@ else:
     recoverable_venv_failure) printf 'Hinweis: recoverable_venv_failure erkannt; nur --resume darf diesen Teilzustand behandeln.\n' ;;
     recoverable_direct_venv_failure) printf 'Hinweis: recoverable_direct_venv_failure erkannt; nur --resume darf diesen Teilzustand behandeln.\n' ;;
     recoverable_moved_venv_exec_failure) printf 'Hinweis: recoverable_moved_venv_exec_failure erkannt; nur --repair-venv darf diesen Zustand behandeln.\n' ;;
+    recoverable_venv_repair_validation_failure) printf 'Hinweis: recoverable_venv_repair_validation_failure erkannt; nur --repair-venv darf diesen Zustand behandeln.\n' ;;
     *) fail 'Im Gast ist eine teilweise oder abweichende Installation vorhanden.' ;;
   esac
   if [[ $MODE == apply && $RESUME == 0 && $TARGET_STATE == recoverable_venv_failure ]]; then
@@ -194,6 +254,9 @@ else:
   fi
   if [[ $TARGET_STATE == recoverable_moved_venv_exec_failure && $REPAIR_VENV == 0 ]]; then
     fail 'recoverable_moved_venv_exec_failure erkannt; normaler Apply/Resume bleibt gesperrt. Verwende ausdrücklich --repair-venv.'
+  fi
+  if [[ $TARGET_STATE == recoverable_venv_repair_validation_failure && $REPAIR_VENV == 0 ]]; then
+    fail 'recoverable_venv_repair_validation_failure erkannt; normaler Apply/Resume bleibt gesperrt. Verwende ausdrücklich --repair-venv.'
   fi
   if [[ $MODE == apply && $RESUME == 0 && $REPAIR_VENV == 0 && $TARGET_STATE == recoverable_direct_venv_failure ]]; then
     fail 'recoverable_direct_venv_failure erkannt; normaler --apply bleibt gesperrt. Verwende ausdrücklich --resume --apply.'
@@ -308,8 +371,8 @@ repair_preflight() {
   require_files
   check_container
   check_guest_read_only
-  [[ $TARGET_STATE == recoverable_moved_venv_exec_failure ]] ||
-    fail "Venv-Reparatur ist nur für recoverable_moved_venv_exec_failure zulässig; erkannt: $TARGET_STATE."
+  [[ $TARGET_STATE == recoverable_moved_venv_exec_failure || $TARGET_STATE == recoverable_venv_repair_validation_failure ]] ||
+    fail "Venv-Reparatur ist nur für recoverable_moved_venv_exec_failure oder recoverable_venv_repair_validation_failure zulässig; erkannt: $TARGET_STATE."
   check_remote_bundle
 }
 
@@ -317,9 +380,14 @@ run_repair_plan() {
   repair_preflight
   run_guest_repair plan
   printf 'Venv-Reparaturplan erfolgreich; VMID %s wurde nicht verändert.\n' "$VMID"
-  printf '  Zustand: recoverable_moved_venv_exec_failure\n'
-  printf '  Venv wird ausschließlich direkt unter /opt/ralf/bootstrap/venv neu erstellt; kein Shebang wird umgeschrieben.\n'
-  printf '  Keine Übertragung, Paketinstallation oder Benutzer-/Gruppenmutation im Plan.\n'
+  printf '  Zustand: %s\n' "$TARGET_STATE"
+  if [[ $TARGET_STATE == recoverable_venv_repair_validation_failure ]]; then
+    printf '  Vorhandene Venv bleibt erhalten; nur Rechtefinalisierung, Unitprüfung, reset-failed, einmaliger Start und read-only Endpunktprüfung sind vorgesehen.\n'
+    printf '  Keine Venv-Löschung/-Erstellung, Paket-/Wheel-Installation, Übertragung, Benutzer-/Gruppenmutation oder enable.\n'
+  else
+    printf '  Venv wird ausschließlich direkt unter /opt/ralf/bootstrap/venv neu erstellt; kein Shebang wird umgeschrieben.\n'
+    printf '  Keine Übertragung, Paketinstallation oder Benutzer-/Gruppenmutation im Plan.\n'
+  fi
 }
 
 run_repair_apply() {

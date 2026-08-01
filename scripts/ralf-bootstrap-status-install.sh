@@ -389,6 +389,64 @@ check_moved_venv_shape() {
   return 0
 }
 
+repair_marker_is_valid() {
+  [[ -f $repair_marker && ! -L $repair_marker ]] || return 1
+  [[ $(stat -c '%U:%G|%a' "$repair_marker" 2>/dev/null) == "root:$EXPECTED_GROUP|640" ]] || return 1
+  [[ $(cat "$repair_marker" 2>/dev/null) == $'bootstrap_version=0.1.0\noperation=repair-venv' ]]
+}
+
+repair_permissions_match() {
+  local metadata path owner mode actual
+  for metadata in \
+    "$bootstrap_root|root:$EXPECTED_GROUP|750" \
+    "$app_dir|root:$EXPECTED_GROUP|750" \
+    "$venv_dir|root:root|755" \
+    "$app_dir/$WHEEL|root:$EXPECTED_GROUP|640" \
+    "$app_dir/runtime.lock|root:$EXPECTED_GROUP|640" \
+    "$version_file|root:$EXPECTED_GROUP|640" \
+    "$config_dir|root:$EXPECTED_GROUP|750" \
+    "$config_file|root:$EXPECTED_GROUP|640" \
+    "$state_dir|$EXPECTED_USER:$EXPECTED_GROUP|750" \
+    "$unit_file|root:root|644"; do
+    IFS='|' read -r path owner mode <<<"$metadata"
+    [[ -e $path ]] || return 1
+    actual=$(stat -c '%U:%G|%a' "$path" 2>/dev/null) || return 1
+    [[ $actual == "$owner|$mode" ]] || return 1
+  done
+  [[ ! -e $state_db ]]
+}
+
+check_repair_validation_failure_shape() {
+  local actual active_state sub_state
+  [[ -d $bootstrap_root && ! -L $bootstrap_root ]] || return 1
+  repair_marker_is_valid || return 1
+  [[ -f $install_marker ]] && return 1
+  [[ $(stat -c '%U:%G|%a' "$bootstrap_root" 2>/dev/null) == "root:$EXPECTED_GROUP|750" ]] || return 1
+  check_user_group
+  [[ -d $venv_dir && ! -L $venv_dir ]] || return 1
+  mountpoint -q "$venv_dir" && return 1
+  [[ $(stat -c '%U:%G|%a' "$venv_dir" 2>/dev/null) == 'root:root|755' ]] || return 1
+  [[ -f $venv_dir/pyvenv.cfg && -x $venv_dir/bin/python ]] || return 1
+  while IFS= read -r actual; do
+    case $actual in
+      "$app_dir"|"$venv_dir"|"$version_file"|"$repair_marker") ;;
+      *) return 1 ;;
+    esac
+  done < <(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -print)
+  ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 \( -name '.venv-build.*' -o -name '.app-build.*' -o -name '.venv-install-in-progress' \) -print -quit | grep -q . || return 1
+  [[ $(cat "$version_file" 2>/dev/null) == "$EXPECTED_VERSION" ]] || return 1
+  repair_permissions_match || return 1
+  check_installed_artifact_hashes || return 1
+  check_installed_package_versions || return 1
+  validate_final_venv
+  systemctl is-enabled ralf-bootstrap.service >/dev/null 2>&1 || return 1
+  active_state=$(systemctl show ralf-bootstrap.service -p ActiveState --value 2>/dev/null || true)
+  sub_state=$(systemctl show ralf-bootstrap.service -p SubState --value 2>/dev/null || true)
+  [[ $active_state == inactive && $sub_state == dead ]] || return 1
+  ! pgrep -x gunicorn >/dev/null 2>&1 || return 1
+  port_is_free || return 1
+}
+
 check_direct_venv_failure_shape() {
   [[ -f $install_marker && -d $venv_dir && ! -L $venv_dir ]] || return 1
   [[ $(stat -c '%U:%G|%a' "$bootstrap_root" 2>/dev/null) == "root:$EXPECTED_GROUP|750" ]] || return 1
@@ -414,6 +472,8 @@ check_install_state() {
   done
   if [[ ! -e $bootstrap_root && ${#existing[@]} == 0 ]]; then
     INSTALL_STATE='absent'
+  elif check_repair_validation_failure_shape; then
+    INSTALL_STATE='recoverable_venv_repair_validation_failure'
   elif check_moved_venv_shape; then
     INSTALL_STATE='recoverable_moved_venv_exec_failure'
   elif ((${#existing[@]} == ${#markers[@]})) && [[ ! -e $state_db ]]; then
@@ -473,7 +533,8 @@ check_preflight() {
     fail "Resume ist nur für einen bekannten Venv-Teilzustand zulässig; erkannt: $INSTALL_STATE."
   fi
   if [[ $REPAIR_VENV == 1 && $INSTALL_STATE != recoverable_moved_venv_exec_failure ]]; then
-    fail "--repair-venv ist nur für recoverable_moved_venv_exec_failure zulässig; erkannt: $INSTALL_STATE."
+    [[ $INSTALL_STATE == recoverable_venv_repair_validation_failure ]] ||
+      fail "--repair-venv ist nur für recoverable_moved_venv_exec_failure oder recoverable_venv_repair_validation_failure zulässig; erkannt: $INSTALL_STATE."
   fi
   if [[ $MODE == apply && $RESUME == 0 && $REPAIR_VENV == 0 && $INSTALL_STATE == recoverable_venv_failure ]]; then
     fail 'Der erkannte recoverable_venv_failure darf nicht mit --apply fortgesetzt werden; verwende ausdrücklich --resume --apply.'
@@ -483,6 +544,9 @@ check_preflight() {
   fi
   if [[ $REPAIR_VENV == 0 && $INSTALL_STATE == recoverable_moved_venv_exec_failure ]]; then
     fail 'Der erkannte recoverable_moved_venv_exec_failure darf nicht mit --apply oder --resume fortgesetzt werden; verwende ausdrücklich --repair-venv.'
+  fi
+  if [[ $REPAIR_VENV == 0 && $INSTALL_STATE == recoverable_venv_repair_validation_failure ]]; then
+    fail 'Der erkannte recoverable_venv_repair_validation_failure darf nicht mit --apply oder --resume fortgesetzt werden; verwende ausdrücklich --repair-venv.'
   fi
   if [[ $INSTALL_STATE == partial ]]; then
     fail 'Eine teilweise oder abweichende Bootstrap-Installation ist nicht automatisch behandelbar.'
@@ -515,6 +579,10 @@ print_plan() {
     printf '  Reparatur: Dienst stoppen, ausschließlich %s neu und direkt erstellen; kein Shebang-Umschreiben.\n' "$venv_dir"
     printf '  Exakte Reihenfolge: stop/warten, Venv validieren und entfernen, Marker anlegen, Venv direkt erstellen, Lock+Wheel installieren, Pfade prüfen, Marker entfernen, reset-failed, einmalig starten, Endpunkte prüfen.\n'
     printf '  Nicht geplant: Benutzer/Gruppe, python3.14-venv, apt update/upgrade, Übertragung, enable, Containerneustart, state.db oder Rollback.\n'
+  elif [[ $INSTALL_STATE == recoverable_venv_repair_validation_failure ]]; then
+    printf '  Reparaturzustand: recoverable_venv_repair_validation_failure; direkte Venv und Pakete bleiben erhalten.\n'
+    printf '  Fortsetzung: nur Venv-Rechte finalisieren, Unit prüfen, reset-failed und genau einmal starten; keine Venv-Löschung oder Neuerstellung.\n'
+    printf '  Nicht geplant: Paket-/Wheel-Installation, Übertragung, Benutzer/Gruppe, enable, Shebang-Umschreibung, Containerneustart oder state.db.\n'
   elif [[ $INSTALL_STATE == recoverable_venv_failure ]]; then
     printf '  Fehlgeschlagenes temporäres Venv: %s\n' "$RECOVERABLE_TEMP_VENV"
     printf '  Resume-Bereinigung: ausschließlich dieses Verzeichnis; keine Benutzer-, Gruppen- oder Bundle-Löschung.\n'
@@ -543,19 +611,32 @@ ensure_user_group() {
 validate_final_venv() {
   local python_path=$venv_dir/bin/python shebang
   [[ -x $python_path && -f $venv_dir/pyvenv.cfg && ! -L $venv_dir ]] || fail 'Die endgültige Python-Umgebung ist unvollständig oder ein Symlink.'
-  "$python_path" - "$venv_dir" <<'PY' || fail 'sys.prefix verweist nicht auf die endgültige Venv.'
+  "$python_path" - "$venv_dir" <<'PY' || fail 'Die Venv-Interpreterprüfung ist fehlgeschlagen.'
+import os
 import pathlib
 import sys
+import sysconfig
 expected = pathlib.Path(sys.argv[1]).resolve()
-actual = pathlib.Path(sys.prefix).resolve()
-if actual != expected or not pathlib.Path(sys.executable).resolve().is_relative_to(expected):
-    raise SystemExit(f'{actual} != {expected}')
+if pathlib.Path(sys.prefix).resolve() != expected:
+    raise SystemExit(f'sys.prefix={sys.prefix!r}, erwartet={expected!s}')
+if pathlib.Path(sys.exec_prefix).resolve() != expected:
+    raise SystemExit(f'sys.exec_prefix={sys.exec_prefix!r}, erwartet={expected!s}')
+if sys.prefix == sys.base_prefix or sys.exec_prefix == sys.base_exec_prefix:
+    raise SystemExit('Die Venv ist nicht von der Basisinstallation getrennt.')
+launcher = expected / 'bin' / 'python'
+if not sys.executable or not launcher.is_file() or not os.access(launcher, os.X_OK):
+    raise SystemExit('Venv-Launcher oder sys.executable fehlt beziehungsweise ist nicht ausführbar.')
+if not os.path.samefile(sys.executable, launcher):
+    raise SystemExit('sys.executable und Venv-Launcher referenzieren nicht dieselbe Datei.')
+purelib = pathlib.Path(sysconfig.get_paths()['purelib']).resolve()
+if not purelib.is_relative_to(expected):
+    raise SystemExit(f'site-packages liegt außerhalb der Venv: {purelib}')
 PY
   "$python_path" -m pip --version | grep -Fq "$venv_dir" || fail 'Pip verweist nicht auf die endgültige Venv.'
   "$python_path" -c 'import gunicorn, ralf_bootstrap' || fail 'Gunicorn oder ralf_bootstrap ist nicht importierbar.'
   shebang=$(head -n 1 "$venv_dir/bin/gunicorn" 2>/dev/null) || fail 'Gunicorn-Skript fehlt.'
   case $shebang in
-    "#!$venv_dir/bin/python"*) ;;
+    "#!$venv_dir/bin/python") ;;
     *) fail "Gunicorn-Shebang verweist nicht auf den endgültigen Interpreter: $shebang" ;;
   esac
   [[ -x ${shebang#\#!} ]] || fail 'Der im Gunicorn-Shebang referenzierte Interpreter fehlt.'
@@ -682,6 +763,33 @@ repair_venv_apply() {
   printf 'Venv-Reparatur erfolgreich; die Umgebung wurde direkt unter %s erstellt.\n' "$venv_dir"
 }
 
+repair_validation_apply() {
+  check_preflight
+  [[ $INSTALL_STATE == recoverable_venv_repair_validation_failure ]] ||
+    fail "Fortsetzungszustand ist nicht mehr gültig: $INSTALL_STATE."
+  ! systemctl is-active --quiet ralf-bootstrap.service || fail 'ralf-bootstrap.service ist unerwartet aktiv.'
+  ! pgrep -x gunicorn >/dev/null 2>&1 || fail 'Ein Gunicorn-Prozess läuft unerwartet.'
+  port_is_free || fail '127.0.0.1:8080 ist unerwartet belegt.'
+  validate_final_venv
+  LAST_MUTATION='Eigentümer der vorhandenen Venv rekursiv finalisieren'
+  chown -R root:"$EXPECTED_GROUP" "$venv_dir" || fail 'Eigentümer der vorhandenen Venv konnten nicht finalisiert werden.'
+  LAST_MUTATION='Modus der vorhandenen Venv-Wurzel finalisieren'
+  chmod 0750 "$venv_dir" || fail 'Modus der vorhandenen Venv konnte nicht finalisiert werden.'
+  check_installed_permissions
+  if command -v systemd-analyze >/dev/null 2>&1; then
+    systemd-analyze verify "$unit_file" || fail 'Die vorhandene systemd-Unit ist ungültig.'
+  fi
+  LAST_MUTATION='systemd-Fehlerzustand zurücksetzen'
+  systemctl reset-failed ralf-bootstrap.service
+  LAST_MUTATION='ralf-bootstrap.service einmalig starten'
+  systemctl start ralf-bootstrap.service || fail 'ralf-bootstrap.service konnte nicht gestartet werden.'
+  check_installed_permissions
+  validate_service
+  LAST_MUTATION='Reparaturmarkierung nach vollständiger Validierung entfernen'
+  rm -f -- "$repair_marker"
+  printf 'Venv-Reparaturfortsetzung erfolgreich; die vorhandene Venv wurde nicht neu erstellt.\n'
+}
+
 install_files() {
   local temp_app temp_version
   temp_app=$(mktemp -d "$bootstrap_root/.app-build.XXXXXX")
@@ -782,7 +890,11 @@ main() {
     exit 0
   fi
   if ((REPAIR_VENV == 1)); then
-    repair_venv_apply
+    if [[ $INSTALL_STATE == recoverable_venv_repair_validation_failure ]]; then
+      repair_validation_apply
+    else
+      repair_venv_apply
+    fi
     exit 0
   fi
   if [[ $INSTALL_STATE == complete ]]; then

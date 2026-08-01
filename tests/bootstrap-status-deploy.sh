@@ -29,8 +29,10 @@ elif [[ $1 == exec ]]; then
   elif [[ ${1:-} == python3 && ${2:-} == -m ]]; then
     printf 'usage: venv\n'
   elif [[ ${1:-} == python3 && ${2:-} == -c ]]; then
-    if [[ ${TEST_RESUME_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]] || [[ ${TEST_REPAIR_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]]; then
+    if [[ ${TEST_RESUME_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]] || [[ ${TEST_REPAIR_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]] || [[ ${TEST_REPAIR_VALIDATION_STATE:-0} == 1 && ${3:-} == *'/run/ralf-bootstrap-install'* ]]; then
       printf 'valid\n'
+    elif [[ ${TEST_REPAIR_VALIDATION_STATE:-0} == 1 ]]; then
+      printf 'recoverable_venv_repair_validation_failure\n'
     elif [[ ${TEST_REPAIR_STATE:-0} == 1 ]]; then
       printf 'recoverable_moved_venv_exec_failure\n'
     elif [[ ${TEST_RESUME_STATE:-0} == 1 ]]; then
@@ -171,6 +173,37 @@ run_normal_apply_rejects_moved() {
   printf 'PASS normal-apply-moved-rejection\n'
 }
 
+run_repair_validation_case() {
+  local dir="$TEST_ROOT/repair-validation" bin="$TEST_ROOT/repair-validation/bin" output status
+  mkdir -p "$bin"
+  make_pct "$bin"
+  set +e
+  output=$(TEST_REPAIR_VALIDATION_STATE=1 PCT_LOG="$dir/pct.log" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --repair-venv --plan --vmid 100 2>&1)
+  status=$?
+  set -e
+  [[ $status == 0 ]] && grep -Fq 'recoverable_venv_repair_validation_failure' <<<"$output"
+  if grep -q '^push ' "$dir/pct.log"; then return 1; fi
+  [[ $(grep -c -- '--repair-venv --plan' "$dir/pct.log") == 1 ]]
+  output=$(TEST_REPAIR_VALIDATION_STATE=1 PCT_LOG="$dir/pct-apply.log" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --repair-venv --apply --vmid 100 2>&1)
+  grep -Fq 'Venv-Reparatur erfolgreich' <<<"$output"
+  if grep -q '^push ' "$dir/pct-apply.log"; then return 1; fi
+  [[ $(grep -c -- '--repair-venv --apply' "$dir/pct-apply.log") == 1 ]]
+  printf 'PASS repair-validation-no-transfer\n'
+}
+
+run_normal_apply_rejects_validation() {
+  local dir="$TEST_ROOT/normal-validation-reject" bin="$TEST_ROOT/normal-validation-reject/bin" output status
+  mkdir -p "$bin"
+  make_pct "$bin"
+  set +e
+  output=$(TEST_REPAIR_VALIDATION_STATE=1 PCT_LOG="$dir/pct.log" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --apply --vmid 100 2>&1)
+  status=$?
+  set -e
+  [[ $status == 1 ]] && grep -Fq 'recoverable_venv_repair_validation_failure' <<<"$output"
+  if grep -q '^push ' "$dir/pct.log"; then return 1; fi
+  printf 'PASS normal-apply-validation-rejection\n'
+}
+
 run_case plan
 run_case apply
 run_case failure
@@ -182,3 +215,5 @@ run_repair_case repair-plan
 run_repair_case repair-apply
 run_repair_case repair-failure
 run_normal_apply_rejects_moved
+run_repair_validation_case
+run_normal_apply_rejects_validation

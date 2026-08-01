@@ -256,4 +256,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen: Kein realer `--apply`- oder `pct create`-Lauf; kein `pct set`, `pct reboot`, `pct start`, `pct stop`, keine Paket- oder Softwareinstallation und keine Änderung an VMID 100.
 - Risiken oder Blocker: `nesting=1` ist als Ubuntu-26.04-spezifische Betriebsanforderung der Referenzinstallation festgelegt und nicht als allgemeine Vorgabe späterer Betriebssysteme oder Plattformen. D-002 bis D-005 bleiben aktiv; Ollama, Modell und Open WebUI sind weiterhin nicht installiert.
 - Nächster sinnvoller Zielbild-Eintrag: M-013/M-017/M-020 – kontrollierte Ubuntu-Vorbereitung mit Updates und festgelegten Basisverzeichnissen, weiterhin ohne Ollama, Modell oder Open WebUI.
-- Veröffentlichung: Dieser Eintrag wird gemeinsam mit den Implementierungs- und Dokumentationsänderungen gezielt committed und auf `origin/main` gepusht.
+- Veröffentlichung: Die Implementierungs- und Dokumentationsänderungen wurden in Commit `e6748a2` gezielt committed und auf `origin/main` gepusht; `secrets/` blieb ungetrackt und unverändert.

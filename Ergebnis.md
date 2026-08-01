@@ -234,4 +234,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen: Kein `pct reboot`, `pct set`, `pct shutdown`, `pct stop`, `pct start`, keine Containeränderung und kein Netzwerk- oder Softwareeingriff.
 - Risiken oder Blocker: M-024 bleibt `AKTIV`; der Lifecycle-Befehl ist nun bekannt, aber ein Reparaturversuch wurde nicht ausgeführt. `secrets/` blieb ungetrackt und unverändert.
 - Nächster sinnvoller Zielbild-Eintrag: M-024 – separat freigegebener Reparaturversuch mit `pct reboot 100` und anschließender read-only Netzwerkvalidierung.
-- Veröffentlichung: Dieser Eintrag wird gezielt committed und auf den vorgesehenen Remote-Branch gepusht.
+- Veröffentlichung: Dieser Eintrag wurde in Commit `378f7ca` gezielt committed und auf `origin/main` gepusht; `secrets/` blieb ungetrackt und unverändert.

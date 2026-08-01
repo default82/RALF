@@ -1,0 +1,38 @@
+[Unit]
+Description=RALF Bootstrap Status Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ralf-bootstrap
+Group=ralf-bootstrap
+WorkingDirectory=/opt/ralf/bootstrap/app
+Environment=RALF_BOOTSTRAP_CONFIG=/etc/ralf/bootstrap/config.toml
+ExecStart=/opt/ralf/bootstrap/venv/bin/gunicorn \
+  --workers 1 \
+  --bind 127.0.0.1:8080 \
+  --access-logfile - \
+  --error-logfile - \
+  --timeout 30 \
+  ralf_bootstrap.wsgi:app
+Restart=on-failure
+RestartSec=3
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

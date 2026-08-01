@@ -55,7 +55,7 @@ python3 -m venv .venv
 Die Statusansicht ist über `GET /`, der technische Healthcheck über `GET /healthz` und der vollständige JSON-Status über `GET /api/v1/status` verfügbar. Für einen lokalen Gunicorn-Test wird ausschließlich Loopback verwendet:
 
 ```bash
-.venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 ralf_bootstrap.app:app
+.venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 ralf_bootstrap.wsgi:app
 ```
 
 Der erste Dienst ist vollständig read-only: Er schreibt keine SQLite-Daten, installiert nichts und bietet keine mutierenden Aktionen, Authentifizierung, TLS- oder LAN-Freigabe. Die spätere systemd-Installation und der Betrieb in VMID 100 sind ein eigener Arbeitsschritt.
@@ -75,6 +75,19 @@ RALF soll später:
 - Fähigkeiten und selbst erstellbare Skills schrittweise erweitern können.
 
 Diese Punkte sind Zielrichtung, nicht bereits implementierte Architektur.
+
+## Deployment des Statusdienstes
+
+Der reproduzierbare Deploymentpfad ist vorbereitet, aber noch nicht in VMID 100 ausgeführt. Der Host-Plan prüft den laufenden Container, baut das aktuelle Wheel und zeigt die SHA-256-Prüfsummen aller übertragenen Artefakte:
+
+```bash
+sudo ./scripts/ralf-bootstrap-status-deploy.sh --plan --vmid 100
+sudo ./scripts/ralf-bootstrap-status-deploy.sh --apply --vmid 100
+```
+
+Bei `--apply` werden Wheel, Runtime-Lock, Konfiguration, systemd-Unit, Gast-Installationsskript und Prüfsummenmanifest ausschließlich nach `/run/ralf-bootstrap-install/` übertragen. Der Gastpfad richtet den unprivilegierten Benutzer, die Virtualenv und den Dienst `ralf-bootstrap.service` ein. Gunicorn verwendet den Einstiegspunkt `ralf_bootstrap.wsgi:app` und bindet ausschließlich an `127.0.0.1:8080`; `/var/lib/ralf/bootstrap/state.db` wird in diesem Schritt nicht angelegt.
+
+Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen.
 
 ## Projektdokumente
 

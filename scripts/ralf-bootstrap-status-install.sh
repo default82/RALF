@@ -278,6 +278,9 @@ check_recoverable_shape() {
   [[ -n $(getent passwd "$EXPECTED_USER" || true) && -n $(getent group "$EXPECTED_GROUP" || true) ]] || return 1
   check_user_group
   find_recoverable_temp || return 1
+  while IFS= read -r actual; do
+    [[ $actual == "$RECOVERABLE_TEMP_VENV" ]] || return 1
+  done < <(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -print)
   ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 -type d -name '.app-build.*' -print -quit | grep -q . || return 1
   for path in "$app_dir" "$venv_dir" "$version_file" "$config_dir" "$state_dir" "$unit_file" "$(target_path '/var/lib/ralf/bootstrap/state.db')"; do
     [[ ! -e $path ]] || return 1

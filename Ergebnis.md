@@ -413,3 +413,13 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen oder Änderungen: Kein Resume-Apply, keine Paketinstallation, keine Entfernung des temporären Venvs und keine Proxmox-/Containeränderung.
 - Risiken oder Blocker: VMID 100 bleibt im dokumentierten `recoverable_venv_failure`; eine neue ausdrückliche Freigabe ist vor dem realen Resume-Apply erforderlich.
 - Nächster sinnvoller Zielbild-Eintrag: M-027 – read-only Resume-Plan und genau ein freigegebener Resume-Apply-Lauf.
+
+## 2026-08-01 – Resume-Zustand gegen zusätzliche Bootstrap-Einträge abgesichert
+
+- Bearbeitete Zielbild-IDs: M-031, P-001
+- Ergebnis: Der bereinigbare Teilzustand akzeptiert nun ausschließlich das eine validierte `.venv-build.*`-Verzeichnis als direkten Inhalt des Bootstrap-Basisverzeichnisses. Zusätzliche Dateien oder Verzeichnisse verhindern den Resume-Pfad auf Host- und Gastseite.
+- Geänderte Dateien: `scripts/ralf-bootstrap-status-install.sh`, `scripts/ralf-bootstrap-status-deploy.sh`, `Ergebnis.md`.
+- Ausgeführte Prüfungen: `bash -n`, ShellCheck, sämtliche bestehenden und neuen Shelltests sowie `git diff --check`.
+- Nicht ausgeführte Prüfungen oder Änderungen: Kein realer Resume-Apply, keine Paketinstallation, keine Entfernung des temporären Venvs und keine weitere VMID-100-Mutation.
+- Risiken oder Blocker: VMID 100 bleibt im exakt dokumentierten `recoverable_venv_failure`; vor einer Mutation ist eine neue ausdrückliche Freigabe erforderlich.
+- Nächster sinnvoller Zielbild-Eintrag: M-027 – read-only Resume-Plan, Freigabe und genau ein Resume-Apply-Lauf.

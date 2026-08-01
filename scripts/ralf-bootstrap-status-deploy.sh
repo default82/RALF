@@ -119,6 +119,7 @@ else:
         root_stat = root.stat()
         temps = sorted(root.glob(".venv-build.*"))
         app_temps = list(root.glob(".app-build.*"))
+        direct_entries = list(root.iterdir())
         service_absent = not Path("/etc/systemd/system/ralf-bootstrap.service").exists()
         service_inactive = all(subprocess.run(["systemctl", action, "ralf-bootstrap.service"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0 for action in ("is-enabled", "is-active"))
         sock = socket.socket()
@@ -132,7 +133,7 @@ else:
         recoverable = (
             root.is_dir() and root_stat.st_uid == pwd.getpwnam("root").pw_uid and root_stat.st_gid == group.gr_gid and stat.S_IMODE(root_stat.st_mode) == 0o750
             and user.pw_gid == group.gr_gid and user.pw_dir == "/nonexistent" and user.pw_shell == "/usr/sbin/nologin"
-            and len(temps) == 1 and not app_temps and all(not path.exists() for path in final) and not state_db.exists()
+            and len(temps) == 1 and direct_entries == temps and not app_temps and all(not path.exists() for path in final) and not state_db.exists()
             and service_absent and service_inactive and port_free
         )
     except (KeyError, OSError):

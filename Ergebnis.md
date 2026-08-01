@@ -321,4 +321,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen: Keine Code-, Shell-, Paket-, Installations- oder Infrastrukturprüfungen, da ausschließlich Dokumentation geändert wurde.
 - Risiken oder Blocker: O-010 und O-011 müssen vor LAN-Freigabe oder mutierenden Setup-Aktionen entschieden werden. Der read-only Statusdienst ist noch nicht implementiert; VMID 100 und die bestehende technische Basis bleiben unverändert.
 - Nächster sinnvoller Zielbild-Eintrag: M-029 – lokales read-only Grundgerüst des Bootstrap-Statusdienstes implementieren und testen.
-- Veröffentlichung: Dieser Dokumentationslauf wird gezielt committed und auf `origin/main` gepusht; Anwendungscode, Pakete, VMID 100 und `secrets/` bleiben unverändert beziehungsweise ausgeschlossen.
+- Veröffentlichung: Dieser Dokumentationslauf wurde in Commit `5e29318` gezielt committed und auf `origin/main` gepusht; Anwendungscode, Pakete und VMID 100 blieben unverändert, `secrets/` blieb ausgeschlossen.

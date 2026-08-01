@@ -294,4 +294,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen oder Änderungen: Kein zweiter Apply-Versuch, kein Rollback, kein `pct push`, kein `pct set`, kein Reboot, Stop oder Start und keine Ollama-, Modell-, Open-WebUI-, Docker-, Podman-, Datenbank- oder GPU-Installation.
 - Risiken oder Blocker: Die vier Basisverzeichnisse sind vorbereitet, enthalten aber noch keine RALF-Anwendungssoftware. Der Root-Speicher liegt nach dem Upgrade bei rund 37 GiB frei; die DHCP-Adresse bleibt dynamisch. D-002 bis D-005 bleiben aktiv.
 - Nächster sinnvoller Zielbild-Eintrag: M-014/M-015/M-016 – getrennte Planung und Freigabe der späteren Ollama-, Modell- und Open-WebUI-Installation.
-- Veröffentlichung: Dieser erfolgreiche Lauf wird als Dokumentationsänderung gezielt committed und auf `origin/main` gepusht; `ZIELBILD.md` bleibt unverändert und `secrets/` ausgeschlossen.
+- Veröffentlichung: Dieser erfolgreiche Lauf wurde als Dokumentationsänderung in Commit `02a573e` gezielt committed und auf `origin/main` gepusht; `ZIELBILD.md` blieb unverändert und `secrets/` ausgeschlossen.

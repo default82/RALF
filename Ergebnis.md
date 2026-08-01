@@ -223,3 +223,15 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: M-024 bleibt unverändert `AKTIV`; das zuvor diagnostizierte Netzwerkproblem ist weiterhin offen und wurde nicht erneut validiert. `secrets/` blieb ungetrackt und unverändert.
 - Nächster sinnvoller Zielbild-Eintrag: M-024 – separater, ausdrücklich freigegebener Reparaturschritt mit einem auf diesem Host unterstützten Proxmox-Lifecycle-Befehl.
 - Veröffentlichung: Dieser Eintrag wurde in Commit `1a9481b` gezielt committed und auf `origin/main` gepusht; `secrets/` blieb ungetrackt und unverändert.
+
+## 2026-08-01 – Proxmox-Lifecycle-Befehl read-only geprüft
+
+- Bearbeitete Zielbild-IDs: M-024, P-001
+- Ergebnis: Auf Proxmox VE `9.2.0` mit `pve-manager 9.2.4` ist `pct reboot` verfügbar. Die lokale Syntax lautet `pct reboot <vmid> [OPTIONS]`; `pct help reboot` dokumentiert die Option `--timeout <integer>` mit Wertebereich `0 - N` und ausdrücklich, dass der Container heruntergefahren, anschließend gestartet und dabei Pending-Änderungen angewendet werden. Ein Standardwert wird in `pct help reboot` nicht angegeben. Die lokale `lxc-stop`-Dokumentation beschreibt für den zugrunde liegenden Shutdown ohne expliziten Timeout 60 Sekunden bis zum erzwungenen Stop.
+- Ergebnis VMID 100: `pct status 100` meldet `running`. `pct config 100 --current 1` enthält keine `features`. `pct pending 100` enthält keine ausstehende `features`-Änderung.
+- Geänderte Dateien: `Ergebnis.md`
+- Ausgeführte Prüfungen: Pflichtdokumente und jüngste Ergebnisse gelesen; Git-Synchronität und Secrets-Status geprüft; `pveversion -v`, `pct help`, `pct help reboot`, `man pct`, lokale Proxmox-Implementierung, `lxc-stop --help`, `man lxc-stop`, `pct status 100`, `pct config 100 --current 1`, `pct pending 100` sowie `git diff --check`.
+- Nicht ausgeführte Prüfungen: Kein `pct reboot`, `pct set`, `pct shutdown`, `pct stop`, `pct start`, keine Containeränderung und kein Netzwerk- oder Softwareeingriff.
+- Risiken oder Blocker: M-024 bleibt `AKTIV`; der Lifecycle-Befehl ist nun bekannt, aber ein Reparaturversuch wurde nicht ausgeführt. `secrets/` blieb ungetrackt und unverändert.
+- Nächster sinnvoller Zielbild-Eintrag: M-024 – separat freigegebener Reparaturversuch mit `pct reboot 100` und anschließender read-only Netzwerkvalidierung.
+- Veröffentlichung: Dieser Eintrag wird gezielt committed und auf den vorgesehenen Remote-Branch gepusht.

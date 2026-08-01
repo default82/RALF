@@ -73,6 +73,7 @@ Eine feste und reproduzierbare erste Installation soll auf der vorhandenen Proxm
 | M-023 | AKTIV | `--apply` wiederholt den vollständigen Plan unmittelbar vor der Mutation, ruft genau einmal `pct create` für den unprivilegierten `ralf-standalone`-LXC auf und prüft die resultierende Konfiguration read-only. Der Container bleibt gestoppt; Softwareinstallation, GPU-Passthrough und automatisches Rollback sind nicht Bestandteil dieses Schritts. |
 | M-024 | ABGESCHLOSSEN | VMID 100 wurde am 2026-08-01 mit der notwendigen Proxmox-Funktion `nesting=1` und genau einem `pct reboot 100 --timeout 120` kontrolliert neu gestartet. Die read-only Prüfung bestätigte wirksames `nesting=1`, aktive Netzwerkdienste, `eth0`/veth-Link, DHCP-IPv4, Default-Route, Gateway, DNS und HTTPS-Erreichbarkeit einer Ubuntu-Paketquelle. Die DHCP-Adresse bleibt dynamisch und ist keine dauerhafte Zusicherung. |
 | M-025 | ABGESCHLOSSEN | Der Bootstrap erstellt die Ubuntu-26.04-Referenzinstallation von Anfang an mit `features: nesting=1` und prüft diese Einstellung nach `pct create` exakt. Diese Betriebsanforderung ist für systemd-Basisdienste im unprivilegierten Ubuntu-26.04-LXC nachgewiesen und gilt nicht als allgemeine Vorgabe für spätere Betriebssysteme oder Plattformen. |
+| M-026 | ABGESCHLOSSEN | Das separate Gastskript prüft Ubuntu 26.04, amd64/x86_64, systemd, Netzwerk, DNS, Ubuntu-Paketquelle und dpkg, führt danach nichtinteraktiv `apt-get update` sowie `apt-get full-upgrade` aus und legt die vier festgelegten RALF-Basisverzeichnisse mit `root:root` und Modus `0750` idempotent an. Ein erforderlicher Neustart wird nur gemeldet; Ollama, Modell, Open WebUI, Docker, Podman, Datenbanken, GPU-Komponenten und weitere RALF-Software sind nicht Teil dieses Schritts. |
 
 ## Definition of Done
 
@@ -122,6 +123,7 @@ Diese Entscheidungen sind als Nächstes notwendig, bevor der Installer implement
 | A-015 | ABGESCHLOSSEN | Der erste reale `ralf-standalone`-LXC wurde am 2026-07-31 als VMID 100 erstellt und read-only geprüft. Er ist gestoppt und enthält noch keine RALF-Software. |
 | A-016 | ABGESCHLOSSEN | Der erste kontrollierte Start von VMID 100 wurde am 2026-08-01 nach Aktivierung von `nesting=1` read-only validiert. Der laufende, weiterhin leere LXC erhält Netzwerk per DHCP; die Adresse ist nicht dauerhaft festgelegt. |
 | A-017 | ABGESCHLOSSEN | Der reproduzierbare Bootstrap übergibt `--features nesting=1` beim einzigen `pct create`-Aufruf und lehnt nachträgliche oder zusätzliche LXC-Features in der read-only Konfigurationsprüfung ab. |
+| A-018 | ABGESCHLOSSEN | Die Ubuntu-Vorbereitung ist als getrenntes Gastskript mit read-only `--plan` und mutierendem `--apply` umgesetzt. Vor Mutationen werden OS, Architektur, systemd, Netzwerk, DNS, Paketquelle und dpkg geprüft; nach der Aktualisierung werden ausschließlich die vier RALF-Basisverzeichnisse auf `root:root`/`0750` gesetzt. Ein Neustart wird nicht automatisch ausgeführt. |
 
 # 5. Verbindlicher Entwicklungsprozess
 

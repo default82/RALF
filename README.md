@@ -78,6 +78,17 @@ sudo ./scripts/ralf-standalone-bootstrap.sh --apply
 
 Der `pct create`-Aufruf setzt für die Ubuntu-26.04-Referenzinstallation fest `--features nesting=1`. Die Nachprüfung akzeptiert ausschließlich `features: nesting=1`; zusätzliche Features, Mountpoints oder GPU-Konfigurationen führen zum Fehler. Diese Einstellung ist keine allgemeine Anforderung späterer Betriebssysteme oder Plattformen.
 
+## Ubuntu-Vorbereitung im Gast
+
+Die kontrollierte Vorbereitung ist als separates Gastskript vorgesehen. Es wird später innerhalb des laufenden LXC ausgeführt; in VMID 100 wurde dieser Schritt noch nicht gestartet:
+
+```bash
+./scripts/ralf-standalone-guest-prepare.sh --plan
+./scripts/ralf-standalone-guest-prepare.sh --apply
+```
+
+`--plan` bleibt vollständig read-only. `--apply` prüft Ubuntu 26.04, amd64/x86_64, systemd, `systemd-networkd`, Netzwerk, DNS, Ubuntu-Paketquelle und den Paketstatus, führt anschließend nichtinteraktiv `apt-get update` sowie `apt-get full-upgrade` aus und legt danach ausschließlich die vier festgelegten RALF-Verzeichnisse mit `root:root` und Modus `0750` an. Ein erforderlicher Neustart wird nur gemeldet. Ollama, das Referenzmodell, Open WebUI, Docker, Podman, Datenbanken, GPU-Komponenten und weitere RALF-Software gehören nicht zu diesem Vorbereitungsschritt.
+
 ## Status
 
 Die grundlegenden Entscheidungen für RALF Standalone 0.0.1 sind abgeschlossen. Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Er ist aktuell laufend, erhält sein Netzwerk per DHCP und enthält noch keine RALF-Software. Softwareinstallation und die übrigen Definition-of-Done-Punkte stehen noch aus.

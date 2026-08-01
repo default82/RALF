@@ -38,9 +38,29 @@ Spätere Modellwege werden als Setup-Optionen behandelt: vorhandenen Modellserve
 
 ## Technische Grundlage des Statusdienstes
 
-Der künftige Bootstrap-Statusdienst wird mit Python 3, Flask, Jinja, eingebettetem `sqlite3`, Gunicorn und systemd umgesetzt. Die erste read-only Oberfläche bietet `GET /`, `GET /healthz` und `GET /api/v1/status`, rendert lokale HTML-/CSS-Dateien und bindet ausschließlich an `127.0.0.1:8080`. Sie ist damit zunächst nicht aus dem LAN erreichbar.
+Das lokale Grundgerüst des Bootstrap-Statusdienstes ist mit Python 3, Flask, Jinja, eingebettetem `sqlite3` und Gunicorn umgesetzt; systemd folgt erst beim Deployment. Die read-only Oberfläche bietet `GET /`, `GET /healthz` und `GET /api/v1/status`, rendert lokale HTML-/CSS-Dateien und ist für eine ausschließliche Bindung an `127.0.0.1:8080` vorgesehen. Sie ist damit zunächst nicht aus dem LAN erreichbar.
 
-Der Dienst läuft später unprivilegiert als `ralf-bootstrap` und führt keine Paket-, systemd- oder Proxmox-Mutationen aus. Die erste Implementierung benötigt kein Modell und keine Modellruntime; mutierende Setup-Aktionen sowie eine sichere LAN-Freigabe werden in getrennten offenen Entscheidungen behandelt. Die technische Umsetzung ist festgelegt, aber noch nicht installiert.
+Der Dienst läuft später unprivilegiert als `ralf-bootstrap` und führt keine Paket-, systemd- oder Proxmox-Mutationen aus. Das lokale read-only Grundgerüst ist als installierbares Paket unter `src/ralf_bootstrap/` umgesetzt und benötigt kein Modell und keine Modellruntime. Es ist noch nicht in VMID 100 installiert.
+
+### Lokale Entwicklung und Prüfung
+
+Mit Python 3.12 oder neuer kann das Paket in einer virtuellen Umgebung installiert und getestet werden:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[test]'
+.venv/bin/pytest -q
+```
+
+Die Statusansicht ist über `GET /`, der technische Healthcheck über `GET /healthz` und der vollständige JSON-Status über `GET /api/v1/status` verfügbar. Für einen lokalen Gunicorn-Test wird ausschließlich Loopback verwendet:
+
+```bash
+.venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 ralf_bootstrap.app:app
+```
+
+Der erste Dienst ist vollständig read-only: Er schreibt keine SQLite-Daten, installiert nichts und bietet keine mutierenden Aktionen, Authentifizierung, TLS- oder LAN-Freigabe. Die spätere systemd-Installation und der Betrieb in VMID 100 sind ein eigener Arbeitsschritt.
+
+Die direkten Laufzeitabhängigkeiten sind `Flask==3.1.3` und `Gunicorn==26.0.0`; die exakt geprüfte transitive Auflösung steht in [`requirements/runtime.lock`](requirements/runtime.lock). Für Tests werden ausschließlich `pytest==9.1.1` und `build==1.5.0` verwendet.
 
 ## Langfristige Richtung
 
@@ -103,7 +123,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript vorgesehen. Es wird 
 
 ## Status
 
-Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime, kein Modell und keine Weboberfläche. Die technische Grundlage ist durch O-009 entschieden; die Umsetzung des kleinen Bootstrap-Statusdienstes sowie die offenen Sicherheitsentscheidungen O-010 und O-011 stehen noch aus. D-002 bis D-005 bleiben offen.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime, kein Modell und keine Weboberfläche. Das read-only Statusdienst-Grundgerüst ist lokal implementiert und getestet, aber noch nicht in VMID 100 installiert; O-010 und O-011 bleiben offen. D-002 bis D-005 bleiben offen.
 
 ## Lizenz
 

@@ -1,0 +1,12 @@
+# Direct runtime dependencies
+Flask==3.1.3
+Gunicorn==26.0.0
+
+# Exact transitive runtime resolution used for the M-029 tests
+blinker==1.9.0
+click==8.4.2
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+packaging==26.2
+Werkzeug==3.1.8

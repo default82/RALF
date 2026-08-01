@@ -245,4 +245,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Prüfungen: Keine Pakete, Updates, RALF-Verzeichnisse, Ollama-, Modell- oder Open-WebUI-Installation; kein zweiter Reboot-, Start- oder Reparaturversuch und kein Rollback.
 - Risiken oder Blocker: Die DHCP-Adresse `10.10.200.11` ist dynamisch und nicht dauerhaft zugesichert. `nesting=1` erweitert die Container-Sicht auf procfs/sysfs und bleibt als notwendige Betriebsfunktion gesetzt. D-002 bis D-005 bleiben unverändert aktiv.
 - Nächster sinnvoller Zielbild-Eintrag: M-013/M-017/M-020 – kontrollierte Vorbereitung des Ubuntu-Systems mit Updates und festgelegten Basisverzeichnissen, weiterhin ohne Ollama, Modell oder Open WebUI.
-- Veröffentlichung: Dieser Eintrag wird gezielt committed und auf den vorgesehenen Remote-Branch gepusht.
+- Veröffentlichung: Dieser Eintrag wurde in Commit `d1221f5` gezielt committed und auf `origin/main` gepusht; `secrets/` blieb ungetrackt und unverändert.

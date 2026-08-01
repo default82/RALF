@@ -96,9 +96,18 @@ sudo ./scripts/ralf-bootstrap-status-deploy.sh --resume --apply --vmid 100
 
 Der Resume-Pfad validiert Bundle, Prüfsummen, Paketquellen, Locks und den exakten Teilzustand erneut. Er entfernt ausschließlich das eindeutig erkannte fehlgeschlagene temporäre Venv-Verzeichnis, installiert bei Bedarf das passende `pythonX.Y-venv`-Paket und setzt danach die reguläre Installation fort. Bei jeder anderen Teilinstallation wird ohne Änderung abgebrochen; es gibt keinen breiten Löschvorgang, keinen automatischen Rollback und keinen zweiten Versuch.
 
+Virtuelle Umgebungen werden dabei niemals verschoben, kopiert oder per Shebang-Umschreibung repariert. Der reguläre Installationsweg erstellt `/opt/ralf/bootstrap/venv` direkt am endgültigen Zielpfad und verwendet bis zur vollständigen Prüfung die Markierung `.venv-install-in-progress`. Der ausdrücklich getrennte Reparaturpfad behandelt ausschließlich den real nachgewiesenen Zustand `recoverable_moved_venv_exec_failure`:
+
+```bash
+sudo ./scripts/ralf-bootstrap-status-deploy.sh --repair-venv --plan --vmid 100
+sudo ./scripts/ralf-bootstrap-status-deploy.sh --repair-venv --apply --vmid 100
+```
+
+Nach einer neuen Freigabe stoppt dieser Pfad den Dienst, entfernt ausschließlich die exakt validierte endgültige Venv, legt `.venv-repair-in-progress` an, erstellt die Venv direkt am Zielpfad neu und prüft Shebangs, Pakete, Dienst und Loopback-Endpunkte. Benutzer, Gruppe, Bundle und Systempakete werden nicht erneut angelegt beziehungsweise übertragen; bei Fehlern bleiben Markierung und erreichte Zustand zur Diagnose erhalten. Ein normaler `--apply` oder `--resume` verweist bei diesem Zustand ausdrücklich auf `--repair-venv`.
+
 Bei `--apply` werden Wheel, Runtime-Lock, Konfiguration, systemd-Unit, Gast-Installationsskript und Prüfsummenmanifest ausschließlich nach `/run/ralf-bootstrap-install/` übertragen. Der Gastpfad richtet den unprivilegierten Benutzer, die Virtualenv und den Dienst `ralf-bootstrap.service` ein. Gunicorn verwendet den Einstiegspunkt `ralf_bootstrap.wsgi:app` und bindet ausschließlich an `127.0.0.1:8080`; `/var/lib/ralf/bootstrap/state.db` wird in diesem Schritt nicht angelegt.
 
-Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen. Der reale erste Applyversuch in VMID 100 blieb wegen fehlendem `ensurepip` vor der Venv-Erstellung unvollständig; die Installation gilt daher noch nicht als erfolgreich und benötigt einen neuen, ausdrücklich freigegebenen Resume-Plan.
+Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen. Der reale Resume-Apply in VMID 100 erreichte zwar die vollständige Installation, scheiterte aber wegen einer verschobenen Venv mit `203/EXEC`; die Installation gilt daher noch nicht als erfolgreich und benötigt den neuen, ausdrücklich freizugebenden `--repair-venv --plan`-/`--apply`-Pfad.
 
 ## Projektdokumente
 

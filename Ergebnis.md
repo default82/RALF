@@ -414,6 +414,23 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: VMID 100 bleibt im dokumentierten `recoverable_venv_failure`; eine neue ausdrückliche Freigabe ist vor dem realen Resume-Apply erforderlich.
 - Nächster sinnvoller Zielbild-Eintrag: M-027 – read-only Resume-Plan und genau ein freigegebener Resume-Apply-Lauf.
 
+## 2026-08-01 – Realen Resume-Plan für VMID 100 geprüft
+
+- Bearbeitete Zielbild-IDs: M-027, M-031, P-001
+- Repositorystand: `main` war zu Beginn auf Commit `1857e3c` mit `origin/main` synchron; die Resume-Skripte waren syntaktisch gültig. `secrets/` blieb ungetrackt.
+- Proxmox-Ausgangszustand: VMID 100 ist `running`, `ralf-standalone`, unprivilegiert mit `features: nesting=1`, DHCP über `vmbr0` und ohne Pending-Änderungen.
+- Zustandsklassifikation: `recoverable_venv_failure`. Benutzer/Gruppe sind korrekt (`ralf-bootstrap`, UID 999/GID 988, `/nonexistent`, `/usr/sbin/nologin`, keine sudo-Gruppe), `/opt/ralf/bootstrap` ist `root:ralf-bootstrap`/`0750`, und genau `.venv-build.9KfH67` ist als einziger direkter Eintrag vorhanden. Finale App-/Venv-/Versions-/Konfigurations-/Status-/Unitpfade und `state.db` fehlen; Dienst und Port `127.0.0.1:8080` sind nicht aktiv bzw. frei.
+- Python/Paket: Python `3.14.4`; `venv` ist importierbar, `ensurepip` fehlt. Das ermittelte Paket ist `python3.14-venv`, installiert `nicht installiert`; Apt-Candidate `3.14.4-1ubuntu0.1` stammt aus `http://archive.ubuntu.com/ubuntu` (`resolute-updates`/`resolute-security`, zusätzlich `resolute`). `dpkg --audit`, Prozesse, Locks, Default-Route, DNS und HTTPS funktionieren erwartungsgemäß.
+- Bundle: Unter `/run/ralf-bootstrap-install/` liegen exakt sechs Dateien. Manifestprüfung ist erfolgreich. Nutzartefakte: Wheel `0ef3217ffa182efd5975cdee50113fa74f2101c905fa46fe6031a416c1b1b397`, `runtime.lock` `d4528758a07931c679c297f5ffee44d8b6e5babc7038a3d141c715060bd66348`, `config.toml` `152e1a918757a2e88ab4e0afd3203bd22d7e45ab213606b3c755fa9b10626270`, Unit `8f5b30c7d9335824dfabb19cab5b338337860a45e785a6985370da9b8f6f48d7`, Gastskript `e98994eb17fab488a02afd3f18cd694bf9beb721102ccd03fad578e397e7fb1c`; `SHA256SUMS` selbst `e78742267f50cef0805323973d4d5695acce0a8f9cffd79fb97a3385259b7f30`.
+- Resume-Plan: Der explizite Befehl `sudo ./scripts/ralf-bootstrap-status-deploy.sh --resume --plan --vmid 100` wurde nach einer Korrektur der Manifestprüfung erfolgreich ausgeführt. Er erkannte `recoverable_venv_failure`, verwendete das vorhandene Bundle und startete den Gastinstaller ausschließlich im Resume-Planmodus.
+- Geplante Mutationen nach neuer Freigabe: erneuter vollständiger Preflight, ausschließliches Entfernen von `.venv-build.9KfH67`, Installation von `python3.14-venv`, erneute Ensurepip-Prüfung, neue temporäre Venv, gepinnte Runtime-Abhängigkeiten, vorhandenes Wheel mit `--no-deps`, Zielpfade/Rechte, systemd-Unit, `daemon-reload`, `enable`, `start`, read-only Dienstprüfung und Bundle-Löschung nur nach vollständigem Erfolg. Nicht geplant sind erneute Übertragung, Benutzer-/Gruppenanlage, allgemeine Bereinigung, `apt-get update`, Upgrade, Autoremove, Containerneustart, LAN-/Modell-/SQLite-Mutationen, Rollback oder zweiter Versuch.
+- Mutationsnachweis: Nach dem Plan blieben VMID 100, Pending-Zustand, Paketstatus, ursprüngliches `.venv-build.9KfH67`, Bundle, finale Pfade, Unit und Port unverändert. Kein `apt-get install`, kein Entfernen, kein Venv-Build, kein `pct push` und kein Dienststart wurden ausgeführt.
+- Ausgeführte Prüfungen: Pflichtdokumente und jüngste Ergebnisse gelesen; Git-/Secrets-Prüfung; `bash -n`, SHA-256; Proxmox-, Teilzustands-, Python-, Ensurepip-, Apt-, dpkg-, Netzwerk-, Lock-, Bundle- und Dienstprüfungen; expliziter Resume-Plan; anschließender read-only Mutationsnachweis; `git diff --check`.
+- Nicht ausgeführte Prüfungen oder Änderungen: Kein `--resume --apply`, keine Paketinstallation, keine Dateiübertragung, keine Container- oder systemd-Mutation. Der erste Planversuch stoppte read-only wegen einer zu strengen Manifestprüfung; nach Korrektur wurde der Plan erfolgreich wiederholt.
+- Risiken oder Blocker: Der Dienst ist weiterhin nicht installiert. Für genau einen Resume-Applylauf ist eine neue ausdrückliche Nutzerfreigabe erforderlich.
+- Nächster sinnvoller Zielbild-Eintrag: M-027 – Freigabe für genau einen `--resume --apply`-Lauf und anschließende ausschließlich read-only Dienstvalidierung.
+- Veröffentlichung: Dieser Dokumentations- und Korrekturlauf ist noch nicht veröffentlicht; Commit, Push und Merge erfolgen nach der abschließenden Prüfung.
+
 ## 2026-08-01 – Resume-Zustand gegen zusätzliche Bootstrap-Einträge abgesichert
 
 - Bearbeitete Zielbild-IDs: M-031, P-001

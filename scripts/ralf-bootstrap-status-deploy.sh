@@ -196,7 +196,7 @@ else:
             valid = False
             break
         entries[name] = digest
-    if set(entries) != files:
+    if set(entries) != (expected - {"SHA256SUMS"}) | {wheels[0]}:
         valid = False
     for name, digest in entries.items():
         path = bundle / name

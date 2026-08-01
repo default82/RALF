@@ -431,6 +431,21 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nächster sinnvoller Zielbild-Eintrag: M-027 – Freigabe für genau einen `--resume --apply`-Lauf und anschließende ausschließlich read-only Dienstvalidierung.
 - Veröffentlichung: Dieser Dokumentations- und Korrekturlauf ist noch nicht veröffentlicht; Commit, Push und Merge erfolgen nach der abschließenden Prüfung.
 
+## 2026-08-01 – Einmaliger realer Resume-Apply für VMID 100 fehlgeschlagen
+
+- Bearbeitete Zielbild-IDs: M-027, M-031, P-001
+- Ergebnis: Der ausdrücklich freigegebene Befehl `sudo ./scripts/ralf-bootstrap-status-deploy.sh --resume --apply --vmid 100` wurde genau einmal ausgeführt. Der Preflight erkannte den bestätigten `recoverable_venv_failure`; danach wurde ausschließlich das validierte alte Venv entfernt, `python3.14-venv` installiert, `ensurepip` verfügbar gemacht, eine neue Venv erstellt, das Runtime-Lock installiert, das Wheel `ralf-bootstrap==0.1.0` installiert, die Zielpfade angelegt und `ralf-bootstrap.service` aktiviert und gestartet.
+- Fehlerursache: Der Dienststart scheiterte beim anschließenden Healthcheck mit `203/EXEC`. Die beim Venv-Build erzeugten Console-Skripte (`gunicorn`, `flask`) enthalten als Shebang weiterhin den temporären Pfad `/opt/ralf/bootstrap/.venv-build.WydEtv/bin/python`, obwohl die Venv nach `/opt/ralf/bootstrap/venv/` verschoben wurde. `ExecStart=/opt/ralf/bootstrap/venv/bin/gunicorn` kann deshalb nicht ausgeführt werden.
+- Erreichter Zustand: VMID 100 bleibt `running`; die Containerkonfiguration und Pending-Anzeige blieben unverändert. `python3.14-venv` ist mit Version `3.14.4-1ubuntu0.1` installiert, `ensurepip` meldet `25.1.1`, Runtime-Pakete und `ralf-bootstrap==0.1.0` sind in der Venv vorhanden. Zielpfade und Rechte entsprechen dem Plan; `state.db` wurde nicht angelegt. Das alte `.venv-build.9KfH67`, `.app-build.*` und weitere temporäre Venvs sind nicht vorhanden.
+- Dienst- und Bundlezustand: `ralf-bootstrap.service` ist `enabled`, aber nicht erfolgreich aktiv; systemd befindet sich in `auto-restart` mit `ExecMainStatus=203` und wiederholten Neustartversuchen. Port `127.0.0.1:8080` lauscht nicht. Die drei HTTP-Endpunkte konnten nicht erfolgreich validiert werden. Das Bundle unter `/run/ralf-bootstrap-install/` blieb vollständig erhalten, weil die Bundle-Löschung nur nach vollständigem Erfolg erfolgt.
+- Nicht ausgeführte Folgeaktionen: Kein zweiter Resume-Versuch, kein Rollback, keine manuelle Reparatur, kein `systemctl stop/disable`, kein Containerneustart und keine weitere Paket- oder Proxmox-Mutation. Die Nachprüfung war ausschließlich read-only.
+- Geänderte Dateien: `Ergebnis.md`.
+- Ausgeführte Prüfungen: unmittelbarer Commit-/Hash-/VMID-/Teilzustands-/Bundle-Preflight; genau ein bestätigter Resume-Apply; danach ausschließlich read-only `pct status`, `pct config`, `pct pending`, Paket-/Ensurepip-/Venv-Prüfungen, Zielpfade/Rechte, Shebang-Prüfung, systemd-Status/-Logs, Listener-/Prozessstatus, `dpkg --audit` und Bundle-Zustand.
+- Nicht ausgeführte Prüfungen oder Änderungen: Keine erfolgreiche HTTP-/Sicherheitsheader-/Status-API-Prüfung, da der Dienst nicht ausführbar war. Kein weiterer mutierender Befehl wurde ausgeführt.
+- Risiken oder Blocker: Die Installation ist teilweise abgeschlossen, aber der Dienst ist nicht funktionsfähig. Der nächste Schritt benötigt eine neue Codekorrektur und einen ausdrücklich geplanten Reparatur-/Resume-Pfad für die bereits angelegte Installation; D-002 bis D-005 bleiben offen.
+- Nächster sinnvoller Zielbild-Eintrag: M-027 – reproduzierbare Korrektur der Venv-Verschiebung beziehungsweise ein sicherer Reparaturpfad, danach neuer read-only Plan; kein automatischer zweiter Apply.
+- Veröffentlichung: Dieser Fehlerlauf ist noch nicht veröffentlicht; Commit, Push und Merge erfolgen nach der abschließenden Dokumentationsprüfung.
+
 ## 2026-08-01 – Resume-Zustand gegen zusätzliche Bootstrap-Einträge abgesichert
 
 - Bearbeitete Zielbild-IDs: M-031, P-001

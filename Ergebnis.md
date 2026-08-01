@@ -469,3 +469,13 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: VMID 100 bleibt mit der nachgewiesenen verschobenen Venv und nicht funktionsfähigem Dienst bestehen. Vor einer Reparatur sind ein neuer read-only Plan und eine ausdrückliche Freigabe für genau einen `--repair-venv --apply`-Lauf erforderlich. Ein vollständiger Offline-/Artefakt-Hash für Runtime-Abhängigkeiten bleibt offen.
 - Nächster sinnvoller Zielbild-Eintrag: M-027/M-032 – realen read-only `--repair-venv --plan` bestätigen lassen, danach genau einen freigegebenen Reparaturlauf und ausschließlich read-only Dienstvalidierung durchführen.
 - Veröffentlichung: Noch nicht veröffentlicht; Commit, Push und Merge erfolgen nach der abschließenden Repositoryprüfung.
+
+## 2026-08-01 – Veröffentlichung des Venv-Reparaturpfads
+
+- Bearbeitete Zielbild-IDs: M-032, A-026, P-001
+- Ergebnis: Der direkte Venv-Erstellungspfad und der explizite `--repair-venv`-Modus wurden als Commit `872e93f` veröffentlicht und über Pull Request #20 in `main` gemergt. Der Merge-Commit ist `0580a42`; `main` entspricht wieder `origin/main`.
+- Geänderte Dateien: Die sieben Dateien aus dem vorherigen Eintrag; `secrets/` wurde nicht gestaged.
+- Ausgeführte Prüfungen: Merge-/Remote-Prüfung, `git status -sb`, Prüfung des Merge-Commits und Secrets-Ausschluss.
+- Nicht ausgeführte Prüfungen oder Änderungen: Kein realer `--repair-venv --apply`, keine Proxmox- oder VMID-100-Mutation.
+- Risiken oder Blocker: VMID 100 bleibt im read-only bestätigten `recoverable_moved_venv_exec_failure`; vor der Reparatur ist weiterhin eine neue ausdrückliche Freigabe erforderlich.
+- Nächster sinnvoller Zielbild-Eintrag: M-027/M-032 – realen read-only `--repair-venv --plan` ausführen, Freigabe einholen und genau einen Reparaturlauf validieren.

@@ -183,4 +183,4 @@ PostgreSQL-spezifische SQLSTATE-Werte bleiben intern im Provideradapter. Sie wer
 - Nachweis fehlender Rechte auf fremde Allocations,
 - Grenzen und Verfahren eines späteren Rollbacks.
 
-**Nächste Entscheidung:** PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations auswählen.
+**Nächster Schritt:** Das in ADR-0005 gewählte Profil ausschließlich read-only planen; noch keine Allocation anlegen oder verändern.

@@ -42,7 +42,7 @@ Ein Database Consumer benötigt genau eine oder mehrere ausdrücklich geplante A
 
 Ein Consumer-Profil beschreibt unterstützte Provider, benötigte und optionale Fähigkeiten, Schema-Lebenszyklus, Identitätsmodell, Backup- und Health-Erwartungen sowie bekannte Einschränkungen. Es ist keine laufende Allocation und erzeugt keine Datenbank.
 
-RALF Core ist der erste spezifizierte `ralf_native` Consumer. Gitea und OpenBao sind mögliche `external_application` Consumer; ihre tatsächliche Auswahl bleibt offen.
+RALF Core ist der erste spezifizierte `ralf_native` Consumer. Im ersten Referenzdeployment erhält Core noch keine Allocation; ADR-0005 wählt stattdessen Gitea, OpenBao, Semaphore UI und Node-RED als vier `external_application` Consumer aus.
 
 ## Providerfähigkeiten
 
@@ -237,16 +237,17 @@ Anlage, Änderung, Migration, Backup, Restore, Identitätsänderung, Secret-Erze
 
 [ADR-0004](../decisions/ADR-0004-postgresql-reference-provider.md) konkretisiert den ersten Provider, ohne ihn in den öffentlichen Vertrag aufzunehmen.
 
+[ADR-0005](../decisions/ADR-0005-first-postgresql-deployment-profile.md) wählt deployment-spezifisch PostgreSQL Major 18, `postgresql-main` und die ersten vier Allocations. Der allgemeine Vertrag bleibt providerneutral.
+
 ## Offene Entscheidungen
 
-1. Welche Allocations werden zuerst tatsächlich angelegt?
-2. Welche PostgreSQL-Major-Version und welches Deploymentprofil bilden die Referenz?
-3. Welche Consumer benötigen dedizierte Providerinstanzen?
-4. Wie werden externe anwendungseigene Migrationen sicher freigegeben oder beobachtet?
-5. Wie erhalten Consumer Zugriff auf Secretdateien unter `/secrets`?
-6. Welche Eigentümer-, Gruppen- und Rotationsregeln gelten dort?
-7. Welche Backups sind allocation-bezogen und welche providerweit?
-8. Wie werden Ressourcen- und Netzwerkgrenzen abgebildet?
-9. Welche Erweiterungen sind im PostgreSQL-Basisprofil zulässig?
+1. Welche Consumer benötigen dedizierte Providerinstanzen?
+2. Wie werden externe anwendungseigene Migrationen sicher freigegeben oder beobachtet?
+3. Wie erhalten Consumer Zugriff auf Secretdateien unter `/secrets`?
+4. Welche Eigentümer-, Gruppen- und Rotationsregeln gelten dort?
+5. Welche Backups sind allocation-bezogen und welche providerweit?
+6. Wie werden Ressourcen- und Netzwerkgrenzen abgebildet?
+7. Welche Erweiterungen sind im PostgreSQL-Basisprofil zulässig?
+8. Wie wird das in ADR-0005 gewählte Profil konkret und mutierungsfrei geplant?
 
-**Nächster kleiner Schritt:** PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations auswählen, ohne PostgreSQL zu installieren.
+**Nächster kleiner Schritt:** Einen ausschließlich read-only arbeitenden Deploymentplaner spezifizieren und implementieren, ohne PostgreSQL oder eine Allocation anzulegen.

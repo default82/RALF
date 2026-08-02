@@ -32,7 +32,7 @@ PostgreSQL ist der erste Referenzprovider, aber kein Bestandteil des öffentlich
  PostgreSQL-Adapter       Datenbankzugriff     Storage-Zugriff
 ```
 
-Das Modell beschreibt mögliche isolierte Zuweisungen, keine bereits laufende Installation. Weder Gitea noch OpenBao noch eine konkrete Allocation werden in diesem Schritt eingerichtet.
+Das Modell beschreibt mögliche isolierte Zuweisungen, keine bereits laufende Installation. [ADR-0005](../decisions/ADR-0005-first-postgresql-deployment-profile.md) wählt für das erste Referenzdeployment Gitea, OpenBao, Semaphore UI und Node-RED als vier isolierte Allocations; eingerichtet ist davon noch keine.
 
 ## Verwaltungs- und Datenebene
 
@@ -156,7 +156,7 @@ Gitea ist ein möglicher `external_application`-Consumer und unterstützt Postgr
 
 ### OpenBao
 
-OpenBao ist ein möglicher `external_application`-Consumer. Sein PostgreSQL-Backend gilt als produktions- und HA-fähige Storage-Option; für die meisten neuen Installationen bleibt das von OpenBao empfohlene Integrated Storage dennoch ein gleichwertig zu prüfender Kandidat. PostgreSQL wird nicht automatisch ausgewählt. Bei einer PostgreSQL-Allocation wären eigene logische Datenbank, eigene Identitäten und fehlende Rechte auf andere Allocations Pflicht. Die konkrete Storage-Entscheidung bleibt offen.
+OpenBao ist ein möglicher `external_application`-Consumer. Sein PostgreSQL-Backend gilt als produktions- und HA-fähige Storage-Option; für andere Installationen bleibt Integrated Storage ein gleichwertig zu prüfender Kandidat. ADR-0005 wählt PostgreSQL ausschließlich für das erste Referenzdeployment. Eigene logische Datenbank, eigene Identitäten und fehlende Rechte auf andere Allocations bleiben Pflicht.
 
 ## Identitäten und Rollen pro Allocation
 
@@ -222,7 +222,7 @@ Version 0.1 beschreibt Backups mindestens allocation-bezogen. Jedes Backup gehö
 
 Ein Restore einer Allocation darf keine andere Allocation oder die gesamte Providerinstanz stillschweigend überschreiben. Providerweite physische Sicherungen können später zusätzlich geplant werden.
 
-Bei OpenBao hängt der Backupvertrag vom gewählten Storage-Backend ab. Integrated Storage liegt außerhalb des PostgreSQL-Database-Service-Backups; eine PostgreSQL-Allocation fällt unter den Allocation-Backupvertrag. Diese Wahl wird nicht vorweggenommen.
+Bei OpenBao hängt der Backupvertrag vom deployment-spezifisch gewählten Storage-Backend ab. Integrated Storage liegt außerhalb des PostgreSQL-Database-Service-Backups; die in ADR-0005 gewählte PostgreSQL-Allocation fällt unter den Allocation-Backupvertrag.
 
 ## Providerprinzip
 
@@ -238,21 +238,18 @@ Der Database Service ist kein SQL-Proxy, allgemeiner CRUD-Dienst, Datei- oder Ob
 
 PostgreSQL ist als [Provider 001](../providers/postgresql.md) der erste konkrete Referenzprovider. Eine PostgreSQL Provider Instance ist ein betriebener Server beziehungsweise Cluster mit null oder mehr isolierten Allocations. Providerinstanz und Allocation besitzen getrennte [Lebenszyklen](../lifecycle/database-allocation.md); eine bereite Instanz macht eine einzelne Allocation nicht automatisch bereit.
 
-Der Referenzstandard verwendet eine logische Datenbank und eigene technische Identitäten pro Allocation. Eine konkrete Version, Paketquelle, Betriebsform, Netzwerkgrenze, Serverkonfiguration, Datenbankbezeichnung, Identität, Port, Adresse oder Zugangsdaten werden noch nicht festgelegt. [ADR-0004](../decisions/ADR-0004-postgresql-reference-provider.md) hält diese Grenze verbindlich fest.
+Der Referenzstandard verwendet eine logische Datenbank und eigene technische Identitäten pro Allocation. ADR-0005 legt PostgreSQL Major 18, die 18.x-Minor-Policy, `postgresql-main` und vier initiale Allocations fest. Paketquelle, Betriebsform, Netzwerkgrenze, Serverkonfiguration, konkrete Datenbanknamen, PostgreSQL-Benutzernamen, Port, Adresse und Secretwerte bleiben bis zum Folgeplan offen. [ADR-0004](../decisions/ADR-0004-postgresql-reference-provider.md) und ADR-0005 halten diese Grenzen fest.
 
 ## Offene Entscheidungen
 
-1. Welche Allocations werden in der ersten realen PostgreSQL-Instanz angelegt?
-2. Beginnt die Referenzinstallation nur mit RALF Core oder zusätzlich mit Gitea?
-3. Verwendet OpenBao Integrated Storage oder PostgreSQL?
-4. Welche Consumer benötigen eine dedizierte Providerinstanz?
-5. Welche externen Anwendungen führen Migrationen selbst aus?
-6. Wie erhalten Anwendungen Zugriff auf ihre Secrets unter `/secrets`?
-7. Welche Eigentümer- und Gruppenrechte gelten unter `/secrets`?
-8. Wie erfolgt Secret-Rotation?
-9. Welche Backups erfolgen pro Allocation und welche providerweit?
-10. Wie werden Ressourcenlimits pro Allocation abgebildet?
-11. Welche Netzwerkgrenzen gelten zwischen Consumer und Provider?
-12. Welche PostgreSQL-Version wird Referenzversion?
+1. Welche Consumer benötigen später eine dedizierte Providerinstanz?
+2. Welche externen Anwendungen führen Migrationen selbst aus?
+3. Wie erhalten Anwendungen Zugriff auf ihre Secrets unter `/secrets`?
+4. Welche Eigentümer- und Gruppenrechte gelten unter `/secrets`?
+5. Wie erfolgt Secret-Rotation?
+6. Welche Backups erfolgen pro Allocation und welche providerweit?
+7. Wie werden Ressourcenlimits pro Allocation abgebildet?
+8. Welche Netzwerkgrenzen gelten zwischen Consumer und Provider?
+9. Wie wird das in ADR-0005 gewählte Profil konkret betrieben und read-only geplant?
 
-**Nächster kleiner Schritt:** PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations auswählen, ohne PostgreSQL zu installieren.
+**Nächster kleiner Schritt:** Einen ausschließlich read-only arbeitenden Deploymentplan für PostgreSQL 18, `postgresql-main` und die vier ausgewählten Allocations erstellen.

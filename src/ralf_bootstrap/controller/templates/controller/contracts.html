@@ -1,7 +1,0 @@
-{% extends "controller/base.html" %}
-{% block title %}Providerverträge{% endblock %}
-{% block content %}
-<section><h2>Versionierte Providerverträge</h2><ul>
-{% for contract in contracts %}<li><a href="{{ url_for('provider_verification.contract_show', contract_id=contract.contract_id) }}">{{ contract.display_name }}</a> – v{{ contract.contract_version }}</li>{% endfor %}
-</ul></section>
-{% endblock %}

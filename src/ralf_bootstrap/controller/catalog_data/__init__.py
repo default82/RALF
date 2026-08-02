@@ -1,1 +1,0 @@
-"""Packaged, versioned controller catalogs."""

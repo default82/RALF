@@ -1,2 +1,0 @@
-[storage]
-database_path = "/var/lib/ralf/bootstrap/state.db"

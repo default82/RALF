@@ -266,6 +266,15 @@ run_single_source_source_checks() {
   printf 'PASS host-uses-guest-classifier-only\n'
 }
 
+run_unit_bundle_source_checks() {
+  local unit="$PROJECT_ROOT/deploy/bootstrap-status/ralf-bootstrap.service"
+  [[ $(grep -c -- '--no-control-socket' "$unit") == 1 ]]
+  grep -Fxq 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK' "$unit"
+  grep -Fq 'readonly UNIT_FILE="$PROJECT_ROOT/deploy/bootstrap-status/ralf-bootstrap.service"' "$SCRIPT"
+  grep -Fq 'install -m 0640 "$UNIT_FILE" "$BUNDLE_DIR/ralf-bootstrap.service"' "$SCRIPT"
+  printf 'PASS corrected-unit-enters-bundle\n'
+}
+
 run_case plan
 run_case apply
 run_case failure
@@ -285,3 +294,4 @@ run_classifier_contract_case classifier-unknown $'RALF_BOOTSTRAP_STATE_V1=future
 run_classifier_contract_case classifier-noise $'Hinweis\nRALF_BOOTSTRAP_STATE_V1=recoverable_venv_repair_validation_failure\n' 'mehrere oder zusätzliche stdout-Zeilen'
 run_partial_diagnostics_case
 run_single_source_source_checks
+run_unit_bundle_source_checks

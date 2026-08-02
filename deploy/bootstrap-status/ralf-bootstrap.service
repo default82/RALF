@@ -12,6 +12,7 @@ Environment=RALF_BOOTSTRAP_CONFIG=/etc/ralf/bootstrap/config.toml
 ExecStart=/opt/ralf/bootstrap/venv/bin/gunicorn \
   --workers 1 \
   --bind 127.0.0.1:8080 \
+  --no-control-socket \
   --access-logfile - \
   --error-logfile - \
   --timeout 30 \
@@ -32,7 +33,7 @@ RestrictSUIDSGID=true
 LockPersonality=true
 CapabilityBoundingSet=
 AmbientCapabilities=
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
 WantedBy=multi-user.target

@@ -2,182 +2,255 @@
 
 ## Zweck
 
-Der Database Service ist die stabile persistente Datenschnittstelle von RALF. Er stellt strukturierte, transaktionale Datenhaltung als eigenständige RALF-Fähigkeit bereit und verantwortet deren Lebenszyklus. PostgreSQL ist die erste Referenzimplementierung, aber kein Bestandteil des öffentlichen RALF-Vertrags.
+Der Database Service ist eine gemeinsam nutzbare Datenbankplattform. Er verwaltet einen oder mehrere Datenbankprovider und deren Providerinstanzen und stellt daraus voneinander isolierte Datenbankzuweisungen für RALF-eigene Komponenten, externe Anwendungen und spätere interne Plattformkomponenten bereit.
 
-Andere RALF-Komponenten dürfen deshalb keine PostgreSQL-Verbindungsparameter, Systemtabellen, Erweiterungen, SQL-Dialekte, Fehlermeldungen oder Rollen voraussetzen. Das gilt ausdrücklich auch für `psql`, `pg_dump`, `pg_restore` und `pgvector`. PostgreSQL-spezifische Details bleiben im PostgreSQL-Provider sowie dessen Betriebs- und Administrationsschicht.
+PostgreSQL ist der erste Referenzprovider, aber kein Bestandteil des öffentlichen RALF-Vertrags. Ein Consumer ist weder Eigentümer des Database Service noch automatisch Eigentümer einer Providerinstanz. RALF Core ist der erste spezifizierte RALF-native Consumer, nicht der einzige Datenbankkunde.
 
 ## Architekturmodell
 
 ```text
-RALF-Komponenten
-       │
-       ▼
-RALF Database Contract
-       │
-       ▼
-Database Service
-       │
-       ▼
-Provider
-       │
-       └── PostgreSQL
+                         Database Service
+                 ┌─────────────────────────────┐
+                 │ Verwaltungsebene            │
+                 │                             │
+                 │ Providerinstanzen           │
+                 │ Database Allocations        │
+                 │ Identitäten / Secret-Refs   │
+                 │ Fähigkeiten                 │
+                 │ Health / Readiness          │
+                 │ Backup / Restore            │
+                 └──────────────┬──────────────┘
+                                │
+                       PostgreSQL-Provider
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          │                     │                     │
+          ▼                     ▼                     ▼
+  Allocation RALF Core    Allocation Gitea     Allocation OpenBao
+          │                     │                     │
+ ConversationRepository   Gitea-eigener       OpenBao-eigener
+ PostgreSQL-Adapter       Datenbankzugriff     Storage-Zugriff
 ```
 
-Der **RALF Database Contract** beschreibt benötigte Fähigkeiten, providerneutrale Zustände und Fehler, Lebenszyklusoperationen, Schema- und Migrationsregeln sowie Sicherheits-, Backup- und Restore-Anforderungen.
+Das Modell beschreibt mögliche isolierte Zuweisungen, keine bereits laufende Installation. Weder Gitea noch OpenBao noch eine konkrete Allocation werden in diesem Schritt eingerichtet.
 
-Der **Database Service** verantwortet die persistente strukturierte Datenhaltung, die Einhaltung des Vertrags, die Auswahl genau eines aktiven Providers, Fähigkeits- und Statusmeldungen, kontrollierte Schemaentwicklung und die Verträge für Sicherung und Wiederherstellung.
+## Verwaltungs- und Datenebene
 
-Ein **Provider** bildet diesen Vertrag auf ein konkretes Datenbanksystem ab. Der erste Provider ist PostgreSQL. Spätere Provider wie MariaDB, Microsoft SQL Server, SQLite oder andere relationale Datenbanken sind architektonisch möglich, aber nicht zugesichert. Sie sind nur kompatibel, wenn sie die für das jeweilige RALF-Profil erforderlichen Fähigkeiten nachweislich erfüllen.
+### Verwaltungsebene
 
-## Providerprinzip und Abstraktionsgrenze
+Der providerneutrale Database-Service-Vertrag beschreibt Providerinstanzen, Database Allocations, Fähigkeiten, Isolation, technische Identitäten, Secret-Referenzen, Lebenszyklus, Health, Readiness, Backup, Restore sowie Versions- und Kompatibilitätsstatus.
 
-RALF abstrahiert Datenbankprodukte nicht um jeden Preis auf den kleinsten gemeinsamen Nenner. Der Vertrag ist fähigkeitsorientiert:
+Diese Ebene ist für RALF steuerbar. Sie plant und bewertet Zustände, ohne Anwendungsabfragen zu übersetzen.
 
-- Ein Provider deklariert die Fähigkeiten, die er tatsächlich und sicher bereitstellt.
-- RALF-Komponenten beziehungsweise Betriebsprofile deklarieren erforderliche und optionale Fähigkeiten.
-- Fehlt eine erforderliche Fähigkeit, wird die Kombination verständlich als inkompatibel oder eingeschränkt bewertet.
-- Zusätzliche Providerfähigkeiten werden nicht automatisch Bestandteil des allgemeinen Vertrags.
-- Providerdetails dürfen intern für Betrieb und Diagnose genutzt werden, aber nicht in den öffentlichen Vertrag durchsickern.
+### Datenebene
 
-### Entscheidung zur Datenzugriffsgrenze
+Anwendungen greifen später über das native Datenbankprotokoll des ausgewählten Providers direkt auf ihre eigene Allocation zu. Für PostgreSQL ist dies das PostgreSQL Wire Protocol.
 
-Der Database Service wird als **Betriebs- und Vertragsdienst** gestaltet. Er verwaltet Provider, Verbindungsfähigkeit, Fähigkeiten, Schema, Migrationen, Health, Readiness, Backup und Restore. Fachliche Datenoperationen gehören in domänenspezifische Repository- oder Datenschnittstellen der jeweils verantwortlichen RALF-Komponente.
+Der Database Service ist kein SQL-Proxy, übersetzt keine Anwendungsabfragen und stellt keine universelle CRUD-API bereit.
 
-Damit wird keine universelle RALF-Datenbanksprache geschaffen. Die im Vertrag genannten Datenoperationen sind vorläufige fachliche Begriffe zur Beschreibung notwendiger Transaktionseigenschaften, keine zentrale technische CRUD-API. Die genaue Kommunikation zwischen Domänen und Database Service bleibt offen.
+RALF-native Consumer verwenden weiterhin domänenspezifische Repository-Verträge und einen providerbezogenen Infrastrukturadapter. Externe Anwendungen verwenden ihre eigenen Datenbanktreiber, Datenmodelle und Schemata. Der Database Service versucht insbesondere nicht, das Datenmodell von Gitea oder OpenBao in einen RALF-Domänenvertrag zu übersetzen.
 
-Diese Grenze vermeidet eine künstliche Universal-API und hält fachliche Modelle bei ihren Eigentümern. Dafür müssen spätere Domänenverträge Providerneutralität und benötigte Fähigkeiten ausdrücklich berücksichtigen.
+## Database Consumer
 
-## Umfang von Database Service 0.1
+Ein **Database Consumer** ist eine Anwendung oder RALF-Komponente, die eine isolierte Datenbankzuweisung benötigt.
 
-Version 0.1 umfasst bewusst:
-
-- genau einen aktiven Datenbankprovider,
-- PostgreSQL als Referenzprovider,
-- eine RALF-Datenbankinstanz,
-- eine logische RALF-Datenbank,
-- getrennte technische Rollen,
-- transaktionale Datenoperationen,
-- ein versioniertes Schema,
-- kontrollierte Schemamigrationen,
-- getrennte Health- und Readiness-Prüfungen,
-- einen Backup- und Restore-Vertrag,
-- providerneutrale Zustände und Fehler.
-
-Nicht Bestandteil von 0.1 sind Vektorsuche und `pgvector`, Hochverfügbarkeit, Replikation, automatisches Failover, Sharding, Multi-Master, externe Mandanten, ein allgemeiner Datenbankdienst für fremde Anwendungen, Datenbank-Webadministration, automatische Performanceoptimierung, autonome Datenlöschung oder -reparatur sowie Cloud-Datenbankintegration.
-
-## Fähigkeitsmodell
-
-| Fähigkeit | Bedeutung | Einordnung für 0.1 |
+| Consumer-Art | Bedeutung | Beispiele |
 | --- | --- | --- |
-| `relational_storage` | Dauerhafte strukturierte Speicherung mit relationalen Beziehungen. | erforderlich |
-| `transactions` | Atomare, konsistente Transaktionsgrenzen für zusammengehörige Operationen. | erforderlich |
-| `schema_migrations` | Versionierte, geordnete und kontrolliert ausführbare Schemaänderungen. | erforderlich |
-| `constraints` | Datenbankseitige Durchsetzung definierter Integritätsregeln. | erforderlich |
-| `indexes` | Definierte Zugriffsstrukturen für vorhersehbare Abfragen. | erforderlich |
-| `json_documents` | Speicherung und gezielte Abfrage strukturierter JSON-Dokumente. | optional nutzbar |
-| `full_text_search` | Datenbankgestützte Volltextsuche. | optional nutzbar |
-| `advisory_locks` | Kooperative, anwendungsdefinierte Sperren für koordinierte Abläufe. | optional nutzbar |
-| `vector_search` | Ähnlichkeitssuche über Vektorrepräsentationen. | später |
-| `backup` | Kontrollierte Erzeugung einer sicherungsfähigen Datenrepräsentation. | erforderlich |
-| `restore` | Kontrollierte Wiederherstellung aus einer geprüften Sicherung. | erforderlich |
-| `point_in_time_recovery` | Wiederherstellung auf einen bestimmten Zeitpunkt. | später |
-| `replication` | Bereitstellung replizierter Datenbankkopien. | später |
-| `high_availability` | Betrieb mit definierten Verfügbarkeits- und Ausfallzielen. | später |
+| `ralf_native` | RALF-eigene Komponente mit domänenspezifischem Repository-Vertrag. | RALF Core |
+| `external_application` | Fremde Anwendung, die den Provider nativ verwendet und ihr eigenes Schema verantwortet. | Gitea, optional OpenBao |
+| `platform_internal` | Spätere technische Plattformkomponente ohne eigene fachliche RALF-Domäne. | noch nicht festgelegt |
 
-Die Einordnung ist der Architekturvorschlag für Vertrag 0.1. Ob `json_documents` oder `full_text_search` bereits verpflichtend werden, hängt von den zuerst festgelegten fachlichen Daten und Datenbankkunden ab.
+Ein Consumer-Profil beschreibt Anforderungen einer Anwendung, aber keine laufende Installation.
 
-## Verantwortlichkeiten
+## Database Allocation
 
-### Persistenz
+Eine **Database Allocation** ist eine isolierte Zuweisung von Datenbankressourcen an genau einen Consumer. Der fachliche Vertrag umfasst mindestens:
 
-- strukturierte RALF-Daten dauerhaft speichern,
-- konsistente Lese- und Schreibvorgänge ermöglichen,
-- Transaktionsgrenzen unterstützen,
-- relationale Integrität ermöglichen.
+- `allocation_id`
+- `consumer_id`
+- `provider_instance_id`
+- `database_name_reference`
+- `isolation_class`
+- `schema_lifecycle`
+- `required_capabilities`
+- `optional_capabilities`
+- `identity_references`
+- `secret_references`
+- `backup_policy_reference`
+- `retention_policy_reference`
+- `status`
 
-### Schema
+Diese Namen sind Vertragsbegriffe und weder Konfigurationsschema noch Datenbankobjekte.
 
-- aktuelle und angestrebte Schemaversion kennen,
-- Migrationen geordnet, versioniert und nachvollziehbar behandeln,
-- inkompatible oder unbekannte Schemaversionen erkennen,
-- Downgrades und Migrationserfolge nicht vortäuschen.
+### Referenzisolation
 
-### Fähigkeiten
+Für den ersten PostgreSQL-Referenzstand gilt als Standard:
 
-- unterstützte Fähigkeiten melden,
-- fehlende erforderliche Fähigkeiten als Inkompatibilität ausweisen,
-- Provider und Providerversion intern kennen,
-- keine providerspezifischen Details zum allgemeinen Vertrag erklären.
+- eine logische Datenbank pro Consumer,
+- eigene technische Identitäten pro Consumer,
+- keine Rechte auf Datenbanken anderer Consumer,
+- keine gemeinsam genutzten Anwendungsschemata, insbesondere kein gemeinsames `public`-Schema.
 
-### Betrieb
+Nicht vorgesehen sind eine gemeinsame Datenbank oder ein gemeinsames Anwendungsschema für alle Consumer, eine gemeinsame Anwendungsidentität oder ein gemeinsames Kennwort.
 
-- Health und Readiness getrennt bewerten,
-- Start-, Stopp-, Wartungs-, Migrations-, Backup- und Restore-Zustände melden,
-- Verbindungs-, Speicher- und Providerprobleme neutral klassifizieren,
-- kontrollierte Sicherungs- und Wiederherstellungsvorgänge ermöglichen.
+### Isolationsklassen
 
-### Sicherheit
+| Klasse | Bedeutung |
+| --- | --- |
+| `logical_database` | Eigene logische Datenbank innerhalb einer gemeinsam betriebenen Providerinstanz. |
+| `dedicated_provider_instance` | Eigene Providerinstanz aufgrund von Sicherheits-, Verfügbarkeits- oder Kompatibilitätsanforderungen. |
+| `external_provider` | Bereits vorhandene externe Datenbankbereitstellung, die der Database Service kontrolliert referenziert oder verwaltet. |
 
-- technische Rollen und ihre Aufgaben trennen,
-- normale Anwendungen nie mit administrativer Superuserrolle betreiben,
-- minimale Rechte verwenden,
-- Geheimnisse vom Repository und von nicht geheimer Konfiguration fernhalten,
-- Verbindungen und Identitäten als deployment-spezifische Konfiguration behandeln.
+Version 0.1 darf eine gemeinsame PostgreSQL-Providerinstanz mit mehreren logischen Datenbanken als Referenzprofil beschreiben. Jede Allocation verwendet genau einen aktiven Provider; die Architektur erlaubt später die Verlagerung einzelner Allocations auf dedizierte oder externe Providerinstanzen.
 
-### Auditierbarkeit
+## Gemeinsame Fehlerdomäne und Platzierung
 
-- Migrationen sowie Backup- und Restorevorgänge nachvollziehbar machen,
-- Statusänderungen und Fehlerursachen verständlich klassifizieren,
-- keine Geheimnisse oder vollständigen Zugangsdaten protokollieren.
+Eine gemeinsame Providerinstanz reduziert Betriebsaufwand, vergrößert aber die gemeinsame Fehlerdomäne. Ein Providerausfall kann mehrere Consumer gleichzeitig betreffen.
+
+Jede Allocation muss deshalb später Anforderungen an Verfügbarkeit, Isolation, Ressourcen, Backup und Restore deklarieren können:
+
+- `availability_requirement`
+- `isolation_requirement`
+- `resource_requirement`
+- `backup_requirement`
+- `restore_requirement`
+
+Ein sicherheitskritischer Consumer darf eine dedizierte Instanz verlangen. Version 0.1 trifft keine automatische Platzierungsentscheidung.
+
+## Schemaeigentum
+
+Jede Allocation besitzt genau einen sichtbaren Schema-Lebenszyklus:
+
+| Modus | Eigentum und Ablauf |
+| --- | --- |
+| `domain_managed` | Eine RALF-Domäne besitzt fachlich Schema und Migrationen. Der Database Service plant, prüft Providerfähigkeiten und führt freigegebene Migrationspakete aus. |
+| `application_managed` | Eine externe Anwendung besitzt Schema und Migrationen und führt sie nach ihrem Betriebsmodell aus. Der Database Service beansprucht keine fachliche Eigentümerschaft. |
+| `platform_preprovisioned` | Die Plattform legt ausdrücklich vertraglich verlangte Datenbankobjekte kontrolliert vor dem Anwendungsstart an. |
+
+RALF Core mit Conversation verwendet `domain_managed`. Gitea verwendet als mögliches Profil `application_managed`. Für OpenBao bleiben `application_managed` und `platform_preprovisioned` abhängig vom später gewählten Storage-Vertrag zu prüfen.
+
+Wenn eine externe Anwendung beim Start selbst migriert, muss ihr Consumer-Vertrag sichtbar festlegen, ob eine getrennte Migrationsidentität möglich ist, wann erweiterte Rechte benötigt werden, ob Laufzeit und Migration dieselbe Identität verwenden und ob Rechte anschließend reduziert werden können. Die RALF-native Regel „Anwendungsidentität ändert kein Schema“ wird auf externe Anwendungen nicht ungeprüft übertragen.
+
+## Consumer-Profile
+
+Ein **Database Consumer Profile** beschreibt Anforderungen, ohne eine Installation oder Allocation anzulegen. Es enthält mindestens:
+
+- `consumer_profile_id`
+- `consumer_type`
+- `supported_provider_ids`
+- `required_capabilities`
+- `optional_capabilities`
+- `schema_lifecycle`
+- `identity_model`
+- `backup_expectations`
+- `health_expectations`
+- `known_constraints`
+
+### RALF Core
+
+`ralf-core` ist ein `ralf_native`-Profil mit `domain_managed`. Conversation benötigt `relational_storage`, `transactions`, `schema_migrations`, `constraints`, `indexes`, `backup` und `restore`. Der [ConversationRepository Contract](../contracts/conversation-repository-v0.1.md) gilt ausschließlich für die RALF-Core-Allocation.
+
+### Gitea
+
+Gitea ist ein möglicher `external_application`-Consumer und unterstützt PostgreSQL als Datenbankbackend. Sein Profil verwendet `application_managed` und verlangt eine eigene logische Datenbank, eigene technische Identitäten und keine Rechte auf andere Allocations. Version, Provider-Mindestversion, Konfiguration, Schema, Migrationen und Installation bleiben offen.
+
+### OpenBao
+
+OpenBao ist ein möglicher `external_application`-Consumer. Sein PostgreSQL-Backend gilt als produktions- und HA-fähige Storage-Option; für die meisten neuen Installationen bleibt das von OpenBao empfohlene Integrated Storage dennoch ein gleichwertig zu prüfender Kandidat. PostgreSQL wird nicht automatisch ausgewählt. Bei einer PostgreSQL-Allocation wären eigene logische Datenbank, eigene Identitäten und fehlende Rechte auf andere Allocations Pflicht. Die konkrete Storage-Entscheidung bleibt offen.
+
+## Identitäten und Rollen pro Allocation
+
+Rollen und Identitäten werden pro Allocation betrachtet:
+
+- `allocation_owner`
+- `migration_identity`
+- `application_identity`
+- `backup_identity`
+- `monitoring_identity`
+
+Der frühere Begriff `database_owner` bezeichnet präzisiert den Provider- oder Allocation-Eigentümer und wird nie automatisch von einer Anwendung verwendet.
+
+Jede Allocation besitzt eigene Identitäten. Gemeinsame Anwendungsidentitäten oder Kennwörter, Zugriff auf fremde Datenbanken und PostgreSQL-Superuseridentitäten für Consumer sind unzulässig. Consumer-Profile dürfen ausdrücklich erklären, dass keine getrennte Migrationsidentität unterstützt wird oder Backup beziehungsweise Monitoring zentral erfolgt; Abweichungen bleiben sichtbar.
+
+## Secrets-Vertrag
+
+Die verbindliche externe Secrets-Wurzel ist absolut:
+
+```text
+/secrets/
+└── database-service/
+    ├── providers/
+    │   └── <provider-instance-id>/
+    └── allocations/
+        └── <allocation-id>/
+```
+
+Spätere Allocation-Dateien können `owner-password`, `migration-password`, `application-password`, `backup-password` oder `monitoring-password` heißen; nicht jede Allocation benötigt jede Datei. Diese Struktur ist ein Vertrag und wird hier nicht angelegt.
+
+Normale Konfiguration enthält nur nicht geheime absolute Referenzen, beispielsweise:
+
+```text
+secret_ref = "/secrets/database-service/allocations/gitea/application-password"
+```
+
+Kennwortwerte und vollständige Verbindungs-URLs mit Zugangsdaten sind ausgeschlossen.
+
+Später erzeugte Geheimnisse werden ausschließlich unter `/secrets` atomar und mit restriktiven Rechten geschrieben. Sie erscheinen weder in stdout, Logs, Kommandozeilenargumenten noch normalen Umgebungsvariablen, gelangen nicht in Git und werden nur durch einen ausdrücklich geplanten Rotationsvorgang ersetzt.
+
+Secret-Referenzen müssen absolute Pfade innerhalb `/secrets` sein, dürfen kein `..` und keine Auflösung außerhalb der Wurzel enthalten, keine unerwarteten Symlinks nutzen und ohne bewusstes Anwendungs-Gruppenmodell weder gruppen- noch weltlesbar sein.
+
+Das Repository behält zusätzlich den Ausschluss `secrets/`. Weder `/secrets` noch ein lokales `secrets/` darf committed oder gestaged werden.
+
+OpenBao kann später als Secrets-Provider untersucht werden, ersetzt `/secrets` aber nicht automatisch. Falls OpenBao selbst eine PostgreSQL-Allocation verwendet, dürfen seine Bootstrap-Datenbankgeheimnisse nicht zirkulär aus OpenBao stammen. `/secrets` bleibt zunächst der externe Bootstrap-Vertrauensanker; eine Migration anderer Geheimnisse zu OpenBao benötigt eine eigene Entscheidung und einen eigenen Plan.
+
+## Health und Readiness
+
+Health und Readiness werden getrennt für Providerinstanz und Allocation gemeldet:
+
+- `provider_health`
+- `provider_readiness`
+- `allocation_health`
+- `allocation_readiness`
+
+Ein Zustand kann beispielsweise gleichzeitig „Provider bereit“, „Gitea-Allocation bereit“, „RALF-Core-Allocation `migration_required`“ und „OpenBao-Allocation `unconfigured`“ lauten. Ein Fehler einer Allocation wird nicht automatisch als Fehler aller Allocations dargestellt.
+
+Allocation-Readiness verlangt mindestens eine bereite Providerinstanz, vorhandene logische Datenbank, benötigte Fähigkeiten, auflösbare Secret-Referenzen, verwendbare technische Identität, erwarteten Schemazustand, einen erforderlichen Backupvertrag und den Ausschluss fremder Zugriffsrechte.
+
+## Backup und Restore
+
+Version 0.1 beschreibt Backups mindestens allocation-bezogen. Jedes Backup gehört eindeutig zu `provider_instance_id`, `allocation_id` und `consumer_id`. Fachlicher Standard ist ein logisches Backup pro Allocation.
+
+Ein Restore einer Allocation darf keine andere Allocation oder die gesamte Providerinstanz stillschweigend überschreiben. Providerweite physische Sicherungen können später zusätzlich geplant werden.
+
+Bei OpenBao hängt der Backupvertrag vom gewählten Storage-Backend ab. Integrated Storage liegt außerhalb des PostgreSQL-Database-Service-Backups; eine PostgreSQL-Allocation fällt unter den Allocation-Backupvertrag. Diese Wahl wird nicht vorweggenommen.
+
+## Providerprinzip
+
+RALF abstrahiert Datenbankprodukte nicht auf den kleinsten gemeinsamen Nenner. Provider deklarieren Fähigkeiten; Consumer-Profile und Allocations deklarieren Anforderungen. Fehlende Pflichtfähigkeiten führen nachvollziehbar zu Inkompatibilität oder Einschränkung. Zusätzliche Providerfähigkeiten werden nicht automatisch allgemeiner Vertragsbestandteil.
+
+Andere RALF-Komponenten dürfen keine PostgreSQL-Systemtabellen, Erweiterungen, SQL-Dialekte, Fehlermeldungen, Rollen oder Werkzeuge voraussetzen. Externe Anwendungen dürfen den von ihnen ausdrücklich unterstützten Provider nativ verwenden, ohne dass ihre Fachmodelle Teil des RALF-Vertrags werden.
 
 ## Nicht-Verantwortlichkeiten
 
-Der Database Service ist kein Datei- oder Objekt-Storage, Cache, Message Queue, Event Bus, Suchdienst, allgemeiner Vektorspeicher oder Secrets-Dienst. Er verantwortet weder Modellinferenz und Modellverwaltung noch Benutzeroberfläche, Reverse Proxy, Netzwerk-, Container-, Proxmox- oder OPNsense-Verwaltung. Er ist außerdem kein allgemeiner Datenbankverwaltungsdienst für Anwendungen außerhalb von RALF.
-
-## Fachliches Rollenmodell
-
-| Rolle | Sicherheitsziel |
-| --- | --- |
-| `database_owner` | Besitzt die logische Datenbank beziehungsweise zentrale Objekte und wird nie für normale RALF-Anwendungszugriffe verwendet. |
-| `migration_role` | Darf ausschließlich während eines freigegebenen Migrationsvorgangs kontrollierte Schemaänderungen ausführen. |
-| `application_role` | Besitzt nur die für den normalen fachlichen Betrieb erforderlichen Lese- und Schreibrechte und keine administrativen Rechte. |
-| `backup_role` | Besitzt nur die für geplante Sicherung und Wiederherstellung notwendigen Rechte. |
-| `monitoring_role` | Darf ausschließlich die für Status, Health, Readiness und Diagnose erforderlichen Informationen lesen. |
-
-Ein Provider darf diese Rollen technisch anders abbilden, muss aber dieselbe Trennung und dieselben Sicherheitsziele nachweisbar erfüllen.
-
-## Konfigurationsvertrag
-
-Die spätere nicht geheime Konfiguration wird in folgende Kategorien gegliedert:
-
-- **Provider:** `provider_id`, `provider_version`
-- **Verbindung:** `host`, `port`, `database_name`, `connection_security`, `connection_timeout`
-- **Rollenreferenzen:** `application_identity`, `migration_identity`, `backup_identity`, `monitoring_identity`
-- **Betrieb:** `health_timeout`, `migration_policy`, `backup_policy`, `retention_policy`
-- **Fähigkeiten:** `required_capabilities`, `optional_capabilities`
-
-Diese Namen definieren Kategorien, noch kein Dateiformat und keine öffentliche Programmierschnittstelle. Kennwörter, private Schlüssel, API-Tokens, vollständige Connection Strings mit Zugangsdaten, Cloud-Credentials und Backup-Verschlüsselungsschlüssel gehören niemals in normale Konfigurationsdateien. Ein eigener Secrets-Vertrag wird später benötigt und ist nicht Teil dieser Spezifikation.
-
-## Lebenszyklus
-
-Der providerneutrale Lebenszyklus unterscheidet `unknown`, `unconfigured`, `configured`, `starting`, `ready`, `degraded`, `maintenance`, `migration_required`, `migrating`, `backup_running`, `restore_running`, `failed` und `stopped`. Nur `ready` erlaubt reguläre Lese- und Schreibzugriffe. Eingeschränkte Zugriffe in `degraded` oder `backup_running` benötigen eine ausdrücklich belegte Providerzusage; Migration, Restore und Fehlerzustände sperren den normalen Datenzugriff.
-
-Die genaue Bedeutung und die Zugriffsgrenzen jedes Zustands sind im [Vertrag 0.1](../contracts/database-service-v0.1.md#lebenszykluszustände) definiert. Administrative Aktionen bedeuten dort ausschließlich ausdrücklich geplante, autorisierte Lebenszyklusvorgänge; sie sind keine allgemeine Administrationsfreigabe.
-
-## Sicherheitsgrenzen
-
-- Andere RALF-Komponenten sehen keine PostgreSQL-spezifischen Zugangsdaten oder Werkzeuge.
-- Normale Anwendungsidentitäten besitzen keine Owner-, Migrations- oder Backuprechte.
-- Migration, Backup und Restore sind getrennte, geplante Vorgänge mit eigener Freigabe.
-- Fehlerantworten enthalten keine Geheimnisse und keine providerspezifischen Interna als Vertragsbestandteil.
-- Restore, Datenlöschung und Reparatur erfolgen niemals automatisch.
+Der Database Service ist kein SQL-Proxy, allgemeiner CRUD-Dienst, Datei- oder Objekt-Storage, Cache, Message Queue, Event Bus, Suchdienst, Vektorspeicher oder Secrets-Provider. Er verwaltet weder fremde Anwendungsfachmodelle noch Modellinferenz, Benutzeroberflächen, Reverse Proxy, Netzwerk, Container, Proxmox oder OPNsense.
 
 ## PostgreSQL als Referenzprovider
 
-Der PostgreSQL-Provider soll später Version und Verfügbarkeit erkennen, Verbindungen aufbauen, das Rollenmodell abbilden, die logische Datenbank anlegen und verwalten, providerspezifische Migrationen ausführen, Health und Readiness prüfen, logische Backups und Restore umsetzen, Fehler in RALF-Fehlerklassen übersetzen und seine Fähigkeiten deklarieren.
+PostgreSQL ist der erste Provider. Eine konkrete Version, Paketquelle, Betriebsform, Netzwerkgrenze, Serverkonfiguration, Datenbankbezeichnung, Identität, Port, Adresse oder Zugangsdaten werden noch nicht festgelegt.
 
-Noch nicht entschieden sind Referenzversion, Paketquelle, Betriebsform, Netzwerkfreigaben, Serverkonfiguration, Zugriffsregeln, Datenverzeichnis, Backupziel und Zugangsdaten. Diese Punkte gehören in spätere getrennte Entscheidungen.
+## Offene Entscheidungen
 
-## SQLite-Abgrenzung
+1. Welche Allocations werden in der ersten realen PostgreSQL-Instanz angelegt?
+2. Beginnt die Referenzinstallation nur mit RALF Core oder zusätzlich mit Gitea?
+3. Verwendet OpenBao Integrated Storage oder PostgreSQL?
+4. Welche Consumer benötigen eine dedizierte Providerinstanz?
+5. Welche externen Anwendungen führen Migrationen selbst aus?
+6. Wie erhalten Anwendungen Zugriff auf ihre Secrets unter `/secrets`?
+7. Welche Eigentümer- und Gruppenrechte gelten unter `/secrets`?
+8. Wie erfolgt Secret-Rotation?
+9. Welche Backups erfolgen pro Allocation und welche providerweit?
+10. Wie werden Ressourcenlimits pro Allocation abgebildet?
+11. Welche Netzwerkgrenzen gelten zwischen Consumer und Provider?
+12. Welche PostgreSQL-Version wird Referenzversion?
 
-SQLite kann später einen Minimal- oder Einzelprozessprovider bilden. Es ist nicht automatisch gleichwertig mit PostgreSQL und darf nur Fähigkeiten deklarieren, die es im gewählten Betriebsprofil sicher erfüllt. Eine möglicherweise eingebettete SQLite-Datenbank einer anderen RALF-Komponente wäre nicht automatisch der RALF Database Service.
+**Nächster kleiner Schritt:** Definiere den PostgreSQL-Referenzprovider und den Allocation-Lebenszyklus, ohne PostgreSQL zu installieren.

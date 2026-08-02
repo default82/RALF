@@ -17,7 +17,11 @@ Der öffentliche Vertrag beschreibt Fähigkeiten, Zustände, Schema- und Migrati
 
 RALF abstrahiert Provider nicht auf einen behaupteten kleinsten gemeinsamen Nenner. Provider deklarieren Fähigkeiten; RALF-Profile und Domänen deklarieren ihre Anforderungen. Fehlt eine Pflichtfähigkeit, ist die Kombination inkompatibel oder eingeschränkt.
 
-Der Database Service wird als Betriebs- und Vertragsdienst ausgelegt. Fachliche Datenmodelle und Datenzugriffe verbleiben in domänenspezifischen Repository-Verträgen. Die fachlichen Begriffe `execute_read` und `execute_write` in Vertrag 0.1 sind daher keine Entscheidung für eine universelle technische Datenzugriffs-API.
+Der Database Service wird als Betriebs- und Vertragsdienst ausgelegt. Fachliche Datenmodelle und Datenzugriffe verbleiben in domänenspezifischen Repository-Verträgen. Die zum Entscheidungszeitpunkt im Vertrag genannten fachlichen Begriffe `execute_read` und `execute_write` waren daher keine Entscheidung für eine universelle technische Datenzugriffs-API. ADR-0003 präzisiert die Datenebene als nativen Providerzugriff und entfernt diese Begriffe aus dem aktuellen Database-Service-Vertrag.
+
+## Spätere Präzisierung
+
+[ADR-0003](ADR-0003-shared-database-platform.md) präzisiert den Database Service als gemeinsam nutzbare Datenbankplattform. Er ist nicht auf RALF-interne Fachdaten beschränkt, sondern kann isolierte Database Allocations für RALF-native und externe Consumer verwalten. Die providerneutrale Grundentscheidung dieses ADR bleibt bestehen.
 
 ## Begründung
 
@@ -60,3 +64,5 @@ Eine allgemeine Datenzugriffsschicht mit universellen Lese- und Schreiboperation
 - konkrete Providerimplementierung und Installation.
 
 Der nächste Schritt ist die Entscheidung, welche fachlichen Daten zuerst gespeichert werden und welche RALF-Komponente dafür als erster Datenbankkunde verantwortlich ist. Er ist ausdrücklich noch keine PostgreSQL-Installation.
+
+Diese historische nächste Frage wurde durch [ADR-0002](ADR-0002-first-database-customer.md) für den ersten RALF-nativen Consumer beantwortet; sie begrenzt die Plattform nicht auf diesen Consumer.

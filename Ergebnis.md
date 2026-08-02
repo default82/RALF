@@ -653,4 +653,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Änderungen: Kein realer Unit-Plan oder Apply während der Implementierung, kein `pct push`, keine Unitänderung, kein `daemon-reload`, kein Dienst- oder Containerneustart und keine Paket-, Venv-, Netzwerk-, SQLite-, Modell-, Proxmox- oder Secrets-Mutation in VMID 100.
 - Risiken oder Blocker: M-035 bleibt bis zum erfolgreichen realen Unit-Update aktiv. Nach Veröffentlichung und Merge ist genau ein neuer read-only Plan zulässig; ein Apply benötigt weiterhin eine gesonderte ausdrückliche Freigabe.
 - Nächster sinnvoller Zielbild-Eintrag: M-035 – Implementierung veröffentlichen und mergen, danach VMID 100 read-only vorprüfen und genau einen realen Unit-Update-Plan ausführen.
-- Veröffentlichung: Noch nicht veröffentlicht; gezielter Commit, Push und PR folgen nach der abschließenden Diff- und Secrets-Prüfung.
+- Veröffentlichung: Die Korrektur wurde mit Commit `18ae875` auf Branch `agent/m037-numeric-process-validator` veröffentlicht; PR `#34` enthält ausschließlich die vier M-037-Dateien. `secrets/` blieb ungetrackt und unstaged.

@@ -40,12 +40,30 @@ elif [[ $1 == exec ]]; then
     else
       printf 'absent\n'
     fi
+  elif [[ ${1:-} == test && ${2:-} == -d && ${3:-} == /run/ralf-bootstrap-install ]]; then
+    [[ ${TEST_RESUME_STATE:-0} == 1 || ${TEST_REPAIR_STATE:-0} == 1 || ${TEST_REPAIR_VALIDATION_STATE:-0} == 1 ]] || exit 1
+  elif [[ ${1:-} == test ]]; then
+    exit 1
   elif [[ ${1:-} == getent ]]; then
     exit 2
   elif [[ ${1:-} == sha256sum ]]; then
     :
   elif [[ ${1:-} == bash ]]; then
-    if [[ ${TEST_GUEST_FAILURE:-0} == 1 ]]; then exit 17; fi
+    if [[ $* == *'--classify --bundle'* ]]; then
+      if [[ -n ${TEST_CLASSIFY_DIAGNOSTIC:-} ]]; then printf '%s\n' "$TEST_CLASSIFY_DIAGNOSTIC" >&2; fi
+      if [[ ${TEST_CLASSIFY_OUTPUT+x} == x ]]; then
+        printf '%b' "$TEST_CLASSIFY_OUTPUT"
+      elif [[ ${TEST_REPAIR_VALIDATION_STATE:-0} == 1 ]]; then
+        printf 'RALF_BOOTSTRAP_STATE_V1=recoverable_venv_repair_validation_failure\n'
+      elif [[ ${TEST_REPAIR_STATE:-0} == 1 ]]; then
+        printf 'RALF_BOOTSTRAP_STATE_V1=recoverable_moved_venv_exec_failure\n'
+      elif [[ ${TEST_RESUME_STATE:-0} == 1 ]]; then
+        printf 'RALF_BOOTSTRAP_STATE_V1=recoverable_venv_failure\n'
+      else
+        printf 'RALF_BOOTSTRAP_STATE_V1=partial\n'
+      fi
+    elif [[ ${TEST_GUEST_FAILURE:-0} == 1 ]]; then exit 17
+    fi
   elif [[ ${1:-} == rm ]]; then
     :
   elif [[ ${1:-} == install ]]; then
@@ -204,6 +222,50 @@ run_normal_apply_rejects_validation() {
   printf 'PASS normal-apply-validation-rejection\n'
 }
 
+run_classifier_contract_case() {
+  local name=$1 classify_output=$2 expected_fragment=$3
+  local dir="$TEST_ROOT/$name" bin="$TEST_ROOT/$name/bin" output status
+  mkdir -p "$bin"
+  make_pct "$bin"
+  set +e
+  output=$(TEST_REPAIR_VALIDATION_STATE=1 TEST_CLASSIFY_OUTPUT="$classify_output" \
+    TEST_CLASSIFY_DIAGNOSTIC="failed_check=service_inactive_dead" \
+    PCT_LOG="$dir/pct.log" PATH="$bin:/usr/bin:/bin" \
+    "$SCRIPT" --repair-venv --plan --vmid 100 2>&1)
+  status=$?
+  set -e
+  [[ $status == 1 ]]
+  grep -Fq "$expected_fragment" <<<"$output"
+  [[ $(grep -c -- '--classify --bundle' "$dir/pct.log") == 1 ]]
+  if grep -q '^push ' "$dir/pct.log"; then return 1; fi
+  printf 'PASS classifier-contract-%s\n' "$name"
+}
+
+run_partial_diagnostics_case() {
+  local dir="$TEST_ROOT/classifier-partial" bin="$TEST_ROOT/classifier-partial/bin" output status
+  mkdir -p "$bin"
+  make_pct "$bin"
+  set +e
+  output=$(TEST_REPAIR_VALIDATION_STATE=1 TEST_CLASSIFY_OUTPUT=$'RALF_BOOTSTRAP_STATE_V1=partial\n' \
+    TEST_CLASSIFY_DIAGNOSTIC=$'state=partial\nfailed_check=service_inactive_dead\nobserved_active_state=deactivating\nobserved_sub_state=stop-sigterm' \
+    PCT_LOG="$dir/pct.log" PATH="$bin:/usr/bin:/bin" \
+    "$SCRIPT" --repair-venv --plan --vmid 100 2>&1)
+  status=$?
+  set -e
+  [[ $status == 1 ]]
+  grep -Fq 'failed_check=service_inactive_dead' <<<"$output"
+  grep -Fq 'observed_active_state=deactivating' <<<"$output"
+  grep -Fq 'benannten Prädikate' <<<"$output"
+  printf 'PASS classifier-partial-diagnostics\n'
+}
+
+run_single_source_source_checks() {
+  grep -Fq -- '--classify --bundle "$REMOTE_BUNDLE"' "$SCRIPT"
+  if grep -Fq 'subprocess.run' "$SCRIPT" || grep -Fq 'service_state_is_inactive' "$SCRIPT"; then return 1; fi
+  if grep -Fq 'import grp' "$SCRIPT" || grep -Fq 'import pwd' "$SCRIPT" || grep -Fq 'service_state_is_inactive' "$SCRIPT"; then return 1; fi
+  printf 'PASS host-uses-guest-classifier-only\n'
+}
+
 run_case plan
 run_case apply
 run_case failure
@@ -217,3 +279,9 @@ run_repair_case repair-failure
 run_normal_apply_rejects_moved
 run_repair_validation_case
 run_normal_apply_rejects_validation
+run_classifier_contract_case classifier-empty '' 'keine eindeutige RALF_BOOTSTRAP_STATE_V1-Zeile'
+run_classifier_contract_case classifier-multiple $'RALF_BOOTSTRAP_STATE_V1=recoverable_venv_repair_validation_failure\nextra\n' 'mehrere oder zusätzliche stdout-Zeilen'
+run_classifier_contract_case classifier-unknown $'RALF_BOOTSTRAP_STATE_V1=future_state\n' 'unbekannten Zustand'
+run_classifier_contract_case classifier-noise $'Hinweis\nRALF_BOOTSTRAP_STATE_V1=recoverable_venv_repair_validation_failure\n' 'mehrere oder zusätzliche stdout-Zeilen'
+run_partial_diagnostics_case
+run_single_source_source_checks

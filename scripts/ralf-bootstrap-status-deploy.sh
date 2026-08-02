@@ -97,190 +97,72 @@ check_container() {
   done <<<"$pending"
 }
 
-check_guest_read_only() {
-  local version existing_state
+check_guest_runtime() {
+  local version
   version=$(pct exec "$VMID" -- python3 --version 2>&1) || fail 'Python-Version im Gast konnte nicht gelesen werden.'
   grep -Eq '^Python 3\.(1[2-9]|[2-9][0-9])\.' <<<"$version" || fail "Python erfüllt nicht die Mindestversion 3.12: $version"
   if ! pct exec "$VMID" -- python3 -c 'import ensurepip, venv; print(ensurepip.version())' >/dev/null 2>&1; then
     printf 'Hinweis: ensurepip/venv ist nicht vollständig verfügbar; der Gastinstaller ermittelt das passende pythonX.Y-venv-Paket.\n'
   fi
-  # shellcheck disable=SC2026
-  existing_state=$(pct exec "$VMID" -- python3 -c '
-from pathlib import Path
-import grp
-import os
-import pwd
-import socket
-import stat
-import subprocess
-import re
+}
 
-root = Path("/opt/ralf/bootstrap")
-final = [Path("/opt/ralf/bootstrap/app"), Path("/opt/ralf/bootstrap/venv"), Path("/opt/ralf/bootstrap/VERSION"), Path("/etc/ralf/bootstrap"), Path("/etc/ralf/bootstrap/config.toml"), Path("/var/lib/ralf/bootstrap"), Path("/etc/systemd/system/ralf-bootstrap.service")]
-state_db = Path("/var/lib/ralf/bootstrap/state.db")
-install_marker = root / ".venv-install-in-progress"
-repair_marker = root / ".venv-repair-in-progress"
-
-def service_state_is_inactive():
-    active = subprocess.run(["systemctl", "show", "ralf-bootstrap.service", "-p", "ActiveState", "--value"], capture_output=True, text=True, check=False).stdout.strip()
-    sub = subprocess.run(["systemctl", "show", "ralf-bootstrap.service", "-p", "SubState", "--value"], capture_output=True, text=True, check=False).stdout.strip()
-    return active == "inactive" and sub == "dead"
-
-def repair_marker_is_valid():
-    try:
-        marker_stat = repair_marker.stat()
-        return (
-            repair_marker.is_file() and not repair_marker.is_symlink()
-            and marker_stat.st_uid == pwd.getpwnam("root").pw_uid
-            and marker_stat.st_gid == grp.getgrnam("ralf-bootstrap").gr_gid
-            and stat.S_IMODE(marker_stat.st_mode) == 0o640
-            and repair_marker.read_text(encoding="utf-8") == "bootstrap_version=0.1.0\noperation=repair-venv\n"
-        )
-    except (KeyError, OSError):
-        return False
-
-def venv_semantics_are_valid():
-    venv = Path("/opt/ralf/bootstrap/venv")
-    launcher = venv / "bin/python"
-    if not venv.is_dir() or venv.is_symlink() or not (venv / "pyvenv.cfg").is_file() or not os.access(launcher, os.X_OK):
-        return False
-    probe = subprocess.run([
-        str(launcher), "-c", "import os, pathlib, sys, sysconfig; expected=pathlib.Path('/opt/ralf/bootstrap/venv').resolve(); assert pathlib.Path(sys.prefix).resolve() == expected; assert pathlib.Path(sys.exec_prefix).resolve() == expected; assert sys.prefix != sys.base_prefix and sys.exec_prefix != sys.base_exec_prefix; assert sys.executable and os.path.samefile(sys.executable, expected / 'bin/python'); assert pathlib.Path(sysconfig.get_paths()['purelib']).resolve().is_relative_to(expected)"
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    return probe.returncode == 0
-
-if not root.exists() and not any(path.exists() for path in final):
-    print("absent")
-elif all(path.exists() for path in final) and not state_db.exists():
-    marker_present = repair_marker.exists()
-    repair_validation = False
-    moved = False
-    try:
-        venv = Path("/opt/ralf/bootstrap/venv")
-        root_stat = root.stat()
-        venv_stat = venv.stat()
-        entries = list(root.iterdir())
-        repair_validation = (
-            marker_present and repair_marker_is_valid()
-            and root_stat.st_uid == pwd.getpwnam("root").pw_uid
-            and root_stat.st_gid == grp.getgrnam("ralf-bootstrap").gr_gid
-            and stat.S_IMODE(root_stat.st_mode) == 0o750
-            and venv_stat.st_uid == pwd.getpwnam("root").pw_uid
-            and venv_stat.st_gid == pwd.getpwnam("root").pw_gid
-            and stat.S_IMODE(venv_stat.st_mode) == 0o755
-            and set(entries) == {Path("/opt/ralf/bootstrap/app"), venv, Path("/opt/ralf/bootstrap/VERSION"), repair_marker}
-            and not install_marker.exists()
-            and venv_semantics_are_valid()
-            and (venv / "bin/gunicorn").read_text(encoding="utf-8").splitlines()[0] == "#!/opt/ralf/bootstrap/venv/bin/python"
-            and not list(root.glob(".venv-build.*"))
-            and not list(root.glob(".app-build.*"))
-            and (not Path("/var/lib/ralf/bootstrap/state.db").exists())
-            and subprocess.run(["systemctl", "is-enabled", "ralf-bootstrap.service"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
-            and service_state_is_inactive()
-            and subprocess.run(["pgrep", "-x", "gunicorn"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0
-        )
-        shebang = (venv / "bin/gunicorn").read_text(encoding="utf-8").splitlines()[0]
-        old = re.fullmatch(r"#!(/opt/ralf/bootstrap/\.venv-build\.[^/]+/bin/python[0-9.]*)", shebang)
-        moved = bool(old and not Path(old.group(1)).exists())
-        moved = moved and not list(root.glob(".venv-build.*")) and not list(root.glob(".app-build.*"))
-        moved = moved and subprocess.run(["systemctl", "is-enabled", "ralf-bootstrap.service"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
-        status = subprocess.run(["systemctl", "show", "ralf-bootstrap.service", "-p", "ExecMainStatus", "--value"], capture_output=True, text=True, check=False).stdout.strip()
-        moved = moved and status == "203" and subprocess.run(["pgrep", "-x", "gunicorn"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0
-        sock = socket.socket()
-        try:
-            sock.bind(("127.0.0.1", 8080))
-        except OSError:
-            moved = False
-        finally:
-            sock.close()
-    except (OSError, IndexError):
-        moved = False
-    if marker_present:
-        print("recoverable_venv_repair_validation_failure" if repair_validation else "partial")
-    else:
-        print("recoverable_moved_venv_exec_failure" if moved else "complete")
-else:
-    direct_failure = False
-    try:
-        user = pwd.getpwnam("ralf-bootstrap")
-        group = grp.getgrnam("ralf-bootstrap")
-        root_stat = root.stat()
-        temps = sorted(root.glob(".venv-build.*"))
-        app_temps = list(root.glob(".app-build.*"))
-        direct_entries = list(root.iterdir())
-        service_absent = not Path("/etc/systemd/system/ralf-bootstrap.service").exists()
-        service_inactive = all(subprocess.run(["systemctl", action, "ralf-bootstrap.service"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0 for action in ("is-enabled", "is-active"))
-        sock = socket.socket()
-        try:
-            sock.bind(("127.0.0.1", 8080))
-            port_free = True
-        except OSError:
-            port_free = False
-        finally:
-            sock.close()
-        recoverable = (
-            root.is_dir() and root_stat.st_uid == pwd.getpwnam("root").pw_uid and root_stat.st_gid == group.gr_gid and stat.S_IMODE(root_stat.st_mode) == 0o750
-            and user.pw_gid == group.gr_gid and user.pw_dir == "/nonexistent" and user.pw_shell == "/usr/sbin/nologin"
-            and len(temps) == 1 and direct_entries == temps and not app_temps and all(not path.exists() for path in final) and not state_db.exists()
-            and service_absent and service_inactive and port_free
-        )
-        direct_failure = (
-            root.is_dir() and root_stat.st_uid == pwd.getpwnam("root").pw_uid and root_stat.st_gid == group.gr_gid and stat.S_IMODE(root_stat.st_mode) == 0o750
-            and user.pw_gid == group.gr_gid and user.pw_dir == "/nonexistent" and user.pw_shell == "/usr/sbin/nologin"
-            and install_marker.is_file() and Path("/opt/ralf/bootstrap/venv").is_dir()
-            and not Path("/opt/ralf/bootstrap/venv").is_symlink()
-            and (root / "venv").joinpath("pyvenv.cfg").is_file()
-            and len(direct_entries) == 2 and set(direct_entries) == {install_marker, root / "venv"}
-            and all(not path.exists() for path in (Path("/opt/ralf/bootstrap/app"), Path("/etc/ralf/bootstrap"), Path("/var/lib/ralf/bootstrap"), Path("/etc/systemd/system/ralf-bootstrap.service"), state_db))
-            and service_absent and service_inactive and port_free
-        )
-    except (KeyError, OSError):
-        recoverable = False
-        direct_failure = False
-    print("recoverable_venv_failure" if recoverable else ("recoverable_direct_venv_failure" if direct_failure else "partial"))
-') || fail 'Zielzustand im Gast konnte nicht ermittelt werden.'
-  TARGET_STATE=$existing_state
-  case $TARGET_STATE in
-    absent) ;;
-    complete) printf 'Hinweis: vollständige vorhandene Installation erkannt; der Gast-Installer prüft sie idempotent.\n' ;;
-    recoverable_venv_failure) printf 'Hinweis: recoverable_venv_failure erkannt; nur --resume darf diesen Teilzustand behandeln.\n' ;;
-    recoverable_direct_venv_failure) printf 'Hinweis: recoverable_direct_venv_failure erkannt; nur --resume darf diesen Teilzustand behandeln.\n' ;;
-    recoverable_moved_venv_exec_failure) printf 'Hinweis: recoverable_moved_venv_exec_failure erkannt; nur --repair-venv darf diesen Zustand behandeln.\n' ;;
-    recoverable_venv_repair_validation_failure) printf 'Hinweis: recoverable_venv_repair_validation_failure erkannt; nur --repair-venv darf diesen Zustand behandeln.\n' ;;
-    *) fail 'Im Gast ist eine teilweise oder abweichende Installation vorhanden.' ;;
-  esac
-  if [[ $MODE == apply && $RESUME == 0 && $TARGET_STATE == recoverable_venv_failure ]]; then
-    fail 'recoverable_venv_failure erkannt; normaler --apply bleibt gesperrt. Verwende ausdrücklich --resume --apply.'
-  fi
-  if [[ $TARGET_STATE == recoverable_moved_venv_exec_failure && $REPAIR_VENV == 0 ]]; then
-    fail 'recoverable_moved_venv_exec_failure erkannt; normaler Apply/Resume bleibt gesperrt. Verwende ausdrücklich --repair-venv.'
-  fi
-  if [[ $TARGET_STATE == recoverable_venv_repair_validation_failure && $REPAIR_VENV == 0 ]]; then
-    fail 'recoverable_venv_repair_validation_failure erkannt; normaler Apply/Resume bleibt gesperrt. Verwende ausdrücklich --repair-venv.'
-  fi
-  if [[ $MODE == apply && $RESUME == 0 && $REPAIR_VENV == 0 && $TARGET_STATE == recoverable_direct_venv_failure ]]; then
-    fail 'recoverable_direct_venv_failure erkannt; normaler --apply bleibt gesperrt. Verwende ausdrücklich --resume --apply.'
-  fi
-  if [[ $TARGET_STATE == absent ]]; then
-    if pct exec "$VMID" -- getent passwd ralf-bootstrap >/dev/null 2>&1; then
-      fail 'Der Benutzer ralf-bootstrap ist bereits vorhanden.'
+check_initial_guest_conflicts() {
+  local path
+  for path in /opt/ralf/bootstrap /etc/ralf/bootstrap /var/lib/ralf/bootstrap /etc/systemd/system/ralf-bootstrap.service; do
+    if pct exec "$VMID" -- test -e "$path"; then
+      fail "Vorhandener Bootstrap-Zielpfad verhindert einen neuen Erstinstallationsplan: $path. Zustandsprüfung erfordert den Gastklassifikator mit geprüftem Bundle."
     fi
-    if pct exec "$VMID" -- getent group ralf-bootstrap >/dev/null 2>&1; then
-      fail 'Die Gruppe ralf-bootstrap ist bereits vorhanden.'
-    fi
+  done
+  if pct exec "$VMID" -- getent passwd ralf-bootstrap >/dev/null 2>&1 ||
+    pct exec "$VMID" -- getent group ralf-bootstrap >/dev/null 2>&1; then
+    fail 'Vorhandener Bootstrap-Benutzer oder vorhandene Gruppe verhindert einen neuen Erstinstallationsplan.'
   fi
-  if ! pct exec "$VMID" -- python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 8080)); s.close()' >/dev/null 2>&1; then
-    if [[ $TARGET_STATE != complete ]] || ! pct exec "$VMID" -- systemctl is-active --quiet ralf-bootstrap.service; then
-      fail '127.0.0.1:8080 ist bereits belegt.'
-    fi
-  fi
-  if pct exec "$VMID" -- ss -ltn 2>/dev/null | grep -Eq '(^|[[:space:]])(127\.0\.0\.1|::1):8080([[:space:]]|$)'; then
-    if [[ $TARGET_STATE != complete ]] || ! pct exec "$VMID" -- systemctl is-active --quiet ralf-bootstrap.service; then
-      fail 'Port 127.0.0.1:8080 ist laut ss belegt.'
-    fi
+  TARGET_STATE='Gastklassifikation nach geprüfter Bundle-Übertragung erforderlich'
+}
+
+classify_normal_target() {
+  if pct exec "$VMID" -- test -d "$REMOTE_BUNDLE"; then
+    check_remote_bundle
+    classify_guest_state
+    case $TARGET_STATE in
+      absent|complete) ;;
+      recoverable_venv_failure|recoverable_direct_venv_failure)
+        fail "$TARGET_STATE erkannt; normaler --apply bleibt gesperrt. Verwende ausdrücklich --resume --apply."
+        ;;
+      recoverable_moved_venv_exec_failure|recoverable_venv_repair_validation_failure)
+        fail "$TARGET_STATE erkannt; normaler Apply/Resume bleibt gesperrt. Verwende ausdrücklich --repair-venv."
+        ;;
+    esac
+  else
+    check_initial_guest_conflicts
   fi
 }
 
+classify_guest_state() {
+  local output status diagnostics_file
+  diagnostics_file=$(mktemp)
+  set +e
+  output=$(pct exec "$VMID" -- bash -s -- --classify --bundle "$REMOTE_BUNDLE" <"$INSTALL_SCRIPT" 2>"$diagnostics_file")
+  status=$?
+  set -e
+  if [[ -s $diagnostics_file ]]; then
+    printf 'Gastklassifikationsdiagnose:\n' >&2
+    cat "$diagnostics_file" >&2
+  fi
+  rm -f -- "$diagnostics_file"
+  ((status == 0)) || fail 'Der read-only Gastklassifikator ist fehlgeschlagen.'
+  [[ $output != *$'\n'* ]] || fail 'Der Gastklassifikator lieferte mehrere oder zusätzliche stdout-Zeilen.'
+  [[ $output =~ ^RALF_BOOTSTRAP_STATE_V1=([a-z0-9_]+)$ ]] ||
+    fail 'Der Gastklassifikator lieferte keine eindeutige RALF_BOOTSTRAP_STATE_V1-Zeile.'
+  TARGET_STATE=${BASH_REMATCH[1]}
+  case $TARGET_STATE in
+    absent|complete|recoverable_venv_failure|recoverable_direct_venv_failure|recoverable_moved_venv_exec_failure|recoverable_venv_repair_validation_failure|partial) ;;
+    *) fail "Der Gastklassifikator lieferte einen unbekannten Zustand: $TARGET_STATE." ;;
+  esac
+  if [[ $TARGET_STATE == partial ]]; then
+    fail 'Der Gastklassifikator meldet partial; die oben ausgegebenen benannten Prädikate verhindern eine automatische Fortsetzung.'
+  fi
+}
 check_remote_bundle() {
   local state
   state=$(pct exec "$VMID" -- python3 -c '
@@ -344,10 +226,11 @@ run_guest_repair() {
 resume_preflight() {
   require_files
   check_container
-  check_guest_read_only
+  check_guest_runtime
+  check_remote_bundle
+  classify_guest_state
   [[ $TARGET_STATE == recoverable_venv_failure || $TARGET_STATE == recoverable_direct_venv_failure ]] ||
     fail "Resume ist nur für einen bekannten Venv-Teilzustand zulässig; erkannt: $TARGET_STATE."
-  check_remote_bundle
 }
 
 run_resume_plan() {
@@ -370,10 +253,11 @@ run_resume_apply() {
 repair_preflight() {
   require_files
   check_container
-  check_guest_read_only
+  check_guest_runtime
+  check_remote_bundle
+  classify_guest_state
   [[ $TARGET_STATE == recoverable_moved_venv_exec_failure || $TARGET_STATE == recoverable_venv_repair_validation_failure ]] ||
     fail "Venv-Reparatur ist nur für recoverable_moved_venv_exec_failure oder recoverable_venv_repair_validation_failure zulässig; erkannt: $TARGET_STATE."
-  check_remote_bundle
 }
 
 run_repair_plan() {
@@ -449,7 +333,8 @@ print_hashes() {
 run_plan() {
   require_files
   check_container
-  check_guest_read_only
+  check_guest_runtime
+  classify_normal_target
   prepare_bundle
   print_hashes
   PLAN_DONE=1

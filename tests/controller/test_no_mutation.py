@@ -28,3 +28,14 @@ def test_planner_stores_no_shell_commands():
         "pvesh", "pvesm", "sudo ", "ssh ", "curl ", "wget ", "nmap", "masscan",
     )
     assert not any(value in text for value in forbidden)
+
+
+def test_verification_model_has_no_executor_or_file_upload():
+    source = "\n".join(path.read_text(encoding="utf-8") for path in CONTROLLER.rglob("*.py"))
+    forbidden_functions = (
+        "def execute_verification", "def run_connector", "def run_probe",
+        "def connect_to_provider", "def fetch_provider", "def ssh_provider", "def call_opnsense",
+    )
+    assert not any(value in source for value in forbidden_functions)
+    assert "request.files" not in source
+    assert "subprocess" not in source

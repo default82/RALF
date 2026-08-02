@@ -24,16 +24,16 @@ from pathlib import Path
 from zipfile import ZipFile
 import os
 bundle = Path(os.environ["BUNDLE_PATH"])
-wheel = bundle / "ralf_bootstrap-0.2.0-py3-none-any.whl"
+wheel = bundle / "ralf_bootstrap-0.3.0-py3-none-any.whl"
 with ZipFile(wheel, "w") as archive:
-    archive.writestr("ralf_bootstrap-0.2.0.dist-info/METADATA", "Name: ralf-bootstrap\nVersion: 0.2.0\n")
-    archive.writestr("ralf_bootstrap-0.2.0.dist-info/WHEEL", "Wheel-Version: 1.0\n")
+    archive.writestr("ralf_bootstrap-0.3.0.dist-info/METADATA", "Name: ralf-bootstrap\nVersion: 0.3.0\n")
+    archive.writestr("ralf_bootstrap-0.3.0.dist-info/WHEEL", "Wheel-Version: 1.0\n")
 PY
   printf '%s\n' '[storage]' 'database_path = "/var/lib/ralf/bootstrap/state.db"' >"$bundle/config.toml"
   printf '%s\n' 'Flask==3.1.3' 'Gunicorn==26.0.0' >"$bundle/runtime.lock"
   cp "$PROJECT_ROOT/deploy/bootstrap-status/ralf-bootstrap.service" "$bundle/ralf-bootstrap.service"
   cp "$SCRIPT" "$bundle/ralf-bootstrap-status-install.sh"
-  (cd "$bundle" && sha256sum ralf_bootstrap-0.2.0-py3-none-any.whl runtime.lock config.toml ralf-bootstrap.service ralf-bootstrap-status-install.sh >SHA256SUMS)
+  (cd "$bundle" && sha256sum ralf_bootstrap-0.3.0-py3-none-any.whl runtime.lock config.toml ralf-bootstrap.service ralf-bootstrap-status-install.sh >SHA256SUMS)
 }
 
 make_stubs() {
@@ -204,7 +204,7 @@ make_moved_install() {
   cp "$bundle/runtime.lock" "$root/opt/ralf/bootstrap/app/runtime.lock"
   cp "$bundle/config.toml" "$root/etc/ralf/bootstrap/config.toml"
   cp "$bundle/ralf-bootstrap.service" "$root/etc/systemd/system/ralf-bootstrap.service"
-  printf '%s\n' '0.2.0' >"$root/opt/ralf/bootstrap/VERSION"
+  printf '%s\n' '0.3.0' >"$root/opt/ralf/bootstrap/VERSION"
   printf 'home = /usr/bin\n' >"$root/opt/ralf/bootstrap/venv/pyvenv.cfg"
   printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$root/opt/ralf/bootstrap/venv/bin/python"
   printf '%s\n' '#!/opt/ralf/bootstrap/.venv-build.WydEtv/bin/python' 'exit 0' >"$root/opt/ralf/bootstrap/venv/bin/gunicorn"
@@ -219,7 +219,7 @@ run_repair_venv_case() {
   mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
   printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
   make_bundle "$bundle"
-  WHEEL_NAME=ralf_bootstrap-0.2.0-py3-none-any.whl
+  WHEEL_NAME=ralf_bootstrap-0.3.0-py3-none-any.whl
   make_moved_install "$root" "$bundle"
   make_stubs "$bin"
   touch "$state/user" "$state/group" "$state/service-enabled"
@@ -263,7 +263,7 @@ make_repair_validation_install() {
   cp "$bundle/runtime.lock" "$root/opt/ralf/bootstrap/app/runtime.lock"
   cp "$bundle/config.toml" "$root/etc/ralf/bootstrap/config.toml"
   cp "$bundle/ralf-bootstrap.service" "$root/etc/systemd/system/ralf-bootstrap.service"
-  printf '%s\n' '0.2.0' >"$root/opt/ralf/bootstrap/VERSION"
+  printf '%s\n' '0.3.0' >"$root/opt/ralf/bootstrap/VERSION"
   printf 'home = /usr/bin\n' >"$root/opt/ralf/bootstrap/venv/pyvenv.cfg"
   cat >"$root/opt/ralf/bootstrap/venv/bin/python" <<'EOF'
 #!/usr/bin/env bash
@@ -274,7 +274,7 @@ exit 0
 EOF
   printf '%s\n' "#!$root/opt/ralf/bootstrap/venv/bin/python" 'exit 0' >"$root/opt/ralf/bootstrap/venv/bin/gunicorn"
   chmod +x "$root/opt/ralf/bootstrap/venv/bin/python" "$root/opt/ralf/bootstrap/venv/bin/gunicorn"
-  printf 'bootstrap_version=0.2.0\noperation=repair-venv\n' >"$root/opt/ralf/bootstrap/.venv-repair-in-progress"
+  printf 'bootstrap_version=0.3.0\noperation=repair-venv\n' >"$root/opt/ralf/bootstrap/.venv-repair-in-progress"
 }
 
 run_repair_validation_case() {
@@ -282,7 +282,7 @@ run_repair_validation_case() {
   mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
   printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
   make_bundle "$bundle"
-  WHEEL_NAME=ralf_bootstrap-0.2.0-py3-none-any.whl
+  WHEEL_NAME=ralf_bootstrap-0.3.0-py3-none-any.whl
   make_repair_validation_install "$root" "$bundle"
   make_stubs "$bin"
   touch "$state/user" "$state/group" "$state/service-enabled"
@@ -317,7 +317,7 @@ run_classification_case() {
   mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
   printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
   make_bundle "$bundle"
-  WHEEL_NAME=ralf_bootstrap-0.2.0-py3-none-any.whl
+  WHEEL_NAME=ralf_bootstrap-0.3.0-py3-none-any.whl
   make_repair_validation_install "$root" "$bundle"
   make_stubs "$bin"
   touch "$state/user" "$state/group" "$state/service-enabled"
@@ -398,7 +398,7 @@ run_direct_resume_case() {
   local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state"
   mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$root/opt/ralf/bootstrap/venv" "$state"
   printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
-  printf 'bootstrap_version=0.2.0\noperation=install-venv\n' >"$root/opt/ralf/bootstrap/.venv-install-in-progress"
+  printf 'bootstrap_version=0.3.0\noperation=install-venv\n' >"$root/opt/ralf/bootstrap/.venv-install-in-progress"
   printf 'home = /usr/bin\n' >"$root/opt/ralf/bootstrap/venv/pyvenv.cfg"
   touch "$state/user" "$state/group"
   make_bundle "$bundle"; make_stubs "$bin"

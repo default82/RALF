@@ -8,9 +8,16 @@ from pathlib import Path
 from .catalog import Catalog, load_catalog
 from .models import PlanStep, ValidationError, canonical_json
 from .storage import confirmation_status, list_rows, read_connection, store_plan
+from .verification import (
+    audit_stale_assessments,
+    latest_assessment_for_inventory,
+    latest_verification_state_for_inventory,
+    reconcile_run_verifications,
+)
 
 
 def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -> dict[str, object]:
+    reconcile_run_verifications(database, run_id)
     catalog = catalog or load_catalog()
     confirmations = confirmation_status(database, run_id)
     requirements = {
@@ -21,6 +28,7 @@ def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -
     blockers: list[str] = []
     open_checks: list[str] = []
     steps: list[PlanStep] = []
+    assessment_snapshots: list[dict[str, object]] = []
 
     missing_confirmations = [section for section, confirmed in sorted(confirmations.items()) if not confirmed]
     if missing_confirmations:
@@ -72,6 +80,11 @@ def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -
                 ),
                 None,
             )
+            assessment = (
+                latest_assessment_for_inventory(database, int(matching["id"])) if matching else None
+            )
+            if assessment and assessment["effective_freshness"] == "fresh" and assessment["provider_presence"] == "verified":
+                return 0
             if matching and matching["state"] == "verified":
                 return 0
             if matching and matching["state"] == "reported":
@@ -138,6 +151,24 @@ def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -
         )
         if inventory_provider:
             state = str(inventory_provider["state"])
+            assessment = latest_assessment_for_inventory(database, int(inventory_provider["id"]))
+            verification_state = latest_verification_state_for_inventory(
+                database, int(inventory_provider["id"])
+            )
+            if assessment:
+                assessment_snapshots.append(
+                    {
+                        key: assessment[key]
+                        for key in (
+                            "inventory_item_id",
+                            "assessment_hash",
+                            "provider_presence",
+                            "contract_compatibility",
+                            "integration_readiness",
+                            "effective_freshness",
+                        )
+                    }
+                )
             if state == "conflict":
                 blockers.append(f"Ausgewählter Provider im Konflikt: {provider_reference}")
                 steps.append(
@@ -152,24 +183,76 @@ def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -
             if state == "declined":
                 blockers.append(f"Ausgewählter Provider wurde abgelehnt: {provider_reference}")
                 continue
-            if state == "reported":
+            if assessment and assessment["contract_compatibility"] in {"incompatible", "conflict"}:
+                blockers.append(f"Providervertrag ist nicht kompatibel: {provider_reference}")
+                steps.append(
+                    PlanStep(
+                        "resolve_conflict", capability.capability_id, provider_reference,
+                        str(assessment["contract_compatibility"]),
+                        f"Vertragskonflikt für {inventory_provider['display_name']} lösen",
+                        "Die abgeschlossene Providerbewertung erlaubt keine direkte Wiederverwendung.",
+                        ("Providerbewertung prüfen",), ("Keine automatische Verwendung",), "read_only",
+                    )
+                )
+                continue
+            assessment_fresh = bool(
+                assessment
+                and assessment["effective_freshness"] == "fresh"
+                and assessment["provider_presence"] == "verified"
+                and assessment["contract_compatibility"] == "compatible"
+            )
+            needs_verification = state == "reported" and not assessment_fresh
+            if assessment and assessment["effective_freshness"] == "stale":
+                needs_verification = True
+                open_checks.append(f"Providerbewertung ist veraltet: {provider_reference}")
+            if verification_state == "declined" and needs_verification:
+                blockers.append(f"Providerverifikation wurde abgelehnt: {provider_reference}")
+                fallbacks = [
+                    item.display_name
+                    for item in catalog.providers
+                    if item.capability_id == capability.capability_id
+                    and item.provider_id != inventory_provider["provider_id"]
+                    and item.readiness != "unsupported"
+                ]
+                steps.append(
+                    PlanStep(
+                        "manual_action",
+                        capability.capability_id,
+                        provider_reference,
+                        "verification_declined",
+                        f"Alternative fuer {inventory_provider['display_name']} bewusst waehlen",
+                        "Die abgelehnte Verifikation erlaubt weder Hochstufung noch automatische Fallbackinstallation.",
+                        ("Neue Providerpraeferenz bestaetigen",),
+                        tuple(["Keine automatische Installation", *[f"Moeglicher Fallback: {name}" for name in fallbacks]]),
+                        "local_persistent",
+                    )
+                )
+                continue
+            if needs_verification:
                 if not inventory_provider["verification_consent"]:
-                    blockers.append(f"Notwendige Verifikation nicht freigegeben: {provider_reference}")
+                    if verification_state not in {"ready", "evidence_pending", "review_pending"}:
+                        blockers.append(f"Notwendige Verifikation nicht freigegeben: {provider_reference}")
                 open_checks.append(f"Read-only Verifikation ausstehend: {provider_reference}")
                 steps.append(
                     PlanStep(
-                        "verify_provider", capability.capability_id, provider_reference, state,
+                        "verify_provider", capability.capability_id, provider_reference,
+                        verification_state or state,
                         f"{inventory_provider['display_name']} read-only verifizieren",
-                        "Die Nutzerangabe bleibt bis zur freigegebenen Prüfung reported.",
+                        "Existenz und Providervertrag benötigen eine frische, abgeschlossene Bewertung.",
                         (str(inventory_provider["verification_scope"] or "Prüfumfang festlegen"),),
                         ("Providerstatus wird durch Evidenz nachvollziehbar",), "read_only",
                     )
                 )
-            elif state not in {"verified"}:
+            elif not assessment_fresh and state not in {"verified"}:
                 blockers.append(f"Provider ist nicht nutzbar: {provider_reference} ({state})")
                 continue
 
-            if capability.capability_id == "secure-ingress" and _is_external_ingress(inventory_provider):
+            integration_blocked = bool(
+                assessment and assessment["integration_readiness"] in {"blocked", "conflict"}
+            )
+            if capability.capability_id == "secure-ingress" and (
+                _is_external_ingress(inventory_provider) or integration_blocked
+            ):
                 blockers.append("Sicherer Backendpfad vom externen Ingress zum Loopback-Upstream ist offen (O-012).")
                 steps.append(
                     PlanStep(
@@ -183,7 +266,9 @@ def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -
             steps.append(
                 PlanStep(
                     "reuse_provider", capability.capability_id, provider_reference,
-                    "after_verification" if state == "reported" else "planned",
+                    "after_verification" if needs_verification else (
+                        "after_integration" if integration_blocked else "planned"
+                    ),
                     f"Vorhandenen Provider {inventory_provider['display_name']} bevorzugt wiederverwenden",
                     "Ein geeigneter vorhandener Provider hat Vorrang vor einer Doppelinstallation.",
                     ("Provider verifiziert", "Integrationsvertrag geklärt"),
@@ -214,6 +299,7 @@ def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -
         "steps": [step.as_dict() for step in steps],
         "blockers": sorted(set(blockers)),
         "open_checks": sorted(set(open_checks)),
+        "assessments": sorted(assessment_snapshots, key=lambda item: int(item["inventory_item_id"])),
     }
     with read_connection(database) as connection:
         revision = int(connection.execute("SELECT revision FROM setup_runs WHERE id=?", (run_id,)).fetchone()[0])
@@ -227,6 +313,7 @@ def build_plan(database: Path, run_id: int, *, catalog: Catalog | None = None) -
         "blockers": sorted(set(blockers)),
         "open_checks": sorted(set(open_checks)),
     }
+    audit_stale_assessments(database, assessment_snapshots)
     result["id"] = store_plan(
         database, run_id, status, plan_hash, result["steps"], result["blockers"], result["open_checks"]
     )

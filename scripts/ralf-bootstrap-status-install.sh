@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-readonly EXPECTED_VERSION='0.2.0'
+readonly EXPECTED_VERSION='0.3.0'
 readonly EXPECTED_OS='ubuntu'
 readonly EXPECTED_UBUNTU='26.04'
 readonly EXPECTED_GROUP='ralf-bootstrap'
@@ -236,8 +236,8 @@ check_package_state() {
 
 find_wheel() {
   local -a wheels
-  mapfile -t wheels < <(find "$BUNDLE" -mindepth 1 -maxdepth 1 -type f -name 'ralf_bootstrap-0.2.0-*.whl' -printf '%f\n' | sort)
-  ((${#wheels[@]} == 1)) || fail 'Bundle muss genau ein Wheel ralf_bootstrap-0.2.0-*.whl enthalten.'
+  mapfile -t wheels < <(find "$BUNDLE" -mindepth 1 -maxdepth 1 -type f -name 'ralf_bootstrap-0.3.0-*.whl' -printf '%f\n' | sort)
+  ((${#wheels[@]} == 1)) || fail 'Bundle muss genau ein Wheel ralf_bootstrap-0.3.0-*.whl enthalten.'
   WHEEL=${wheels[0]}
 }
 
@@ -262,8 +262,8 @@ with zipfile.ZipFile(wheel_path) as archive:
     if len(metadata_names) != 1:
         raise SystemExit('Wheel-Metadaten fehlen oder sind nicht eindeutig.')
     message = email.message_from_bytes(archive.read(metadata_names[0]))
-    if message.get('Name') != 'ralf-bootstrap' or message.get('Version') != '0.2.0':
-        raise SystemExit('Wheel-Metadaten enthalten nicht ralf-bootstrap 0.2.0.')
+    if message.get('Name') != 'ralf-bootstrap' or message.get('Version') != '0.3.0':
+        raise SystemExit('Wheel-Metadaten enthalten nicht ralf-bootstrap 0.3.0.')
 PY
 }
 
@@ -313,7 +313,7 @@ emit_classification_diagnostics() {
 probe_bundle() {
   local -a actual expected wheels
   [[ -d $BUNDLE ]] || return 1
-  mapfile -t wheels < <(find "$BUNDLE" -mindepth 1 -maxdepth 1 -type f -name 'ralf_bootstrap-0.2.0-*.whl' -printf '%f\n' | sort)
+  mapfile -t wheels < <(find "$BUNDLE" -mindepth 1 -maxdepth 1 -type f -name 'ralf_bootstrap-0.3.0-*.whl' -printf '%f\n' | sort)
   ((${#wheels[@]} == 1)) || return 1
   WHEEL=${wheels[0]}
   expected=("$WHEEL" SHA256SUMS config.toml ralf-bootstrap.service ralf-bootstrap-status-install.sh runtime.lock)
@@ -331,7 +331,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     if len(names) != 1:
         raise SystemExit(1)
     metadata = email.message_from_bytes(archive.read(names[0]))
-    if metadata.get('Name') != 'ralf-bootstrap' or metadata.get('Version') != '0.2.0':
+    if metadata.get('Name') != 'ralf-bootstrap' or metadata.get('Version') != '0.3.0':
         raise SystemExit(1)
 PY
 }
@@ -478,7 +478,7 @@ for line in open(sys.argv[1], encoding='utf-8'):
     if line and not line.startswith('#'):
         name, version = line.split('==', 1)
         expected[name] = version
-expected['ralf-bootstrap'] = '0.2.0'
+expected['ralf-bootstrap'] = '0.3.0'
 for name, version in expected.items():
     if importlib.metadata.version(name) != version:
         raise SystemExit(1)
@@ -535,7 +535,7 @@ check_moved_venv_shape() {
 repair_marker_is_valid() {
   [[ -f $repair_marker && ! -L $repair_marker ]] || return 1
   [[ $(stat -c '%U:%G|%a' "$repair_marker" 2>/dev/null) == "root:$EXPECTED_GROUP|640" ]] || return 1
-  [[ $(cat "$repair_marker" 2>/dev/null) == $'bootstrap_version=0.2.0\noperation=repair-venv' ]]
+  [[ $(cat "$repair_marker" 2>/dev/null) == $'bootstrap_version=0.3.0\noperation=repair-venv' ]]
 }
 
 repair_permissions_match() {
@@ -899,7 +899,7 @@ for line in open(lock_path, encoding='utf-8'):
     if line and not line.startswith('#'):
         name, version = line.split('==', 1)
         expected[name] = version
-expected['ralf-bootstrap'] = '0.2.0'
+expected['ralf-bootstrap'] = '0.3.0'
 for name, version in expected.items():
     actual = importlib.metadata.version(name)
     if actual != version:
@@ -1093,7 +1093,7 @@ for path in ('/healthz', '/api/v1/status', '/'):
                 raise SystemExit(f'{path}: Sicherheitsheader fehlt: {header}')
         if path == '/api/v1/status':
             payload = json.loads(body)
-            if payload['bootstrap']['version'] != '0.2.0':
+            if payload['bootstrap']['version'] != '0.3.0':
                 raise SystemExit('Status meldet falsche Bootstrap-Version.')
             if payload['bootstrap']['sqlite']['status'] != 'not_initialized':
                 raise SystemExit('SQLite ist nicht im erwarteten not_initialized-Zustand.')

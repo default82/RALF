@@ -359,6 +359,14 @@ def controller_summary(database: Path) -> dict[str, object]:
         "open_verifications": 0,
         "confirmed_sections": [],
         "plan_status": "not_generated",
+        "verification_requests": 0,
+        "verification_awaiting_consent": 0,
+        "verification_ready": 0,
+        "verification_evidence_pending": 0,
+        "verification_review_pending": 0,
+        "verification_completed": 0,
+        "stale_assessments": 0,
+        "conflict_assessments": 0,
     }
     if schema["status"] != "ready":
         return result
@@ -369,6 +377,10 @@ def controller_summary(database: Path) -> dict[str, object]:
     inventory = list_rows(database, "inventory_items", run["id"])
     plan = current_plan(database, run["id"])
     confirmations = confirmation_status(database, run["id"])
+    from .verification import list_assessments, list_verification_requests
+
+    verifications = list_verification_requests(database, int(run["id"]))
+    assessments = list_assessments(database)
     result.update(
         setup_status=run["status"],
         revision=run["revision"],
@@ -379,6 +391,19 @@ def controller_summary(database: Path) -> dict[str, object]:
         open_verifications=sum(item["state"] == "reported" for item in inventory),
         confirmed_sections=[section for section, confirmed in confirmations.items() if confirmed],
         plan_status=plan["status"] if plan else "not_generated",
+        verification_requests=len(verifications),
+        verification_awaiting_consent=sum(item["state"] == "awaiting_consent" for item in verifications),
+        verification_ready=sum(item["state"] == "ready" for item in verifications),
+        verification_evidence_pending=sum(item["state"] == "evidence_pending" for item in verifications),
+        verification_review_pending=sum(item["state"] == "review_pending" for item in verifications),
+        verification_completed=sum(item["state"] == "completed" for item in verifications),
+        stale_assessments=sum(item["effective_freshness"] == "stale" for item in assessments),
+        conflict_assessments=sum(
+            item["provider_presence"] == "conflict"
+            or item["contract_compatibility"] == "conflict"
+            or item["integration_readiness"] == "conflict"
+            for item in assessments
+        ),
     )
     return result
 

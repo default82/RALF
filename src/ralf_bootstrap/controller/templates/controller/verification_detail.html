@@ -1,0 +1,33 @@
+{% extends "controller/base.html" %}
+{% block title %}Verifikationsauftrag {{ verification.id }}{% endblock %}
+{% block content %}
+<section>
+  <h2>Verifikationsauftrag {{ verification.id }}</h2>
+  <dl>
+    <dt>Vertrag</dt><dd>{{ verification.contract_id }} v{{ verification.contract_version }}</dd>
+    <dt>Zustand</dt><dd>{{ verification.state }}</dd>
+    <dt>Scope-Hash</dt><dd><code>{{ verification.scope_hash }}</code></dd>
+  </dl>
+  <p><a href="{{ url_for('provider_verification.verification_scope', verification_id=verification.id) }}">Umfang prüfen</a></p>
+  <p><a href="{{ url_for('provider_verification.verification_evidence_new', verification_id=verification.id) }}">Evidenz zusammenfassen</a></p>
+  <p><a href="{{ url_for('provider_verification.verification_claims', verification_id=verification.id) }}">Claims bewerten</a></p>
+  <p><a href="{{ url_for('provider_verification.verification_review', verification_id=verification.id) }}">Review und Bewertung</a></p>
+  <h3>Providerbewertung</h3>
+  {% for assessment in verification.assessments %}
+  <dl>
+    <dt>Existenz</dt><dd>{{ assessment.provider_presence }}</dd>
+    <dt>Vertragskompatibilität</dt><dd>{{ assessment.contract_compatibility }}</dd>
+    <dt>Integrationsbereitschaft</dt><dd>{{ assessment.integration_readiness }}</dd>
+    <dt>Frische</dt><dd>{{ assessment.effective_freshness }}</dd>
+    <dt>Blocker</dt><dd>{{ assessment.blockers|join('; ') or 'keine' }}</dd>
+    <dt>Warnungen</dt><dd>{{ assessment.warnings|join('; ') or 'keine' }}</dd>
+  </dl>
+  {% else %}<p>Noch keine abgeschlossene Bewertung.</p>{% endfor %}
+  <h3>Evidenz</h3>
+  <ul>{% for item in verification.evidence %}<li>{{ item.claim_id }} – {{ item.kind }} – {{ item.confidentiality }} – <a href="{{ url_for('provider_verification.verification_evidence_new', verification_id=verification.id, supersedes=item.id) }}">durch Korrektur ersetzen</a></li>{% else %}<li>Keine Evidenz.</li>{% endfor %}</ul>
+  <form method="post" action="{{ url_for('provider_verification.verification_decline', verification_id=verification.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ decline_token }}">
+    <button type="submit">Verifikation ablehnen</button>
+  </form>
+</section>
+{% endblock %}

@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="topbar">
-    <p class="eyebrow">RALF Bootstrap 0.2</p>
+    <p class="eyebrow">RALF Bootstrap Controller</p>
     <h1>Inventory-first Controller</h1>
     <p class="notice">Dieser Controller führt derzeit keine Infrastrukturänderungen aus.</p>
     <nav aria-label="Controller">
@@ -18,6 +18,8 @@
       <a href="{{ url_for('controller.requirements') }}">Fähigkeiten</a>
       <a href="{{ url_for('controller.preferences') }}">Präferenzen</a>
       <a href="{{ url_for('controller.verification') }}">Prüfungen</a>
+      <a href="{{ url_for('provider_verification.verifications') }}">Verifikationsaufträge</a>
+      <a href="{{ url_for('provider_verification.contracts') }}">Providerverträge</a>
       <a href="{{ url_for('controller.review') }}">Bestätigen</a>
       <a href="{{ url_for('controller.plan') }}">Zielplan</a>
     </nav>

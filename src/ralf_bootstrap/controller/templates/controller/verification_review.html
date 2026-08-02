@@ -1,0 +1,24 @@
+{% extends "controller/base.html" %}
+{% block title %}Verifikationsreview{% endblock %}
+{% block content %}
+<section>
+  <h2>Evidenz- und Bewertungsreview</h2>
+  <p><strong>Sind Evidenz und Claim-Bewertungen korrekt zusammengefasst?</strong></p>
+  <dl>
+    <dt>Existenz</dt><dd>{{ assessment.provider_presence }}</dd>
+    <dt>Vertragskompatibilität</dt><dd>{{ assessment.contract_compatibility }}</dd>
+    <dt>Integrationsbereitschaft</dt><dd>{{ assessment.integration_readiness }}</dd>
+    <dt>Frische</dt><dd>{{ assessment.freshness }}</dd>
+  </dl>
+  <h3>Blocker</h3><ul>{% for blocker in assessment.blockers %}<li>{{ blocker }}</li>{% else %}<li>Keine.</li>{% endfor %}</ul>
+  <form method="post" action="{{ url_for('provider_verification.verification_review_confirm', verification_id=verification.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ confirm_token }}">
+    <input type="hidden" name="content_hash" value="{{ content_hash }}">
+    <button type="submit">Review bestätigen</button>
+  </form>
+  <form method="post" action="{{ url_for('provider_verification.verification_complete', verification_id=verification.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ complete_token }}">
+    <button type="submit">Bewertung abschließen – keine Ausführung</button>
+  </form>
+</section>
+{% endblock %}

@@ -15,6 +15,43 @@ INVENTORY_STATES = frozenset(
 VERIFICATION_METHODS = frozenset(
     {"manual", "connector", "local_probe", "imported_evidence"}
 )
+VERIFICATION_REQUEST_STATES = frozenset(
+    {
+        "draft",
+        "awaiting_consent",
+        "ready",
+        "evidence_pending",
+        "review_pending",
+        "completed",
+        "failed",
+        "declined",
+        "obsolete",
+    }
+)
+VERIFICATION_TASK_STATES = frozenset(
+    {"planned", "consented", "evidence_pending", "completed", "failed", "declined", "obsolete"}
+)
+CLAIM_RESULTS = frozenset(
+    {"unknown", "satisfied", "not_satisfied", "not_observed", "conflict", "stale", "not_applicable"}
+)
+EVIDENCE_KINDS = frozenset(
+    {
+        "manual_attestation",
+        "configuration_summary",
+        "service_status_summary",
+        "capability_summary",
+        "certificate_metadata",
+        "imported_evidence",
+        "document_reference",
+    }
+)
+EVIDENCE_CONFIDENTIALITY = frozenset({"public", "internal", "redacted_sensitive"})
+PROVIDER_PRESENCE = frozenset({"unknown", "reported", "verified", "unavailable", "conflict"})
+CONTRACT_COMPATIBILITY = frozenset(
+    {"unknown", "compatible", "partially_compatible", "incompatible", "conflict"}
+)
+INTEGRATION_READINESS = frozenset({"not_assessed", "ready", "blocked", "deferred", "conflict"})
+VERIFICATION_FRESHNESS = frozenset({"never_verified", "fresh", "stale"})
 REQUIREMENTS = frozenset({"required", "optional", "not_needed", "deferred"})
 PREFERENCES = frozenset(
     {"preferred", "allowed_fallback", "excluded", "deferred", "recommend_then_confirm"}

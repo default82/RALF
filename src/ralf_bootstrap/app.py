@@ -14,6 +14,10 @@ from .controller.blueprint import (
     create_controller_blueprint,
     register_controller_api,
 )
+from .controller.verification_blueprint import (
+    create_verification_blueprint,
+    register_verification_api,
+)
 from .storage import DEFAULT_DATABASE_PATH
 from .status import StatusCollector
 
@@ -89,7 +93,9 @@ def create_app(
         return jsonify(safe_status())
 
     app.register_blueprint(create_controller_blueprint(controller_database))
+    app.register_blueprint(create_verification_blueprint(controller_database))
     register_controller_api(app, controller_database)
+    register_verification_api(app, controller_database)
 
     return app
 

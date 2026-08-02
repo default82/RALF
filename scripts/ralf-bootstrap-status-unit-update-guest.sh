@@ -18,6 +18,8 @@ UNIT_REPLACED=0
 DAEMON_RELOADED=0
 RESTART_EXECUTED=0
 INITIAL_MAIN_PID=''
+SERVICE_UID=''
+SERVICE_GID=''
 JOURNAL_CURSOR=''
 BEFORE_SNAPSHOT=''
 
@@ -131,13 +133,15 @@ metadata_is() {
 }
 
 user_group_valid() {
-  local passwd_line group_line uid gid group_gid home shell groups
+  local passwd_line group_line user_name group_name uid gid group_gid home shell groups
   passwd_line=$(getent passwd "$EXPECTED_USER" 2>/dev/null || true)
   group_line=$(getent group "$EXPECTED_GROUP" 2>/dev/null || true)
   [[ -n $passwd_line && -n $group_line ]] || { diagnose 'identity:missing'; return 1; }
-  IFS=: read -r _ _ uid gid _ home shell <<<"$passwd_line"
-  IFS=: read -r _ _ group_gid _ <<<"$group_line"
-  [[ $uid =~ ^[0-9]+$ && $uid -ge 100 && $uid -lt 1000 && $gid == "$group_gid" ]] || { diagnose 'identity:not-system-account'; return 1; }
+  IFS=: read -r user_name _ uid gid _ home shell <<<"$passwd_line"
+  IFS=: read -r group_name _ group_gid _ <<<"$group_line"
+  [[ $user_name == "$EXPECTED_USER" && $group_name == "$EXPECTED_GROUP" ]] || { diagnose "identity:names:$user_name:$group_name"; return 1; }
+  [[ $uid =~ ^[0-9]+$ && $gid =~ ^[0-9]+$ && $group_gid =~ ^[0-9]+$ ]] || { diagnose "identity:non-numeric:$uid:$gid:$group_gid"; return 1; }
+  [[ $uid -ge 100 && $uid -lt 1000 && $gid == "$group_gid" ]] || { diagnose 'identity:not-system-account'; return 1; }
   [[ $home == /nonexistent && $shell == /usr/sbin/nologin ]] || { diagnose "identity:home-or-shell:$home:$shell"; return 1; }
   groups=$(id -Gn "$EXPECTED_USER" 2>/dev/null || true)
   [[ $groups == "$EXPECTED_GROUP" ]] || { diagnose "identity:groups:$groups"; return 1; }
@@ -145,6 +149,8 @@ user_group_valid() {
     diagnose 'identity:sudo-membership'
     return 1
   fi
+  SERVICE_UID=$uid
+  SERVICE_GID=$gid
 }
 
 os_and_package_state_valid() {
@@ -261,13 +267,58 @@ service_snapshot_valid() {
 }
 
 gunicorn_processes_valid() {
-  local rows count master_count worker_count
-  rows=$(ps -eo pid=,ppid=,user=,group=,comm=,args= | awk '$5 == "gunicorn" {print}')
-  count=$(grep -c . <<<"$rows" || true)
-  [[ $count == 2 ]] || { diagnose "gunicorn:process-count:$count"; return 1; }
-  master_count=$(awk -v pid="$INITIAL_MAIN_PID" '$1 == pid && $3 == "ralf-bootstrap" && $4 == "ralf-bootstrap" {count++} END {print count+0}' <<<"$rows")
-  worker_count=$(awk -v pid="$INITIAL_MAIN_PID" '$2 == pid && $3 == "ralf-bootstrap" && $4 == "ralf-bootstrap" {count++} END {print count+0}' <<<"$rows")
-  [[ $master_count == 1 && $worker_count == 1 ]] || { diagnose "gunicorn:master-worker:$master_count:$worker_count"; return 1; }
+  local snapshot tree_rows tree_count master_rows master_count worker_rows worker_count
+  local pid ppid uid gid comm
+  [[ $SERVICE_UID =~ ^[0-9]+$ && $SERVICE_GID =~ ^[0-9]+$ ]] || { diagnose 'gunicorn:service-identity-unavailable'; return 1; }
+  snapshot=$(LC_ALL=C ps -ww -eo pid=,ppid=,uid=,gid=,comm= 2>/dev/null) || {
+    diagnose 'gunicorn:process-snapshot-failed'
+    return 1
+  }
+  tree_rows=$(awk -v main_pid="$INITIAL_MAIN_PID" '$1 == main_pid || $2 == main_pid {print}' <<<"$snapshot")
+  tree_count=$(awk 'NF {count++} END {print count+0}' <<<"$tree_rows")
+  [[ $tree_count == 2 ]] || { diagnose "gunicorn:service-tree-count:$tree_count:expected:2"; return 1; }
+
+  master_rows=$(awk -v main_pid="$INITIAL_MAIN_PID" '$1 == main_pid {print}' <<<"$tree_rows")
+  master_count=$(awk 'NF {count++} END {print count+0}' <<<"$master_rows")
+  [[ $master_count == 1 ]] || { diagnose "gunicorn:master-count:$master_count:expected:1"; return 1; }
+  read -r pid ppid uid gid comm <<<"$master_rows"
+  [[ $uid == "$SERVICE_UID" && $gid == "$SERVICE_GID" && $comm == gunicorn ]] || {
+    diagnose "gunicorn:master-identity:$pid:$uid:$gid:$comm"
+    return 1
+  }
+
+  worker_rows=$(awk -v main_pid="$INITIAL_MAIN_PID" '$1 != main_pid && $2 == main_pid {print}' <<<"$tree_rows")
+  worker_count=$(awk 'NF {count++} END {print count+0}' <<<"$worker_rows")
+  [[ $worker_count == 1 ]] || { diagnose "gunicorn:worker-count:$worker_count:expected:1"; return 1; }
+  read -r pid ppid uid gid comm <<<"$worker_rows"
+  [[ $ppid == "$INITIAL_MAIN_PID" && $uid == "$SERVICE_UID" && $gid == "$SERVICE_GID" && $comm == gunicorn ]] || {
+    diagnose "gunicorn:worker-identity:$pid:$ppid:$uid:$gid:$comm"
+    return 1
+  }
+}
+
+main_process_args() {
+  local pid=$1
+  LC_ALL=C ps -ww -p "$pid" -o args= 2>/dev/null
+}
+
+main_process_arguments_valid() {
+  local pid=$1 args token index
+  local no_control=0 workers=0 bind=0 app=0
+  local -a argv=()
+  args=$(main_process_args "$pid") || { diagnose 'gunicorn:main-args-snapshot-failed'; return 1; }
+  read -r -a argv <<<"$args"
+  for ((index = 0; index < ${#argv[@]}; index += 1)); do
+    token=${argv[index]}
+    [[ $token == --no-control-socket ]] && ((no_control += 1))
+    [[ $token == ralf_bootstrap.wsgi:app ]] && ((app += 1))
+    if [[ $token == --workers && ${argv[index + 1]:-} == 1 ]]; then ((workers += 1)); fi
+    if [[ $token == --bind && ${argv[index + 1]:-} == 127.0.0.1:8080 ]]; then ((bind += 1)); fi
+  done
+  [[ $no_control == 1 ]] || { diagnose "gunicorn:main-args:no-control-socket:$no_control:expected:1"; return 1; }
+  [[ $workers == 1 ]] || { diagnose "gunicorn:main-args:workers:$workers:expected:1"; return 1; }
+  [[ $bind == 1 ]] || { diagnose "gunicorn:main-args:bind:$bind:expected:1"; return 1; }
+  [[ $app == 1 ]] || { diagnose "gunicorn:main-args:wsgi:$app:expected:1"; return 1; }
 }
 
 listener_is_loopback_only() {
@@ -390,7 +441,7 @@ classify_state() {
   if [[ $installed_hash == "$EXPECTED_SOURCE_SHA256" ]]; then
     UPDATE_STATE='unit_update_required'
   elif [[ $installed_hash == "$TARGET_SHA256" ]]; then
-    if http_probe yes >/dev/null 2>&1 && grep -Fq -- '--no-control-socket' < <(ps -p "$INITIAL_MAIN_PID" -o args=); then
+    if http_probe yes >/dev/null 2>&1 && main_process_arguments_valid "$INITIAL_MAIN_PID"; then
       UPDATE_STATE='unit_already_current'
     else
       diagnose 'current-unit-runtime:not-healthy'
@@ -465,13 +516,12 @@ new_journal_is_clean() {
 }
 
 validate_updated_service() {
-  local old_pid=$1 snapshot new_pid args unit_text
+  local old_pid=$1 snapshot new_pid unit_text
   complete_installation_valid || fail 'Vollständige Installation ist nach dem Update nicht gesund.'
   snapshot=$(read_service_snapshot)
   new_pid=$(snapshot_value "$snapshot" MainPID)
   [[ $new_pid =~ ^[1-9][0-9]*$ && $new_pid != "$old_pid" ]] || fail "MainPID wurde nicht durch genau den Restart ersetzt: $old_pid -> $new_pid"
-  args=$(ps -p "$new_pid" -o args=)
-  [[ $(grep -o -- '--no-control-socket' <<<"$args" | wc -l) == 1 ]] || fail 'Gunicorn-Prozessargumente enthalten --no-control-socket nicht exakt einmal.'
+  main_process_arguments_valid "$new_pid" || fail "Gunicorn-Prozessargumente sind ungültig: $LAST_DIAGNOSTIC"
   listener_is_loopback_only || fail 'Port 8080 lauscht nicht ausschließlich auf 127.0.0.1.'
   http_probe yes || fail 'HTTP-/Statusvalidierung nach dem Update ist fehlgeschlagen.'
   new_journal_is_clean || fail 'Neue Journaleinträge enthalten weiterhin den Control-Socket-Schreibfehler.'

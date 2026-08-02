@@ -36,6 +36,8 @@ Der Bootstrap benötigt kein Sprachmodell. Der Setup-Dialog wird zunächst durch
 
 Spätere Modellwege werden als Setup-Optionen behandelt: vorhandenen Modellserver verwenden, vorhandenen OpenAI-kompatiblen Endpunkt verwenden, lokalen Modellserver neu installieren, externen Modellanbieter konfigurieren oder zunächst ohne Modell fortfahren. Keiner dieser Wege ist Bestandteil des aktuellen Statusdienst-Grundgerüsts.
 
+Vor jeder optionalen Installation gilt verbindlich Inventory-first: Der Bootstrap erfragt vorhandene Plattformen, Komponenten, Fähigkeiten und Provider, trennt Nutzerangaben von ausdrücklich read-only verifizierten Tatsachen und erzeugt daraus zunächst nur einen nachvollziehbaren Zielplan. Geeignete vorhandene Dienste werden gegenüber Neuinstallationen bevorzugt. Ohne abgeschlossene Bestandsaufnahme und ausdrückliche Planfreigabe werden weder Reverse Proxy, DNS-/Identitätskomponenten, Modellruntime und Modelle noch Datenbanken, Speicher-, Backup-, Monitoring-, Secrets- oder zusätzliche Webdienste installiert oder konfiguriert. RALF führt dafür keine ungefragten Netzwerkscans aus.
+
 ## Technische Grundlage des Statusdienstes
 
 Das Grundgerüst des Bootstrap-Statusdienstes ist mit Python 3, Flask, Jinja, eingebettetem `sqlite3`, Gunicorn und systemd umgesetzt. Die read-only Oberfläche bietet `GET /`, `GET /healthz` und `GET /api/v1/status`, rendert lokale HTML-/CSS-Dateien und bindet in VMID 100 ausschließlich an `127.0.0.1:8080`. Sie ist damit nicht aus dem LAN erreichbar.
@@ -60,11 +62,15 @@ Die Statusansicht ist über `GET /`, der technische Healthcheck über `GET /heal
 
 Der erste Dienst ist vollständig read-only: Er schreibt keine SQLite-Daten, installiert nichts und bietet keine mutierenden Aktionen, Authentifizierung, TLS- oder LAN-Freigabe. Der reale Dienst ist in VMID 100 aktiviert und lokal erreichbar; `state.db` bleibt nicht initialisiert.
 
-### Sicherer LAN-Zugang (geplant)
+### Bestandsaufnahme und sicherer LAN-Zugang
 
-Gunicorn bleibt dauerhaft ausschließlich auf `127.0.0.1:8080`. LAN-Zugang wird als optionale, austauschbare Fähigkeit `secure-ingress` vor den lokalen Webprozess gesetzt; die erste Standalone-Referenz verwendet dafür Caddy im selben LXC. Der Zugriff verlangt HTTPS, einen bestätigten lokalen FQDN, eine ausdrücklich bestätigte CIDR-Allowlist und Authentifizierung. Caddy verwendet zunächst eine lokale CA und speichert für Basic Auth ausschließlich einen Argon2id-Hash des Kennworts; Clientgeräte müssen dem kontrolliert ausgegebenen öffentlichen Root-Zertifikat ausdrücklich vertrauen.
+Gunicorn bleibt dauerhaft ausschließlich auf `127.0.0.1:8080`. LAN-Zugang ist die optionale, austauschbare Fähigkeit `secure-ingress`; ihr konkreter Provider wird erst nach der Bestandsaufnahme gewählt. Ein geeigneter vorhandener Reverse Proxy wird gegenüber einem zusätzlichen lokalen Dienst bevorzugt. Ein lokaler Caddy im RALF-LXC ist nur ein möglicher späterer Fallback für Installationen ohne passenden vorhandenen Provider und derzeit nicht ausgewählt.
 
-In VMID 100 ist noch kein LAN-Ingress installiert oder aktiviert. Es gibt weiterhin keine LAN-Freigabe, keine mutierenden Setup-Formulare und keine zusätzlichen Netzwerk-Capabilities. Vorhandene externe Reverse Proxies sollen später über weitere Provider eingebunden werden, ohne Gunicorn direkt im LAN zu öffnen.
+Inventare unterscheiden mindestens `unknown`, `reported`, `verified`, `unavailable`, `conflict` und `declined`. `reported` ist eine Nutzerangabe ohne technische Prüfung; `verified` setzt eine ausdrücklich freigegebene read-only Verifikation voraus. Fehlende Zugangsdaten oder eine abgelehnte Prüfung werden nicht durch Netzwerkscans umgangen.
+
+Für die aktuelle Referenzumgebung ist deployment-spezifisch angegeben: Proxmox als Plattform, OPNsense als Firewall/Router und Caddy über das OPNsense-Plugin `os-caddy` als vorhandener Kandidat für `secure-ingress`. Diese Angaben haben derzeit den Zustand `reported`, nicht `verified`, und sind keine allgemeine Vorgabe für andere RALF-Installationen. Der sichere Backendpfad vom OPNsense-Caddy zum weiterhin nur auf Container-Loopback erreichbaren Statusdienst ist offen; insbesondere wird Port 8080 nicht stillschweigend im LAN geöffnet.
+
+Bis zur Providerentscheidung bleibt der Installer lokal beziehungsweise nur über einen ausdrücklich aufgebauten administrativen Tunnel erreichbar. In VMID 100 ist kein zusätzlicher LAN-Ingress installiert oder aktiviert. Es gibt weiterhin keine LAN-Freigabe, keine mutierenden Setup-Formulare und keine zusätzlichen Netzwerk-Capabilities.
 
 Die direkten Laufzeitabhängigkeiten sind `Flask==3.1.3` und `Gunicorn==26.0.0`; die exakt geprüfte transitive Auflösung steht in [`requirements/runtime.lock`](requirements/runtime.lock). Für Tests werden ausschließlich `pytest==9.1.1` und `build==1.5.0` verwendet.
 
@@ -181,7 +187,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript umgesetzt und wurde 
 
 ## Status
 
-Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002 und M-035 sind damit erfüllt. O-010 ist entschieden; M-038 ist der nächste lokale Implementierungsschritt. O-011 und O-012 sowie D-003 bis D-005 bleiben offen.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002 und M-035 sind damit erfüllt. M-038 wurde durch den aktiven Inventory-first-Meilenstein M-039 ersetzt; O-011 und O-012 sowie D-003 bis D-005 bleiben offen.
 
 ## Lizenz
 

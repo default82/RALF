@@ -31,7 +31,7 @@ with ZipFile(wheel, "w") as archive:
 PY
   printf '%s\n' '[storage]' 'database_path = "/var/lib/ralf/bootstrap/state.db"' >"$bundle/config.toml"
   printf '%s\n' 'Flask==3.1.3' 'Gunicorn==26.0.0' >"$bundle/runtime.lock"
-  printf '%s\n' '[Unit]' 'Description=Test' >"$bundle/ralf-bootstrap.service"
+  cp "$PROJECT_ROOT/deploy/bootstrap-status/ralf-bootstrap.service" "$bundle/ralf-bootstrap.service"
   cp "$SCRIPT" "$bundle/ralf-bootstrap-status-install.sh"
   (cd "$bundle" && sha256sum ralf_bootstrap-0.1.0-py3-none-any.whl runtime.lock config.toml ralf-bootstrap.service ralf-bootstrap-status-install.sh >SHA256SUMS)
 }

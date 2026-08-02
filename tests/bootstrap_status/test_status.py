@@ -139,6 +139,11 @@ def test_commands_are_fixed_and_not_shell_mutations(tmp_path, monkeypatch):
     collector(tmp_path, command_runner=_default_runner).collect()
 
     assert calls
+    assert [tuple(args) for args, _ in calls] == [
+        ("ip", "-4", "-o", "address", "show", "scope", "global"),
+        ("ip", "-4", "route", "show", "default"),
+        ("systemctl", "is-system-running"),
+    ]
     for args, kwargs in calls:
         assert kwargs["shell"] is False
         assert kwargs["timeout"] == 1.0

@@ -38,9 +38,9 @@ Spätere Modellwege werden als Setup-Optionen behandelt: vorhandenen Modellserve
 
 ## Technische Grundlage des Statusdienstes
 
-Das lokale Grundgerüst des Bootstrap-Statusdienstes ist mit Python 3, Flask, Jinja, eingebettetem `sqlite3` und Gunicorn umgesetzt; systemd folgt erst beim Deployment. Die read-only Oberfläche bietet `GET /`, `GET /healthz` und `GET /api/v1/status`, rendert lokale HTML-/CSS-Dateien und ist für eine ausschließliche Bindung an `127.0.0.1:8080` vorgesehen. Sie ist damit zunächst nicht aus dem LAN erreichbar.
+Das Grundgerüst des Bootstrap-Statusdienstes ist mit Python 3, Flask, Jinja, eingebettetem `sqlite3`, Gunicorn und systemd umgesetzt. Die read-only Oberfläche bietet `GET /`, `GET /healthz` und `GET /api/v1/status`, rendert lokale HTML-/CSS-Dateien und bindet in VMID 100 ausschließlich an `127.0.0.1:8080`. Sie ist damit nicht aus dem LAN erreichbar.
 
-Der Dienst läuft später unprivilegiert als `ralf-bootstrap` und führt keine Paket-, systemd- oder Proxmox-Mutationen aus. Das lokale read-only Grundgerüst ist als installierbares Paket unter `src/ralf_bootstrap/` umgesetzt und benötigt kein Modell und keine Modellruntime. Es ist noch nicht in VMID 100 installiert.
+Der Dienst läuft unprivilegiert als `ralf-bootstrap` und führt keine Paket-, systemd- oder Proxmox-Mutationen aus. Das read-only Grundgerüst ist als installierbares Paket unter `src/ralf_bootstrap/` umgesetzt, benötigt kein Modell und keine Modellruntime und ist in VMID 100 als Version `0.1.0` installiert.
 
 ### Lokale Entwicklung und Prüfung
 
@@ -58,7 +58,7 @@ Die Statusansicht ist über `GET /`, der technische Healthcheck über `GET /heal
 .venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 ralf_bootstrap.wsgi:app
 ```
 
-Der erste Dienst ist vollständig read-only: Er schreibt keine SQLite-Daten, installiert nichts und bietet keine mutierenden Aktionen, Authentifizierung, TLS- oder LAN-Freigabe. Die spätere systemd-Installation und der Betrieb in VMID 100 sind ein eigener Arbeitsschritt.
+Der erste Dienst ist vollständig read-only: Er schreibt keine SQLite-Daten, installiert nichts und bietet keine mutierenden Aktionen, Authentifizierung, TLS- oder LAN-Freigabe. Der reale Dienst ist in VMID 100 aktiviert und lokal erreichbar; `state.db` bleibt nicht initialisiert.
 
 Die direkten Laufzeitabhängigkeiten sind `Flask==3.1.3` und `Gunicorn==26.0.0`; die exakt geprüfte transitive Auflösung steht in [`requirements/runtime.lock`](requirements/runtime.lock). Für Tests werden ausschließlich `pytest==9.1.1` und `build==1.5.0` verwendet.
 
@@ -111,7 +111,7 @@ Die vollständige Zustandsklassifikation liegt ausschließlich im Gastinstaller.
 
 Bei `--apply` werden Wheel, Runtime-Lock, Konfiguration, systemd-Unit, Gast-Installationsskript und Prüfsummenmanifest ausschließlich nach `/run/ralf-bootstrap-install/` übertragen. Der Gastpfad richtet den unprivilegierten Benutzer, die Virtualenv und den Dienst `ralf-bootstrap.service` ein. Gunicorn verwendet den Einstiegspunkt `ralf_bootstrap.wsgi:app` und bindet ausschließlich an `127.0.0.1:8080`; `/var/lib/ralf/bootstrap/state.db` wird in diesem Schritt nicht angelegt.
 
-Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen. Der reale Resume-Apply in VMID 100 erreichte zwar die vollständige Installation, scheiterte aber wegen einer verschobenen Venv mit `203/EXEC`; die Installation gilt daher noch nicht als erfolgreich und benötigt den neuen, ausdrücklich freizugebenden `--repair-venv --plan`-/`--apply`-Pfad.
+Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen. Der reale Reparatur-Apply hat die Venv-Rechte finalisiert und den Dienst erfolgreich gestartet. Offen bleiben ein nichtfataler Gunicorn-Control-Socket-Fehler beim Start und die durch die systemd-Härtung ohne `AF_NETLINK` blockierte lokale Netzwerkstatusermittlung.
 
 ## Projektdokumente
 
@@ -149,7 +149,7 @@ Der `pct create`-Aufruf setzt für die Ubuntu-26.04-Referenzinstallation fest `-
 
 ## Ubuntu-Vorbereitung im Gast
 
-Die kontrollierte Vorbereitung ist als separates Gastskript vorgesehen. Es wird später innerhalb des laufenden LXC ausgeführt; in VMID 100 wurde dieser Schritt noch nicht gestartet:
+Die kontrollierte Vorbereitung ist als separates Gastskript umgesetzt und wurde in VMID 100 bereits erfolgreich ausgeführt. Für weitere definierte Ausgangszustände stehen Plan- und Applymodus getrennt bereit:
 
 ```bash
 ./scripts/ralf-standalone-guest-prepare.sh --plan
@@ -160,7 +160,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript vorgesehen. Es wird 
 
 ## Status
 
-Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Die Statusdienst-Dateien und eine direkt am Zielpfad erstellte Venv sind vorhanden, die reale Installation ist nach dem abgebrochenen Reparaturlauf jedoch noch nicht erfolgreich abgeschlossen: Die Reparaturmarkierung besteht, die Venv-Rechte sind noch vorläufig und der Dienst ist inaktiv. O-010 und O-011 sowie D-002 bis D-005 bleiben offen.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. D-002 ist damit lokal erfüllt. Vor dem nächsten Funktionsausbau müssen der nichtfatale Gunicorn-Control-Socket-Fehler und die fehlerhafte Netzwerkstatusanzeige behoben werden. O-010 und O-011 sowie D-003 bis D-005 bleiben offen.
 
 ## Lizenz
 

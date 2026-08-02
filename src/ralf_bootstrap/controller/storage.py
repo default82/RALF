@@ -23,7 +23,7 @@ from .models import (
     validate_inventory,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def utc_now() -> str:
@@ -75,18 +75,26 @@ def init_database(database: Path) -> None:
         raise FileNotFoundError(f"Elternverzeichnis fehlt: {path.parent}")
     with transaction(path) as connection:
         current = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if current not in {0, SCHEMA_VERSION}:
+        if current not in {0, 1, SCHEMA_VERSION}:
             raise RuntimeError(f"Unbekannte Controller-Schemaversion: {current}")
         if current == SCHEMA_VERSION:
             return
-        _migration_1(connection)
-        catalog = load_catalog()
-        now = utc_now()
-        connection.execute(
-            "INSERT INTO controller_meta(schema_version, catalog_version, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (SCHEMA_VERSION, catalog.catalog_version, now, now),
-        )
-        connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        if current == 0:
+            _migration_1(connection)
+            catalog = load_catalog()
+            now = utc_now()
+            connection.execute(
+                "INSERT INTO controller_meta(schema_version, catalog_version, created_at, updated_at) VALUES (1, ?, ?, ?)",
+                (catalog.catalog_version, now, now),
+            )
+            connection.execute("PRAGMA user_version = 1")
+            current = 1
+        if current == 1:
+            _migration_2(connection)
+            connection.execute(
+                "UPDATE controller_meta SET schema_version=2, updated_at=?", (utc_now(),)
+            )
+            connection.execute("PRAGMA user_version = 2")
 
 
 def _migration_1(connection: sqlite3.Connection) -> None:
@@ -228,6 +236,109 @@ def _migration_1(connection: sqlite3.Connection) -> None:
             connection.execute(statement)
 
 
+def _migration_2(connection: sqlite3.Connection) -> None:
+    schema = """
+        CREATE TABLE verification_requests (
+            id INTEGER PRIMARY KEY,
+            setup_run_id INTEGER NOT NULL REFERENCES setup_runs(id) ON DELETE CASCADE,
+            inventory_item_id INTEGER REFERENCES inventory_items(id) ON DELETE SET NULL,
+            contract_id TEXT NOT NULL,
+            contract_version INTEGER NOT NULL CHECK (contract_version > 0),
+            contract_hash TEXT NOT NULL CHECK (length(contract_hash) = 64),
+            state TEXT NOT NULL CHECK (state IN ('draft','awaiting_consent','ready','evidence_pending','review_pending','completed','failed','declined','obsolete')),
+            scope_hash TEXT NOT NULL CHECK (length(scope_hash) = 64),
+            target_snapshot_hash TEXT NOT NULL CHECK (length(target_snapshot_hash) = 64),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT,
+            obsolete_reason TEXT
+        );
+        CREATE TABLE verification_consents (
+            id INTEGER PRIMARY KEY,
+            verification_request_id INTEGER NOT NULL REFERENCES verification_requests(id) ON DELETE CASCADE,
+            scope_json TEXT NOT NULL,
+            scope_hash TEXT NOT NULL CHECK (length(scope_hash) = 64),
+            confirmed_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            revoked_at TEXT
+        );
+        CREATE UNIQUE INDEX one_effective_verification_consent
+            ON verification_consents(verification_request_id)
+            WHERE revoked_at IS NULL;
+        CREATE TABLE verification_tasks (
+            id INTEGER PRIMARY KEY,
+            verification_request_id INTEGER NOT NULL REFERENCES verification_requests(id) ON DELETE CASCADE,
+            position INTEGER NOT NULL CHECK (position > 0),
+            task_id TEXT NOT NULL,
+            method TEXT NOT NULL CHECK (method IN ('manual','imported_evidence','connector','local_probe')),
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            data_categories_json TEXT NOT NULL,
+            state TEXT NOT NULL CHECK (state IN ('planned','consented','evidence_pending','completed','failed','declined','obsolete')),
+            UNIQUE(verification_request_id, position),
+            UNIQUE(verification_request_id, task_id)
+        );
+        CREATE TABLE verification_evidence (
+            id INTEGER PRIMARY KEY,
+            verification_request_id INTEGER NOT NULL REFERENCES verification_requests(id) ON DELETE CASCADE,
+            claim_id TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('manual_attestation','configuration_summary','service_status_summary','capability_summary','certificate_metadata','imported_evidence','document_reference')),
+            source TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            verification_method TEXT NOT NULL CHECK (verification_method IN ('manual','imported_evidence')),
+            observed_at TEXT NOT NULL,
+            valid_until TEXT NOT NULL,
+            digest_algorithm TEXT CHECK (digest_algorithm IS NULL OR digest_algorithm = 'sha256'),
+            digest TEXT CHECK (digest IS NULL OR length(digest) = 64),
+            confidentiality TEXT NOT NULL CHECK (confidentiality IN ('public','internal','redacted_sensitive')),
+            created_at TEXT NOT NULL,
+            supersedes_id INTEGER REFERENCES verification_evidence(id) ON DELETE RESTRICT
+        );
+        CREATE TABLE verification_claim_results (
+            id INTEGER PRIMARY KEY,
+            verification_request_id INTEGER NOT NULL REFERENCES verification_requests(id) ON DELETE CASCADE,
+            claim_id TEXT NOT NULL,
+            result TEXT NOT NULL CHECK (result IN ('unknown','satisfied','not_satisfied','not_observed','conflict','stale','not_applicable')),
+            rationale TEXT NOT NULL,
+            assessed_at TEXT NOT NULL,
+            valid_until TEXT,
+            UNIQUE(verification_request_id, claim_id)
+        );
+        CREATE TABLE provider_assessments (
+            id INTEGER PRIMARY KEY,
+            verification_request_id INTEGER NOT NULL REFERENCES verification_requests(id) ON DELETE CASCADE,
+            provider_presence TEXT NOT NULL CHECK (provider_presence IN ('unknown','reported','verified','unavailable','conflict')),
+            contract_compatibility TEXT NOT NULL CHECK (contract_compatibility IN ('unknown','compatible','partially_compatible','incompatible','conflict')),
+            integration_readiness TEXT NOT NULL CHECK (integration_readiness IN ('not_assessed','ready','blocked','deferred','conflict')),
+            freshness TEXT NOT NULL CHECK (freshness IN ('never_verified','fresh','stale')),
+            blockers_json TEXT NOT NULL,
+            warnings_json TEXT NOT NULL,
+            assessment_hash TEXT NOT NULL CHECK (length(assessment_hash) = 64),
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE verification_reviews (
+            id INTEGER PRIMARY KEY,
+            verification_request_id INTEGER NOT NULL REFERENCES verification_requests(id) ON DELETE CASCADE,
+            content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+            confirmed_at TEXT NOT NULL
+        );
+        CREATE INDEX verification_requests_run_state
+            ON verification_requests(setup_run_id, state);
+        CREATE INDEX verification_evidence_request_claim
+            ON verification_evidence(verification_request_id, claim_id);
+        CREATE INDEX provider_assessments_request_created
+            ON provider_assessments(verification_request_id, created_at);
+        """
+    for statement in schema.split(";"):
+        if statement.strip():
+            connection.execute(statement)
+    connection.execute(
+        """CREATE TRIGGER verification_evidence_immutable
+           BEFORE UPDATE ON verification_evidence
+           BEGIN SELECT RAISE(ABORT, 'verification evidence is immutable'); END"""
+    )
+
+
 def schema_status(database: Path) -> dict[str, object]:
     path = Path(database)
     if not path.exists():
@@ -235,6 +346,8 @@ def schema_status(database: Path) -> dict[str, object]:
     try:
         with read_connection(path) as connection:
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+            if version == 1:
+                return {"status": "migration_required", "schema_version": version}
             if version != SCHEMA_VERSION:
                 return {"status": "unsupported", "schema_version": version}
             return {"status": "ready", "schema_version": version}
@@ -319,6 +432,7 @@ def save_inventory(database: Path, run_id: int, values: dict[str, object], *, it
                 (*clean.values(), now, run_id, item_id),
             )
             event = "inventory.updated"
+            _obsolete_verifications(connection, run_id, "Inventareintrag geaendert", item_id)
         _invalidate(connection, run_id, {"inventory", "verification_scope"}, "Inventar geändert")
         _audit(connection, event, "inventory_item", str(item_id), before, _hash(clean))
         return item_id
@@ -331,6 +445,7 @@ def delete_inventory(database: Path, run_id: int, item_id: int) -> None:
         ).fetchone()
         if row is None:
             raise ValidationError("Inventareintrag wurde nicht gefunden.")
+        _obsolete_verifications(connection, run_id, "Inventareintrag geloescht", item_id)
         connection.execute("DELETE FROM inventory_items WHERE id=?", (item_id,))
         _invalidate(connection, run_id, {"inventory", "verification_scope"}, "Inventar gelöscht")
         _audit(connection, "inventory.deleted", "inventory_item", str(item_id), _hash(dict(row)), None)
@@ -607,6 +722,43 @@ def _invalidate(connection: sqlite3.Connection, run_id: int, sections: set[str],
         "UPDATE setup_runs SET revision=revision+1, status='draft', updated_at=? WHERE id=?",
         (now, run_id),
     )
+
+
+def _obsolete_verifications(
+    connection: sqlite3.Connection,
+    run_id: int,
+    reason: str,
+    inventory_item_id: int,
+) -> None:
+    requests = connection.execute(
+        """SELECT id FROM verification_requests
+           WHERE setup_run_id=? AND inventory_item_id=? AND state!='obsolete'""",
+        (run_id, inventory_item_id),
+    ).fetchall()
+    now = utc_now()
+    for request_row in requests:
+        request_id = int(request_row["id"])
+        connection.execute(
+            """UPDATE verification_requests
+               SET state='obsolete', obsolete_reason=?, updated_at=? WHERE id=?""",
+            (reason, now, request_id),
+        )
+        connection.execute(
+            "UPDATE verification_tasks SET state='obsolete' WHERE verification_request_id=?",
+            (request_id,),
+        )
+        connection.execute(
+            "UPDATE verification_consents SET revoked_at=? WHERE verification_request_id=? AND revoked_at IS NULL",
+            (now, request_id),
+        )
+        _audit(
+            connection,
+            "verification.obsoleted",
+            "verification_request",
+            str(request_id),
+            None,
+            _hash({"reason": reason}),
+        )
 
 
 def _audit(

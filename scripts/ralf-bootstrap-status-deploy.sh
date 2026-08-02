@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 readonly EXPECTED_NAME='ralf-standalone'
-readonly EXPECTED_VERSION='0.2.0'
+readonly EXPECTED_VERSION='0.3.0'
 readonly REMOTE_BUNDLE='/run/ralf-bootstrap-install'
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 readonly SCRIPT_DIR
@@ -292,8 +292,8 @@ build_wheel() {
   mapfile -t wheels < <(find "$build_dir" -mindepth 1 -maxdepth 1 -type f -name 'ralf_bootstrap-*.whl' -printf '%f\n' | sort)
   ((${#wheels[@]} == 1)) || fail 'Der Build erzeugte nicht genau ein ralf-bootstrap-Wheel.'
   WHEEL=${wheels[0]}
-  [[ $WHEEL =~ ^ralf_bootstrap-0\.2\.0-.*\.whl$ ]] || fail "Unerwartete Wheel-Version oder Dateiname: $WHEEL"
-  "$BUILD_PYTHON" - "$build_dir/$WHEEL" <<'PY' || fail 'Wheel-Metadaten enthalten nicht ralf-bootstrap 0.2.0.'
+  [[ $WHEEL =~ ^ralf_bootstrap-0\.3\.0-.*\.whl$ ]] || fail "Unerwartete Wheel-Version oder Dateiname: $WHEEL"
+  "$BUILD_PYTHON" - "$build_dir/$WHEEL" <<'PY' || fail 'Wheel-Metadaten enthalten nicht ralf-bootstrap 0.3.0.'
 import email
 import sys
 import zipfile
@@ -303,7 +303,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     if len(names) != 1:
         raise SystemExit(1)
     metadata = email.message_from_bytes(archive.read(names[0]))
-    if metadata.get('Name') != 'ralf-bootstrap' or metadata.get('Version') != '0.2.0':
+    if metadata.get('Name') != 'ralf-bootstrap' or metadata.get('Version') != '0.3.0':
         raise SystemExit(1)
 PY
 }

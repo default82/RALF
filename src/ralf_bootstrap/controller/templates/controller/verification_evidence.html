@@ -1,0 +1,21 @@
+{% extends "controller/base.html" %}
+{% block title %}Evidenz erfassen{% endblock %}
+{% block content %}
+<section>
+  <h2>Redigierte Evidenzzusammenfassung</h2>
+  <p class="notice">Keine Passwörter, Tokens, privaten Schlüssel, Cookies oder vollständigen Konfigurationen einfügen.</p>
+  <form method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Claim<select name="claim_id">{% for claim in contract.claims %}<option value="{{ claim.claim_id }}">{{ claim.title }}</option>{% endfor %}</select></label>
+    <label>Art<select name="kind">{% for value in kinds %}<option>{{ value }}</option>{% endfor %}</select></label>
+    <label>Methode<select name="verification_method"><option>manual</option><option>imported_evidence</option></select></label>
+    <label>Quelle<input name="source" maxlength="200" required></label>
+    <label>Zusammenfassung<textarea name="summary" maxlength="2000" required></textarea></label>
+    <label>Beobachtet (ISO-8601)<input name="observed_at" required></label>
+    <label>Gültig bis (ISO-8601)<input name="valid_until" required></label>
+    <label>Vertraulichkeit<select name="confidentiality">{% for value in confidentiality_values %}<option>{{ value }}</option>{% endfor %}</select></label>
+    <label>Optionaler SHA-256-Digest<input name="digest" maxlength="64"></label>
+    <button type="submit">{% if supersedes_id %}Korrigierende Evidenz speichern{% else %}Unveränderliche Evidenz speichern{% endif %}</button>
+  </form>
+</section>
+{% endblock %}

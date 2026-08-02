@@ -27,7 +27,60 @@ def test_cli_initializes_only_explicit_target(tmp_path, capsys):
     path = tmp_path / "state.db"
     assert main(["init", "--database", str(path)]) == 0
     assert path.exists()
-    assert "Schema 1" in capsys.readouterr().out
+    assert "Schema 2" in capsys.readouterr().out
+
+
+def _create_schema_1(path):
+    from ralf_bootstrap.controller.storage import _migration_1
+
+    with sqlite3.connect(path) as connection:
+        _migration_1(connection)
+        connection.execute(
+            "INSERT INTO controller_meta VALUES (1, 1, '2026-08-02T00:00:00Z', '2026-08-02T00:00:00Z')"
+        )
+        connection.execute("PRAGMA user_version=1")
+
+
+def test_schema_1_is_explicitly_migrated_to_schema_2(tmp_path):
+    path = tmp_path / "state.db"
+    _create_schema_1(path)
+    init_database(path)
+    with connect(path, read_only=True) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert connection.execute("SELECT schema_version FROM controller_meta").fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE name='verification_requests'"
+        ).fetchone()
+
+
+def test_app_and_status_do_not_auto_migrate_schema_1(tmp_path):
+    from ralf_bootstrap.app import create_app
+    from ralf_bootstrap.controller.storage import schema_status
+
+    path = tmp_path / "state.db"
+    _create_schema_1(path)
+    assert schema_status(path) == {"status": "migration_required", "schema_version": 1}
+    create_app(database_path=path).test_client().get("/controller/")
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 1
+
+
+def test_schema_1_to_2_failure_rolls_back(tmp_path, monkeypatch):
+    path = tmp_path / "state.db"
+    _create_schema_1(path)
+
+    def broken(connection):
+        connection.execute("CREATE TABLE partial_v2(id INTEGER)")
+        raise RuntimeError("migration 2 failed")
+
+    monkeypatch.setattr("ralf_bootstrap.controller.storage._migration_2", broken)
+    with pytest.raises(RuntimeError, match="migration 2 failed"):
+        init_database(path)
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE name='partial_v2'"
+        ).fetchone() is None
 
 
 def test_unknown_schema_is_rejected(tmp_path):

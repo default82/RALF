@@ -40,9 +40,9 @@ Vor jeder optionalen Installation gilt verbindlich Inventory-first: Der Bootstra
 
 ## Technische Grundlage des Bootstrap-Controllers
 
-Das lokale Paket `ralf-bootstrap` 0.2.0 erweitert den Statusdienst um das produktneutrale Inventory-first-Controller-Grundgerüst. Python 3, Flask, Jinja und `sqlite3` genügen weiterhin; es gibt keine neue Runtime-Abhängigkeit. Die bestehende Statusoberfläche bietet unverändert `GET /`, `GET /healthz` und `GET /api/v1/status`. Der Controller ergänzt serverseitig gerenderte Seiten unter `/controller/` und ausschließlich lesende JSON-Endpunkte unter `/api/v1/controller/`.
+Das lokale Paket `ralf-bootstrap` 0.3.0 erweitert den Statusdienst um den produktneutralen Inventory-first-Controller und lokale Providerbewertungen. Python 3, Flask, Jinja und `sqlite3` genügen weiterhin; es gibt keine neue Runtime-Abhängigkeit. Die bestehende Statusoberfläche bietet unverändert `GET /`, `GET /healthz` und `GET /api/v1/status`. Der Controller ergänzt serverseitig gerenderte Seiten unter `/controller/` und ausschließlich lesende JSON-Endpunkte unter `/api/v1/controller/`.
 
-Der Controller läuft im selben unprivilegierten Webprozess und darf ausschließlich seine explizit initialisierte lokale SQLite-Datenbank ändern. Er führt keine Paket-, systemd-, Proxmox-, OPNsense- oder Providermutationen aus und besitzt weder Netzwerkscan noch Shellausführung. VMID 100 verwendet weiterhin die installierte Statusversion `0.1.0`; Version `0.2.0` ist in diesem Meilenstein nur lokal implementiert und noch nicht dorthin ausgerollt.
+Der Controller läuft im selben unprivilegierten Webprozess und darf ausschließlich seine explizit initialisierte lokale SQLite-Datenbank ändern. Er führt keine Paket-, systemd-, Proxmox-, OPNsense- oder Providermutationen aus und besitzt weder Netzwerkscan, Connector, externe Probe noch Shellausführung. VMID 100 verwendet weiterhin die installierte Statusversion `0.1.0`; Version `0.3.0` ist nur lokal implementiert und noch nicht dorthin ausgerollt.
 
 ### Lokale Entwicklung und Prüfung
 
@@ -66,7 +66,15 @@ Die Controllerdatenbank wird weder beim Import noch beim Start automatisch angel
 .venv/bin/python -m ralf_bootstrap.controller_db init --database /tmp/ralf-controller.db
 ```
 
-Der Pfad muss in einem vorhandenen Verzeichnis liegen. Der Controller speichert Inventarzustände (`unknown`, `reported`, `verified`, `unavailable`, `conflict`, `declined`), Verifikationsevidenz ohne Geheimnisse, Anforderungen, Providerpräferenzen, Abschnittsbestätigungen, Zielpläne, gehashte Einmal-CSRF-Tokens und inhaltsarme Auditereignisse. Planbestätigungen lösen keine Ausführung aus; jeder spätere infrastrukturelle Schritt benötigt einen neuen technischen Plan und eine eigene Apply-Freigabe.
+Der Pfad muss in einem vorhandenen Verzeichnis liegen. Derselbe explizite Befehl migriert eine vorhandene Controllerdatenbank transaktional von Schema 1 auf Schema 2; Import, Flask-Start und Statusabruf migrieren niemals automatisch. Der Controller speichert Inventarzustände (`unknown`, `reported`, `verified`, `unavailable`, `conflict`, `declined`), Anforderungen, Providerpräferenzen, Abschnittsbestätigungen, Zielpläne, gehashte Einmal-CSRF-Tokens und inhaltsarme Auditereignisse. Planbestätigungen lösen keine Ausführung aus; jeder spätere infrastrukturelle Schritt benötigt einen neuen technischen Plan und eine eigene Apply-Freigabe.
+
+### Read-only Verifikationsaufträge und Providerverträge
+
+M-040 ergänzt versionierte Providerverträge, einzelne Claims und ausdrücklich zu bestätigende read-only Verifikationsumfänge. In diesem Stand können ausschließlich manuelle Beobachtungen und bereits extern erhobene, redigierte Evidenzzusammenfassungen bewertet werden. Rohkonfigurationen, Logs und Dateien werden nicht hochgeladen; Zugangsdaten, Tokens, private Schlüssel und Cookies sind unzulässig. Evidenz ist nach dem Speichern unveränderlich, kann nur durch einen neuen verknüpften Eintrag korrigiert werden und besitzt eine begrenzte Gültigkeit.
+
+Die Oberfläche trennt drei Aussagen sichtbar: `Providerexistenz` bestätigt nur, dass der Provider vorhanden und grundsätzlich gesund ist; `Vertragskompatibilität` bewertet die nachgewiesenen Capability- und Sicherheitsclaims; `Integrationsbereitschaft` bewertet das konkrete Deployment. Ein Provider kann deshalb `verified` und `compatible`, aber wegen eines offenen Backendpfads weiterhin `blocked` sein. Veraltete Evidenz bleibt historisch erhalten, wird beim Lesen ohne versteckte Datenbankänderung als `stale` wirksam und erzeugt beim nächsten Plan erneut einen Verifikationsschritt.
+
+Der erste Vertrag `secure-ingress.opnsense-caddy` modelliert OPNsense-Caddy ohne konkrete Adresse oder Zugangsdaten. Selbst nach vollständiger manueller Existenz- und Fähigkeitsbewertung bleibt die Integration durch O-012 blockiert, solange der sichere Backendpfad zum Loopback-Upstream nicht entschieden ist. Der Zielplan enthält dann `decide_integration` vor der späteren Wiederverwendung, aber weder einen Connectoraufruf noch eine lokale Caddy-Installation. Ein bestätigter Scope, eingetragene Evidenz und eine abgeschlossene Bewertung führen zu keiner technischen Providerprüfung und zu keinem Apply.
 
 Der Webflow führt von Fragen und Inventar über Anforderungen, Verifikationsfreigaben und Providerpräferenzen zu vier eigenen „Diese Angaben sind korrekt“-Bestätigungen. Jede nachträgliche Änderung invalidiert betroffene Bestätigungen und vorhandene Pläne. Der deterministische Planer bevorzugt verifizierte oder gemeldete vorhandene Provider, weist offene Prüfungen und Konflikte aus und speichert keine Shellbefehle. Schreibende Formulare verwenden nur `POST`, POST/Redirect/GET und kurzlebige, formulargebundene Einmal-CSRF-Tokens; eine Benutzeranmeldung oder externe Proxyvertrauenskonfiguration ist noch nicht implementiert.
 
@@ -82,7 +90,7 @@ Der zugehörige Controller-Testfall erzeugt deshalb die Reihenfolge `verify_prov
 
 Bis zur Providerentscheidung bleibt der Controller lokal beziehungsweise nur über einen ausdrücklich aufgebauten administrativen Tunnel erreichbar. In VMID 100 ist kein zusätzlicher LAN-Ingress installiert oder aktiviert. Es gibt weiterhin keine LAN-Freigabe, keine externe Providerverifikation, keinen Apply-Endpunkt und keine zusätzlichen Netzwerk-Capabilities.
 
-Die direkten Laufzeitabhängigkeiten sind `Flask==3.1.3` und `Gunicorn==26.0.0`; die exakt geprüfte transitive Auflösung steht in [`requirements/runtime.lock`](requirements/runtime.lock). Für Tests werden ausschließlich `pytest==9.1.1` und `build==1.5.0` verwendet.
+Die direkten Laufzeitabhängigkeiten bleiben `Flask==3.1.3` und `Gunicorn==26.0.0`; die exakt geprüfte transitive Auflösung steht in [`requirements/runtime.lock`](requirements/runtime.lock). Für Tests werden ausschließlich `pytest==9.1.1` und `build==1.5.0` verwendet.
 
 ## Langfristige Richtung
 
@@ -107,7 +115,7 @@ sudo ./scripts/ralf-bootstrap-status-deploy.sh --plan --vmid 100
 sudo ./scripts/ralf-bootstrap-status-deploy.sh --apply --vmid 100
 ```
 
-Der allgemeine Fresh-Install-/Resume-Pfad baut nun Paketversion `0.2.0`. Er ist kein Upgradepfad für die in VMID 100 installierte Version `0.1.0` und wird in M-039 nicht gegen diesen Container ausgeführt. Ein späteres reales Controller-Upgrade benötigt einen eigenen geprüften Plan und eine ausdrückliche Freigabe.
+Der allgemeine Fresh-Install-/Resume-Pfad baut nun Paketversion `0.3.0`. Er ist kein Upgradepfad für die in VMID 100 installierte Version `0.1.0` und wird in M-040 nicht gegen diesen Container ausgeführt. Ein späteres reales Controller-Upgrade ist M-041 und benötigt einen eigenen geprüften Plan sowie eine ausdrückliche Freigabe.
 
 Vor dem Erzeugen einer Virtualenv prüft der Gastinstaller nicht nur das `venv`-Modul, sondern auch `ensurepip` und dessen eingebettete Pip-Version. Fehlt `ensurepip`, wird im Plan das aus dem Interpreter abgeleitete Paket (bei Python 3.14: `python3.14-venv`) samt Apt-Candidate angezeigt. Installiert wird ausschließlich dieses Paket; danach wird die Prüfung wiederholt.
 
@@ -199,7 +207,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript umgesetzt und wurde 
 
 ## Status
 
-Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002, M-035 und die lokale M-039-Implementierung sind erfüllt. M-040 ist der nächste lokale Schritt für read-only Verifikationsaufträge; O-011 und O-012 sowie D-003 bis D-005 bleiben offen. Version `0.2.0` wurde noch nicht in VMID 100 installiert.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002, M-035, M-039 und die lokale M-040-Implementierung sind erfüllt. M-041 ist der nächste Schritt für einen getrennt geplanten Controller-Upgradepfad; O-011 und O-012 sowie D-003 bis D-005 bleiben offen. Version `0.3.0` wurde noch nicht in VMID 100 installiert.
 
 ## Lizenz
 

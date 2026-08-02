@@ -1,0 +1,100 @@
+schema_version = 1
+catalog_version = 1
+
+[[capabilities]]
+id = "platform.virtualization"
+display_name = "Virtualisierungsplattform"
+description = "Vorhandene Virtualisierungsumgebung."
+
+[[capabilities]]
+id = "platform.container"
+display_name = "Containerplattform"
+description = "Vorhandene Containerumgebung."
+
+[[capabilities]]
+id = "network.firewall"
+display_name = "Firewall und Router"
+description = "Netzwerkgrenze und Routing."
+
+[[capabilities]]
+id = "network.dns"
+display_name = "DNS"
+description = "Lokale Namensauflösung."
+
+[[capabilities]]
+id = "secure-ingress"
+display_name = "Sicherer Ingress"
+description = "Authentifizierter und verschlüsselter Zugriff."
+
+[[capabilities]]
+id = "identity-provider"
+display_name = "Identitätsprovider"
+description = "Vorhandene Identitäts- und Anmeldefähigkeit."
+
+[[capabilities]]
+id = "database.relational"
+display_name = "Relationale Datenbank"
+description = "Persistente relationale Datenhaltung."
+
+[[capabilities]]
+id = "database.vector"
+display_name = "Vektorspeicher"
+description = "Vektorsuche und Embedding-Speicherung."
+
+[[capabilities]]
+id = "storage.file"
+display_name = "Dateispeicher"
+description = "Dateibasierte persistente Ablage."
+
+[[capabilities]]
+id = "storage.object"
+display_name = "Objektspeicher"
+description = "S3-kompatible oder andere Objektspeicherung."
+
+[[capabilities]]
+id = "backup"
+display_name = "Backup"
+description = "Sicherung und Wiederherstellung."
+
+[[capabilities]]
+id = "monitoring"
+display_name = "Monitoring"
+description = "Zustands- und Fehlerüberwachung."
+
+[[capabilities]]
+id = "secrets-management"
+display_name = "Secrets-Verwaltung"
+description = "Sichere Verwaltung von Zugangsdaten."
+
+[[capabilities]]
+id = "model-runtime"
+display_name = "Modellruntime"
+description = "Lokale oder vorhandene Modelllaufzeit."
+
+[[capabilities]]
+id = "model"
+display_name = "Modell"
+description = "Ausgewähltes lokales oder externes Modell."
+
+[[capabilities]]
+id = "model-webui"
+display_name = "Modell-Weboberfläche"
+description = "Optionale Oberfläche für Modellinteraktion."
+
+[[providers]]
+id = "local-caddy-fallback"
+capability_id = "secure-ingress"
+display_name = "Lokaler Caddy (späterer Fallback)"
+product = "Caddy"
+location = "RALF-LXC"
+lifecycle = "local"
+readiness = "experimental"
+
+[[providers]]
+id = "no-lan-ingress"
+capability_id = "secure-ingress"
+display_name = "LAN-Zugang zurückstellen"
+product = "Kein Provider"
+location = "lokal"
+lifecycle = "built_in"
+readiness = "available"

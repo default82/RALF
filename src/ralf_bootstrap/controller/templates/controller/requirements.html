@@ -1,0 +1,17 @@
+{% extends "controller/base.html" %}
+{% block content %}
+<section>
+  <h2>Gewünschte Fähigkeiten</h2>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% for capability in catalog.capabilities %}
+    <label>{{ capability.display_name }}
+      <select name="requirement.{{ capability.capability_id }}" required>
+      {% for requirement in requirements %}<option value="{{ requirement }}" {% if saved.get(capability.capability_id, {}).get('requirement') == requirement %}selected{% endif %}>{{ requirement }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endfor %}
+    <button type="submit">Fähigkeitswünsche speichern</button>
+  </form>
+</section>
+{% endblock %}

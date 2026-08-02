@@ -85,10 +85,11 @@ run_case() {
   local dir="$TEST_ROOT/$name" bin="$TEST_ROOT/$name/bin" build="$TEST_ROOT/$name/build" output status
   mkdir -p "$bin" "$build"
   make_pct "$bin"
-  printf '%s\n' '#!/usr/bin/env bash' 'exec /tmp/ralf-m029-uT3CBz/venv/bin/python "$@"' >"$build/python"
+  local build_python=${RALF_TEST_BUILD_PYTHON:-$(command -v python3)}
+  printf '%s\n' '#!/usr/bin/env bash' "exec $(printf '%q' "$build_python") \"\$@\"" >"$build/python"
   chmod +x "$build/python"
   set +e
-  output=$(TEST_GUEST_FAILURE="$([[ $name == failure ]] && printf 1 || printf 0)" RALF_BUILD_PYTHON="$build/python" PCT_LOG="$dir/pct.log" PATH="$bin:/usr/bin:/bin" "$SCRIPT" "--$([[ $name == plan ]] && printf plan || printf apply)" --vmid 100 2>&1)
+  output=$(TEST_GUEST_FAILURE="$([[ $name == failure ]] && printf 1 || printf 0)" RALF_BUILD_PYTHON="$build/python" PCT_LOG="$dir/pct.log" PATH="$bin:$(dirname "$build_python"):/usr/bin:/bin" "$SCRIPT" "--$([[ $name == plan ]] && printf plan || printf apply)" --vmid 100 2>&1)
   status=$?
   set -e
   if [[ $name == plan ]]; then

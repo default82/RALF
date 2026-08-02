@@ -1,0 +1,23 @@
+{% extends "controller/base.html" %}
+{% block content %}
+<section>
+  <h2>Versionierter Fragenkatalog</h2>
+  <p>Die Antworten steuern nur Inventar und Zielplanung. Es werden keine externen Prüfungen oder Installationen ausgelöst.</p>
+  {% for question in questions %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="question_id" value="{{ question.question_id }}">
+    <label>{{ question.prompt }}
+    {% if question.answer_type == 'choice' %}
+      <select name="answer">{% for choice in question.choices %}<option value="{{ choice }}" {% if saved.get(question.question_id) == choice %}selected{% endif %}>{{ choice }}</option>{% endfor %}</select>
+    {% elif question.answer_type == 'boolean' %}
+      <select name="answer"><option value="false">Nein oder später</option><option value="true" {% if saved.get(question.question_id) == true %}selected{% endif %}>Ja</option></select>
+    {% else %}
+      <textarea name="answer" maxlength="500">{{ saved.get(question.question_id, '') }}</textarea>
+    {% endif %}
+    </label>
+    <button type="submit">Antwort speichern</button>
+  </form>
+  {% endfor %}
+</section>
+{% endblock %}

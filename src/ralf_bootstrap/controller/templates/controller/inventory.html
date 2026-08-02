@@ -1,0 +1,23 @@
+{% extends "controller/base.html" %}
+{% block content %}
+<section>
+  <h2>Vorhandene Systeme und Provider</h2>
+  <p><a href="{{ url_for('controller.inventory_new') }}">Inventareintrag hinzufügen</a></p>
+  <table>
+    <thead><tr><th>Name</th><th>Fähigkeit</th><th>Zustand</th><th>Aktion</th></tr></thead>
+    <tbody>
+    {% for item in items %}
+      <tr>
+        <td>{{ item.display_name }}</td><td>{{ item.capability_id }}</td>
+        <td>{{ item.state|upper }}</td>
+        <td><a href="{{ url_for('controller.inventory_edit', item_id=item.id) }}">Bearbeiten</a></td>
+      </tr>
+    {% else %}<tr><td colspan="4">Noch keine Inventareinträge.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Diese Inventarangaben sind korrekt</button>
+  </form>
+</section>
+{% endblock %}

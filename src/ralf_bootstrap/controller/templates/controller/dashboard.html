@@ -1,0 +1,24 @@
+{% extends "controller/base.html" %}
+{% block title %}Controller-Übersicht{% endblock %}
+{% block content %}
+<section>
+  <h2>Setup-Übersicht</h2>
+  <dl>
+    <dt>Datenbank</dt><dd>{{ controller.database.status }}</dd>
+    <dt>Setup</dt><dd>{{ controller.setup_status }}</dd>
+    <dt>Inventar</dt><dd>{{ controller.inventory_count }}</dd>
+    <dt>REPORTIERT</dt><dd>{{ controller.reported_count }} – vom Nutzer angegeben, noch nicht verifiziert</dd>
+    <dt>VERIFIZIERT</dt><dd>{{ controller.verified_count }} – read-only geprüft</dd>
+    <dt>KONFLIKT</dt><dd>{{ controller.conflict_count }} – nicht sicher verwendbar</dd>
+    <dt>Offene Prüfungen</dt><dd>{{ controller.open_verifications }}</dd>
+    <dt>Bestätigte Abschnitte</dt><dd>{{ controller.confirmed_sections|join(', ') or 'keine' }}</dd>
+    <dt>Fortschritt</dt><dd>{{ controller.confirmed_sections|length }} von 4 Pflichtabschnitten bestätigt</dd>
+    <dt>Planstatus</dt><dd>{{ controller.plan_status }}</dd>
+  </dl>
+  {% if not controller.available %}
+  <p>Initialisierung: <code>python3 -m ralf_bootstrap.controller_db init --database /var/lib/ralf/bootstrap/state.db</code></p>
+  {% else %}
+  <p><a href="{{ url_for('controller.setup_start') }}">Bestandsaufnahme beginnen oder fortsetzen</a></p>
+  {% endif %}
+</section>
+{% endblock %}

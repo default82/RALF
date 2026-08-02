@@ -36,7 +36,7 @@ make_stubs() {
   mkdir -p "$bin" "$state"
   make_stub "$bin/getent" '
 case ${1:-} in
-  passwd) printf "%s\n" "ralf-bootstrap:x:999:988::/nonexistent:/usr/sbin/nologin" ;;
+  passwd) printf "%s\n" "ralf-bootstrap:x:${TEST_PASSWD_UID:-999}:${TEST_PASSWD_GID:-988}::/nonexistent:/usr/sbin/nologin" ;;
   group)
     if [[ ${2:-} == sudo ]]; then printf "%s\n" "sudo:x:27:"; else printf "%s\n" "ralf-bootstrap:x:988:"; fi
     ;;
@@ -52,10 +52,15 @@ if [[ ${1:-} == -u ]]; then printf "0\n"; elif [[ ${1:-} == -Gn ]]; then printf 
 pid=$(cat "$TEST_STATE/main-pid")
 args="/opt/ralf/bootstrap/venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080"
 if grep -Fq -- "--no-control-socket" "$TEST_ROOT_PATH/etc/systemd/system/ralf-bootstrap.service"; then args="$args --no-control-socket"; fi
-if [[ ${1:-} == -p ]]; then
-  printf "%s\n" "$args ralf_bootstrap.wsgi:app"
+printf "ps" >>"$TEST_LOG"; printf " %q" "$@" >>"$TEST_LOG"; printf "\n" >>"$TEST_LOG"
+if [[ $* == "-ww -eo pid=,ppid=,uid=,gid=,comm=" ]]; then
+  if [[ -n ${TEST_PS_TREE:-} ]]; then printf "%s\n" "$TEST_PS_TREE";
+  else printf "%s\n" "$pid 1 999 988 gunicorn" "$((pid+1)) $pid 999 988 gunicorn"; fi
+elif [[ ${1:-} == -ww && ${2:-} == -p && ${4:-} == -o && ${5:-} == args= ]]; then
+  printf "%s\n" "${TEST_PS_ARGS:-$args ralf_bootstrap.wsgi:app}"
 else
-  printf "%s\n" "$pid 1 ralf-bootstrap ralf-bootstrap gunicorn $args ralf_bootstrap.wsgi:app" "$((pid+1)) $pid ralf-bootstrap ralf-bootstrap gunicorn $args ralf_bootstrap.wsgi:app"
+  printf "unexpected ps invocation: %s\n" "$*" >&2
+  exit 90
 fi'
   make_stub "$bin/stat" '
 format=${2:-}; shift 2
@@ -204,16 +209,71 @@ run_guest() {
     PATH="$dir/bin:/usr/bin:/bin" "$SCRIPT" "$@"
 }
 
+classify_tree_case() {
+  local name=$1 tree=$2 diagnostic=$3
+  local dir="$TEST_ROOT/tree-$name" output
+  make_fixture "$dir" old
+  output=$(TEST_PS_TREE="$tree" run_guest "$dir" --classify --target-sha256 "$TARGET_SHA" 2>"$dir/state/stderr")
+  [[ $output == 'RALF_BOOTSTRAP_UNIT_STATE_V1=unit_update_conflict' ]]
+  grep -Fq "$diagnostic" "$dir/state/stderr"
+}
+
+classify_args_case() {
+  local name=$1 args=$2 diagnostic=$3
+  local dir="$TEST_ROOT/args-$name" output
+  make_fixture "$dir" current
+  output=$(TEST_PS_ARGS="$args" run_guest "$dir" --classify --target-sha256 "$TARGET_SHA" 2>"$dir/state/stderr")
+  [[ $output == 'RALF_BOOTSTRAP_UNIT_STATE_V1=unit_update_conflict' ]]
+  grep -Fq "$diagnostic" "$dir/state/stderr"
+}
+
 old="$TEST_ROOT/old"; make_fixture "$old" old; start_http_server "$old/state/http-state"
 output=$(run_guest "$old" --classify --target-sha256 "$TARGET_SHA" 2>"$old/state/stderr")
 [[ $output == 'RALF_BOOTSTRAP_UNIT_STATE_V1=unit_update_required' && ! -s "$old/state/stderr" ]]
 printf 'PASS guest-classify-old-required\n'
+
+classify_tree_case master-uid $'111 1 998 988 gunicorn\n112 111 999 988 gunicorn' 'gunicorn:master-identity:111:998:988:gunicorn'
+classify_tree_case master-gid $'111 1 999 987 gunicorn\n112 111 999 988 gunicorn' 'gunicorn:master-identity:111:999:987:gunicorn'
+classify_tree_case worker-uid $'111 1 999 988 gunicorn\n112 111 998 988 gunicorn' 'gunicorn:worker-identity:112:111:998:988:gunicorn'
+classify_tree_case worker-gid $'111 1 999 988 gunicorn\n112 111 999 987 gunicorn' 'gunicorn:worker-identity:112:111:999:987:gunicorn'
+classify_tree_case missing-worker '111 1 999 988 gunicorn' 'gunicorn:service-tree-count:1:expected:2'
+classify_tree_case two-workers $'111 1 999 988 gunicorn\n112 111 999 988 gunicorn\n113 111 999 988 gunicorn' 'gunicorn:service-tree-count:3:expected:2'
+classify_tree_case wrong-worker-ppid $'111 1 999 988 gunicorn\n112 999 999 988 gunicorn' 'gunicorn:service-tree-count:1:expected:2'
+classify_tree_case wrong-master-comm $'111 1 999 988 python\n112 111 999 988 gunicorn' 'gunicorn:master-identity:111:999:988:python'
+classify_tree_case wrong-worker-comm $'111 1 999 988 gunicorn\n112 111 999 988 python' 'gunicorn:worker-identity:112:111:999:988:python'
+classify_tree_case extra-child $'111 1 999 988 gunicorn\n112 111 999 988 gunicorn\n113 111 999 988 helper' 'gunicorn:service-tree-count:3:expected:2'
+
+foreign="$TEST_ROOT/tree-foreign"; make_fixture "$foreign" old
+output=$(TEST_PS_TREE=$'111 1 999 988 gunicorn\n112 111 999 988 gunicorn\n900 1 500 500 gunicorn\n901 900 500 500 gunicorn' run_guest "$foreign" --classify --target-sha256 "$TARGET_SHA" 2>"$foreign/state/stderr")
+[[ $output == 'RALF_BOOTSTRAP_UNIT_STATE_V1=unit_update_required' ]]
+if grep -Eq 'user=|group=' "$foreign/state/commands.log"; then exit 1; fi
+grep -Fq 'ps -ww -eo pid=\,ppid=\,uid=\,gid=\,comm=' "$foreign/state/commands.log"
+printf 'PASS guest-numeric-service-tree-validation\n'
+
+invalid_identity="$TEST_ROOT/invalid-identity"; make_fixture "$invalid_identity" old
+output=$(TEST_PASSWD_UID=not-numeric run_guest "$invalid_identity" --classify --target-sha256 "$TARGET_SHA" 2>"$invalid_identity/state/stderr")
+[[ $output == 'RALF_BOOTSTRAP_UNIT_STATE_V1=unit_update_conflict' ]]
+grep -Fq 'identity:non-numeric' "$invalid_identity/state/stderr"
+if grep -Fq 'ps ' "$invalid_identity/state/commands.log"; then exit 1; fi
+printf 'PASS guest-invalid-numeric-identity-before-process-check\n'
 
 current="$TEST_ROOT/current"; make_fixture "$current" current
 printf 'configured\n' >"$old/state/http-state"
 output=$(run_guest "$current" --classify --target-sha256 "$TARGET_SHA" 2>"$current/state/stderr")
 [[ $output == 'RALF_BOOTSTRAP_UNIT_STATE_V1=unit_already_current' ]]
 printf 'PASS guest-classify-current\n'
+
+long_padding='python launcher with deliberately long harmless prefix tokens that exceed a traditional terminal width before the required gunicorn flags'
+long_args="$long_padding --workers 1 --bind 127.0.0.1:8080 --no-control-socket ralf_bootstrap.wsgi:app"
+long="$TEST_ROOT/args-long"; make_fixture "$long" current
+output=$(TEST_PS_ARGS="$long_args" run_guest "$long" --classify --target-sha256 "$TARGET_SHA" 2>"$long/state/stderr")
+[[ $output == 'RALF_BOOTSTRAP_UNIT_STATE_V1=unit_already_current' ]]
+grep -Fq 'ps -ww -p 111 -o args=' "$long/state/commands.log"
+classify_args_case missing-control '/venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 ralf_bootstrap.wsgi:app' 'gunicorn:main-args:no-control-socket:0:expected:1'
+classify_args_case duplicate-control '/venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 --no-control-socket --no-control-socket ralf_bootstrap.wsgi:app' 'gunicorn:main-args:no-control-socket:2:expected:1'
+classify_args_case wrong-bind '/venv/bin/gunicorn --workers 1 --bind 0.0.0.0:8080 --no-control-socket ralf_bootstrap.wsgi:app' 'gunicorn:main-args:bind:0:expected:1'
+classify_args_case wrong-workers '/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8080 --no-control-socket ralf_bootstrap.wsgi:app' 'gunicorn:main-args:workers:0:expected:1'
+printf 'PASS guest-wide-main-argument-validation\n'
 
 foreign="$TEST_ROOT/foreign"; make_fixture "$foreign" old; printf '# foreign\n' >>"$foreign/root/etc/systemd/system/ralf-bootstrap.service"
 output=$(run_guest "$foreign" --classify --target-sha256 "$TARGET_SHA" 2>"$foreign/state/stderr")
@@ -311,4 +371,7 @@ grep -Fq "systemctl daemon-reload" "$SCRIPT"
 grep -Fq "systemctl restart ralf-bootstrap.service" "$SCRIPT"
 if grep -Eq 'systemctl (stop|start|enable|disable)' "$SCRIPT"; then exit 1; fi
 if grep -Eq 'pip install|python3 -m venv|apt-get (install|update|upgrade|full-upgrade|autoremove)' "$SCRIPT"; then exit 1; fi
+if grep -Eq 'user=|group=' "$SCRIPT"; then exit 1; fi
+grep -Fq 'LC_ALL=C ps -ww -eo pid=,ppid=,uid=,gid=,comm=' "$SCRIPT"
+grep -Fq 'LC_ALL=C ps -ww -p "$pid" -o args=' "$SCRIPT"
 printf 'PASS guest-scope-source-checks\n'

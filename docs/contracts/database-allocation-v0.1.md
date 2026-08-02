@@ -239,4 +239,4 @@ RALF Core erh채lt in diesem ersten realen Deployment keine Allocation. Seine sp�
 - allocation- und providerweite Backupbeziehung,
 - konkrete Consumer-Versionskompatibilit채t.
 
-**N채chster Schritt:** Einen zun채chst read-only geplanten Implementierungspfad ausarbeiten, ohne eine Providerinstanz oder Allocation anzulegen.
+**N채chster Schritt:** Der [read-only Deploymentplan](../operations/postgresql-main-deployment-plan.md) konkretisiert das erste Profil ohne Providerinstanz oder Allocation anzulegen. Danach wird ein getrennter Apply-Vertrag mit Recovery- und Freigabegrenzen spezifiziert.

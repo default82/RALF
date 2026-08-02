@@ -1,0 +1,50 @@
+# Nicht geheimes, bewusst unvollständiges Beispiel.
+# Diese Datei wird niemals automatisch als reale Deploymentkonfiguration verwendet.
+schema_version = 1
+
+[provider]
+provider_instance_id = "postgresql-main"
+hostname = "postgresql-main"
+fqdn = "postgresql-main.example.internal"
+postgresql_major = 18
+
+[lxc]
+vmid = 0
+storage = ""
+bridge = ""
+ipv4_cidr = ""
+gateway = ""
+dns_servers = []
+cores = 4
+memory_mib = 8192
+swap_mib = 2048
+disk_gib = 100
+
+[backup]
+host_root = ""
+minimum_free_gib = 100
+protection_confirmed = false
+
+[[allocations]]
+allocation_id = "gitea"
+database_name = "gitea"
+application_identity = "gitea"
+allowed_client_cidrs = []
+
+[[allocations]]
+allocation_id = "openbao"
+database_name = "openbao"
+application_identity = "openbao"
+allowed_client_cidrs = []
+
+[[allocations]]
+allocation_id = "semaphore"
+database_name = "semaphore"
+application_identity = "semaphore"
+allowed_client_cidrs = []
+
+[[allocations]]
+allocation_id = "nodered"
+database_name = "nodered"
+application_identity = "nodered"
+allowed_client_cidrs = []

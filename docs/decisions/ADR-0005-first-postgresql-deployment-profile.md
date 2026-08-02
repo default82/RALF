@@ -107,18 +107,20 @@ Dieser Entscheidungsdurchlauf legt keine dieser Dateien an. Er dokumentiert wede
 - OpenBao und Node-RED besitzen die dokumentierten deployment-spezifischen Storage-Grenzen.
 - Die konkrete technische Umsetzung bleibt vollständig offen und benötigt einen neuen Plan.
 
-## Nicht entschieden
+## Fortschreibung durch ADR-0006
 
-- Betriebssystem und Betriebsform von `postgresql-main`,
-- Netzwerkgrenze,
-- CPU-, Speicher- und Storage-Ressourcen,
-- Backupziel und Retention,
-- Eigentümer und Dateirechte unter `/secrets`,
-- konkrete kompatible Versionen von Gitea, OpenBao, Semaphore UI und Node-RED,
+[ADR-0006](ADR-0006-postgresql-runtime-profile.md) entscheidet die bei Annahme dieses ADR noch offenen Punkte zu Betriebssystem, Betriebsform, Paketquelle, Referenzressourcen sowie den grundsätzlichen Netzwerk-, TLS-, SCRAM-, Secret- und Backupgrenzen. Der zugehörige [read-only Deploymentplan](../operations/postgresql-main-deployment-plan.md) setzt diese Grenzen ausschließlich als Validierung und Plandarstellung um.
+
+## Weiterhin nicht entschieden
+
+- konkrete VMID, Storage, Bridge, Adresse, FQDN, DNS-Server und Consumer-CIDRs,
+- konkretes externes Backupziel und Retention,
+- Consumer-Zugriffsmodell auf die unter `/secrets` verwahrten Dateien,
+- erneute Kompatibilitätsprüfung der versionierten Referenzmatrix unmittelbar vor Installation,
 - konkrete logische Datenbanknamen und PostgreSQL-Benutzernamen,
 - Secret-Rotation,
 - zulässige Erweiterungen und Detailkonfiguration.
 
 ## Nächster Schritt
 
-Als Nächstes wird ein konkreter, zunächst read-only geplanter Implementierungspfad für PostgreSQL 18, eine Providerinstanz, vier isolierte logische Allocations und Secrets ausschließlich unter `/secrets` entworfen. Vor der ersten Mutation werden alle unter „Nicht entschieden“ genannten Betriebsparameter festgelegt und der vollständige Plan ausdrücklich bestätigt.
+Der read-only Deploymentplan für PostgreSQL 18, eine Providerinstanz, vier isolierte logische Allocations und Secrets ausschließlich unter `/secrets` ist nun spezifiziert. Als Nächstes wird getrennt definiert, wie ein späterer Apply Mutationen, Recovery und Einzelbestätigungen sicher begrenzt. Bis dahin findet keine Mutation statt.

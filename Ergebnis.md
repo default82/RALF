@@ -668,4 +668,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Änderungen: Kein `--apply`, keine Übertragung, kein Dienstrestart, keine reale M-035-Unitaktualisierung und keine sonstige VMID-100-Mutation.
 - Risiken oder Blocker: M-035 bleibt bis zum ausdrücklich freigegebenen einmaligen Apply und dessen vollständiger Laufzeitvalidierung aktiv. Das Update besitzt keinen automatischen Rollback und keinen zweiten Restartversuch.
 - Nächster sinnvoller Zielbild-Eintrag: M-035 – nach ausdrücklicher Nutzerfreigabe genau einen `--apply --vmid 100`-Lauf ausführen und anschließend ausschließlich read-only Unit, Journal, Prozess, Loopback, HTTP, Netzwerkstatus, Härtung und Anwendungshashes validieren.
-- Veröffentlichung: Dieser ausschließlich dokumentierende Planbericht wird gezielt committed und über einen eigenen PR veröffentlicht; `secrets/` bleibt ungetrackt und unstaged.
+- Veröffentlichung: Der ausschließlich dokumentierende Planbericht wurde mit Commit `d6135ab` auf Branch `agent/m037-real-unit-plan` veröffentlicht; PR `#35` enthält nur `Ergebnis.md`. `secrets/` blieb ungetrackt und unstaged.

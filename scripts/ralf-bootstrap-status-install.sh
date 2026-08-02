@@ -17,6 +17,7 @@ MODE=''
 BUNDLE=''
 RESUME=0
 REPAIR_VENV=0
+CLASSIFY=0
 PREFLIGHT_COMPLETED=0
 LAST_MUTATION='keine'
 VENV_AVAILABLE=0
@@ -32,6 +33,16 @@ TEMP_VENV_PATH=''
 TEMP_VENV_REMOVED=0
 NEW_VENV_CREATED=0
 APT_INSTALL_SUCCEEDED=0
+CLASSIFICATION_FAILURES=()
+CLASSIFICATION_OBSERVED=()
+CLASSIFICATION_EXPECTED=()
+SERVICE_LOAD_STATE='unknown'
+SERVICE_UNIT_FILE_STATE='unknown'
+SERVICE_ACTIVE_STATE='unknown'
+SERVICE_SUB_STATE='unknown'
+SERVICE_RESULT='unknown'
+SERVICE_EXEC_MAIN_CODE='unknown'
+SERVICE_EXEC_MAIN_STATUS='unknown'
 
 target_path() {
   printf '%s%s' "$ROOT_PREFIX" "$1"
@@ -66,6 +77,7 @@ Aufruf:
   ralf-bootstrap-status-install.sh --resume --apply --bundle /run/ralf-bootstrap-install
   ralf-bootstrap-status-install.sh --repair-venv --plan --bundle /run/ralf-bootstrap-install
   ralf-bootstrap-status-install.sh --repair-venv --apply --bundle /run/ralf-bootstrap-install
+  ralf-bootstrap-status-install.sh --classify --bundle /run/ralf-bootstrap-install
 EOF
   exit 2
 }
@@ -96,6 +108,7 @@ parse_args() {
       --apply) select_mode apply; shift ;;
       --resume) RESUME=1; shift ;;
       --repair-venv) REPAIR_VENV=1; shift ;;
+      --classify) CLASSIFY=1; shift ;;
       --bundle)
         (($# >= 2)) || fail '--bundle benötigt einen Wert.'
         BUNDLE=$2
@@ -108,10 +121,13 @@ parse_args() {
   if ((RESUME == 1 && REPAIR_VENV == 1)); then
     fail '--resume und --repair-venv dürfen nicht gemeinsam verwendet werden.'
   fi
+  if ((CLASSIFY == 1)) && { [[ -n $MODE ]] || ((RESUME == 1 || REPAIR_VENV == 1)); }; then
+    fail '--classify darf nicht mit Plan-, Apply-, Resume- oder Reparaturmodi kombiniert werden.'
+  fi
   if [[ -z $MODE && ( $RESUME == 1 || $REPAIR_VENV == 1 ) ]]; then
     MODE=plan
   fi
-  [[ -n $MODE ]] || usage
+  ((CLASSIFY == 1)) || [[ -n $MODE ]] || usage
   [[ -n $BUNDLE ]] || fail '--bundle ist erforderlich.'
   [[ $BUNDLE == /* && $BUNDLE != */ ]] || fail '--bundle muss ein absoluter Verzeichnispfad sein.'
 }
@@ -122,7 +138,7 @@ check_command() {
 
 check_commands() {
   local command_name
-  for command_name in apt-cache apt-get awk dpkg find fuser getent grep groupadd head id install ip mktemp mountpoint pgrep python3 sha256sum sleep sort stat systemctl uname useradd wget; do
+  for command_name in apt-cache apt-get awk dpkg find fuser getent grep groupadd head id install ip mktemp mountpoint paste pgrep python3 sha256sum sleep sort stat systemctl uname useradd wget; do
     check_command "$command_name"
   done
 }
@@ -251,6 +267,75 @@ with zipfile.ZipFile(wheel_path) as archive:
 PY
 }
 
+sanitize_diagnostic_value() {
+  local value=${1//$'\n'/ }
+  value=${value//$'\r'/ }
+  value=${value//$'\t'/ }
+  printf '%.240s' "$value"
+}
+
+record_failed_predicate() {
+  CLASSIFICATION_FAILURES+=("$1")
+  CLASSIFICATION_OBSERVED+=("$(sanitize_diagnostic_value "$2")")
+  CLASSIFICATION_EXPECTED+=("$(sanitize_diagnostic_value "$3")")
+}
+
+predicate_equals() {
+  local name=$1 observed=$2 expected_value=$3
+  if [[ $observed == "$expected_value" ]]; then
+    return 0
+  fi
+  record_failed_predicate "$name" "$observed" "$expected_value"
+  return 1
+}
+
+emit_classification_diagnostics() {
+  local index
+  printf 'state=%s\n' "$INSTALL_STATE" >&2
+  for index in "${!CLASSIFICATION_FAILURES[@]}"; do
+    printf 'failed_check=%s\n' "${CLASSIFICATION_FAILURES[$index]}" >&2
+    printf 'observed=%s\n' "${CLASSIFICATION_OBSERVED[$index]}" >&2
+    printf 'expected=%s\n' "${CLASSIFICATION_EXPECTED[$index]}" >&2
+  done
+  if [[ $SERVICE_ACTIVE_STATE != unknown || $SERVICE_SUB_STATE != unknown ]]; then
+    printf 'observed_load_state=%s\n' "$SERVICE_LOAD_STATE" >&2
+    printf 'observed_unit_file_state=%s\n' "$SERVICE_UNIT_FILE_STATE" >&2
+    printf 'observed_active_state=%s\n' "$SERVICE_ACTIVE_STATE" >&2
+    printf 'observed_sub_state=%s\n' "$SERVICE_SUB_STATE" >&2
+    printf 'observed_result=%s\n' "$SERVICE_RESULT" >&2
+    printf 'observed_exec_main_code=%s\n' "$SERVICE_EXEC_MAIN_CODE" >&2
+    printf 'observed_exec_main_status=%s\n' "$SERVICE_EXEC_MAIN_STATUS" >&2
+    printf 'expected_active_state=inactive\n' >&2
+    printf 'expected_sub_state=dead\n' >&2
+  fi
+}
+
+probe_bundle() {
+  local -a actual expected wheels
+  [[ -d $BUNDLE ]] || return 1
+  mapfile -t wheels < <(find "$BUNDLE" -mindepth 1 -maxdepth 1 -type f -name 'ralf_bootstrap-0.1.0-*.whl' -printf '%f\n' | sort)
+  ((${#wheels[@]} == 1)) || return 1
+  WHEEL=${wheels[0]}
+  expected=("$WHEEL" SHA256SUMS config.toml ralf-bootstrap.service ralf-bootstrap-status-install.sh runtime.lock)
+  mapfile -t actual < <(find "$BUNDLE" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)
+  mapfile -t expected < <(printf '%s\n' "${expected[@]}" | sort)
+  [[ ${actual[*]} == "${expected[*]}" ]] || return 1
+  (cd "$BUNDLE" && sha256sum -c SHA256SUMS >/dev/null 2>&1) || return 1
+  python3 - "$BUNDLE/$WHEEL" <<'PY' >/dev/null 2>&1
+import email
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    names = [name for name in archive.namelist() if name.endswith('.dist-info/METADATA')]
+    if len(names) != 1:
+        raise SystemExit(1)
+    metadata = email.message_from_bytes(archive.read(names[0]))
+    if metadata.get('Name') != 'ralf-bootstrap' or metadata.get('Version') != '0.1.0':
+        raise SystemExit(1)
+PY
+}
+
 check_user_group() {
   local passwd_line group_line user_gid group_gid groups
   passwd_line=$(getent passwd "$EXPECTED_USER" || true)
@@ -273,6 +358,66 @@ check_user_group() {
   fi
 }
 
+user_group_is_valid() {
+  local passwd_line group_line user_uid user_gid group_gid user_home user_shell groups
+  passwd_line=$(getent passwd "$EXPECTED_USER" 2>/dev/null || true)
+  group_line=$(getent group "$EXPECTED_GROUP" 2>/dev/null || true)
+  [[ -n $passwd_line && -n $group_line ]] || return 1
+  IFS=: read -r _ _ user_uid user_gid _ user_home user_shell <<<"$passwd_line"
+  IFS=: read -r _ _ group_gid _ <<<"$group_line"
+  [[ $user_uid =~ ^[0-9]+$ && $user_uid -ge 100 && $user_uid -lt 1000 ]] || return 1
+  [[ $user_gid =~ ^[0-9]+$ && $user_gid == "$group_gid" ]] || return 1
+  [[ $user_home == "$EXPECTED_HOME" && $user_shell == "$EXPECTED_SHELL" ]] || return 1
+  groups=$(id -Gn "$EXPECTED_USER" 2>/dev/null || true)
+  [[ $groups == "$EXPECTED_GROUP" ]] || return 1
+  if getent group sudo >/dev/null 2>&1 && getent group sudo | grep -Eq '(^|,)'"$EXPECTED_USER"'(,|$)'; then
+    return 1
+  fi
+}
+
+service_snapshot_is_transient() {
+  case $SERVICE_ACTIVE_STATE in
+    activating|deactivating|reloading) return 0 ;;
+  esac
+  case $SERVICE_SUB_STATE in
+    start|start-pre|start-post|stop|stop-sigterm|stop-sigkill|auto-restart) return 0 ;;
+  esac
+  return 1
+}
+
+read_service_snapshot() {
+  local output line key value attempt
+  for attempt in 1 2 3; do
+    SERVICE_LOAD_STATE='unknown'
+    SERVICE_UNIT_FILE_STATE='unknown'
+    SERVICE_ACTIVE_STATE='unknown'
+    SERVICE_SUB_STATE='unknown'
+    SERVICE_RESULT='unknown'
+    SERVICE_EXEC_MAIN_CODE='unknown'
+    SERVICE_EXEC_MAIN_STATUS='unknown'
+    output=$(systemctl show ralf-bootstrap.service \
+      -p LoadState -p UnitFileState -p ActiveState -p SubState -p Result \
+      -p ExecMainCode -p ExecMainStatus --no-pager 2>/dev/null || true)
+    while IFS= read -r line; do
+      key=${line%%=*}
+      value=${line#*=}
+      case $key in
+        LoadState) SERVICE_LOAD_STATE=$value ;;
+        UnitFileState) SERVICE_UNIT_FILE_STATE=$value ;;
+        ActiveState) SERVICE_ACTIVE_STATE=$value ;;
+        SubState) SERVICE_SUB_STATE=$value ;;
+        Result) SERVICE_RESULT=$value ;;
+        ExecMainCode) SERVICE_EXEC_MAIN_CODE=$value ;;
+        ExecMainStatus) SERVICE_EXEC_MAIN_STATUS=$value ;;
+      esac
+    done <<<"$output"
+    if ! service_snapshot_is_transient || ((attempt == 3)); then
+      return 0
+    fi
+    sleep 0.2
+  done
+}
+
 find_recoverable_temp() {
   local -a candidates
   mapfile -t candidates < <(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -type d -name '.venv-build.*' -printf '%p\n' | sort)
@@ -286,7 +431,7 @@ check_recoverable_shape() {
   actual=$(stat -c '%U:%G|%a' "$bootstrap_root" 2>/dev/null) || return 1
   [[ $actual == "root:$EXPECTED_GROUP|750" ]] || return 1
   [[ -n $(getent passwd "$EXPECTED_USER" || true) && -n $(getent group "$EXPECTED_GROUP" || true) ]] || return 1
-  check_user_group
+  user_group_is_valid || return 1
   find_recoverable_temp || return 1
   while IFS= read -r actual; do
     [[ $actual == "$RECOVERABLE_TEMP_VENV" ]] || return 1
@@ -371,7 +516,6 @@ venv_shebang_is_moved() {
 }
 
 check_moved_venv_shape() {
-  local exec_status
   [[ -d $bootstrap_root && ! -L $venv_dir ]] || return 1
   [[ -f $venv_dir/pyvenv.cfg && -x $venv_dir/bin/python ]] || return 1
   [[ $(cat "$version_file" 2>/dev/null) == "$EXPECTED_VERSION" ]] || return 1
@@ -381,9 +525,8 @@ check_moved_venv_shape() {
   [[ ! -e $install_marker && ! -e $repair_marker ]] || return 1
   ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 \( -name '.venv-build.*' -o -name '.app-build.*' \) -print -quit | grep -q . || return 1
   venv_shebang_is_moved || return 1
-  systemctl is-enabled ralf-bootstrap.service >/dev/null 2>&1 || return 1
-  exec_status=$(systemctl show ralf-bootstrap.service -p ExecMainStatus --value 2>/dev/null || true)
-  [[ $exec_status == 203 ]] || return 1
+  read_service_snapshot
+  [[ $SERVICE_UNIT_FILE_STATE == enabled && $SERVICE_EXEC_MAIN_STATUS == 203 ]] || return 1
   ! pgrep -x gunicorn >/dev/null 2>&1 || return 1
   port_is_free || return 1
   return 0
@@ -416,35 +559,100 @@ repair_permissions_match() {
   [[ ! -e $state_db ]]
 }
 
-check_repair_validation_failure_shape() {
-  local actual active_state sub_state
-  [[ -d $bootstrap_root && ! -L $bootstrap_root ]] || return 1
-  repair_marker_is_valid || return 1
-  [[ -f $install_marker ]] && return 1
-  [[ $(stat -c '%U:%G|%a' "$bootstrap_root" 2>/dev/null) == "root:$EXPECTED_GROUP|750" ]] || return 1
-  check_user_group
-  [[ -d $venv_dir && ! -L $venv_dir ]] || return 1
-  mountpoint -q "$venv_dir" && return 1
-  [[ $(stat -c '%U:%G|%a' "$venv_dir" 2>/dev/null) == 'root:root|755' ]] || return 1
-  [[ -f $venv_dir/pyvenv.cfg && -x $venv_dir/bin/python ]] || return 1
-  while IFS= read -r actual; do
-    case $actual in
-      "$app_dir"|"$venv_dir"|"$version_file"|"$repair_marker") ;;
-      *) return 1 ;;
-    esac
-  done < <(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -print)
-  ! find "$bootstrap_root" -mindepth 1 -maxdepth 1 \( -name '.venv-build.*' -o -name '.app-build.*' -o -name '.venv-install-in-progress' \) -print -quit | grep -q . || return 1
-  [[ $(cat "$version_file" 2>/dev/null) == "$EXPECTED_VERSION" ]] || return 1
-  repair_permissions_match || return 1
-  check_installed_artifact_hashes || return 1
-  check_installed_package_versions || return 1
-  validate_final_venv
-  systemctl is-enabled ralf-bootstrap.service >/dev/null 2>&1 || return 1
-  active_state=$(systemctl show ralf-bootstrap.service -p ActiveState --value 2>/dev/null || true)
-  sub_state=$(systemctl show ralf-bootstrap.service -p SubState --value 2>/dev/null || true)
-  [[ $active_state == inactive && $sub_state == dead ]] || return 1
-  ! pgrep -x gunicorn >/dev/null 2>&1 || return 1
-  port_is_free || return 1
+probe_venv_semantics() {
+  [[ -x $venv_dir/bin/python ]] || return 1
+  "$venv_dir/bin/python" - "$venv_dir" <<'PY' >/dev/null 2>&1
+import os
+import pathlib
+import sys
+import sysconfig
+
+expected = pathlib.Path(sys.argv[1]).resolve()
+launcher = expected / 'bin' / 'python'
+assert pathlib.Path(sys.prefix).resolve() == expected
+assert pathlib.Path(sys.exec_prefix).resolve() == expected
+assert sys.prefix != sys.base_prefix
+assert sys.exec_prefix != sys.base_exec_prefix
+assert sys.executable
+assert launcher.is_file() and os.access(launcher, os.X_OK)
+assert os.path.samefile(sys.executable, launcher)
+assert pathlib.Path(sysconfig.get_paths()['purelib']).resolve().is_relative_to(expected)
+PY
+}
+
+gunicorn_shebang_is_final() {
+  [[ -x $venv_dir/bin/gunicorn ]] || return 1
+  [[ $(head -n 1 "$venv_dir/bin/gunicorn" 2>/dev/null) == "#!$venv_dir/bin/python" ]] || return 1
+  [[ -x $venv_dir/bin/python ]]
+}
+
+venv_build_references_are_absent() {
+  ! find "$venv_dir/bin" -maxdepth 1 -type f -perm /111 -exec grep -IlF '.venv-build.' {} + 2>/dev/null | grep -q .
+}
+
+evaluate_repair_validation_state() {
+  local valid=1 observed entries expected_entries package_state artifact_state process_state port_state
+  CLASSIFICATION_FAILURES=()
+  CLASSIFICATION_OBSERVED=()
+  CLASSIFICATION_EXPECTED=()
+
+  observed=$([[ -d $bootstrap_root && ! -L $bootstrap_root ]] && printf valid || printf invalid)
+  predicate_equals bootstrap_root_valid "$observed" valid || valid=0
+  observed=$(user_group_is_valid && printf valid || printf invalid)
+  predicate_equals user_valid "$observed" valid || valid=0
+  predicate_equals group_valid "$observed" valid || valid=0
+  observed=$([[ -d $app_dir ]] && printf present || printf absent)
+  predicate_equals app_present "$observed" present || valid=0
+  observed=$(cat "$version_file" 2>/dev/null || printf absent)
+  predicate_equals version_valid "$observed" "$EXPECTED_VERSION" || valid=0
+  observed=$([[ -d $config_dir && -f $config_file ]] && printf present || printf absent)
+  predicate_equals config_present "$observed" present || valid=0
+  observed=$([[ -d $state_dir ]] && printf present || printf absent)
+  predicate_equals state_directory_present "$observed" present || valid=0
+  observed=$([[ -f $unit_file ]] && printf present || printf absent)
+  predicate_equals unit_present "$observed" present || valid=0
+  observed=$([[ ! -e $state_db ]] && printf absent || printf present)
+  predicate_equals state_db_absent "$observed" absent || valid=0
+  observed=$(repair_marker_is_valid && printf valid || printf invalid)
+  predicate_equals repair_marker_valid "$observed" valid || valid=0
+  observed=$([[ ! -e $install_marker ]] && printf absent || printf present)
+  predicate_equals install_marker_absent "$observed" absent || valid=0
+
+  entries=$(find "$bootstrap_root" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>/dev/null | sort | paste -sd, -)
+  expected_entries=$(printf '%s\n' .venv-repair-in-progress VERSION app venv | sort | paste -sd, -)
+  predicate_equals bootstrap_entries_valid "$entries" "$expected_entries" || valid=0
+  observed=$(! find "$bootstrap_root" -mindepth 1 -maxdepth 1 \( -name '.venv-build.*' -o -name '.app-build.*' -o -name '.venv-install-in-progress' \) -print -quit 2>/dev/null | grep -q . && printf absent || printf present)
+  predicate_equals temporary_directories_absent "$observed" absent || valid=0
+
+  observed=$([[ -d $venv_dir && ! -L $venv_dir ]] && ! mountpoint -q "$venv_dir" && printf valid || printf invalid)
+  predicate_equals venv_directory_valid "$observed" valid || valid=0
+  observed=$(stat -c '%U:%G|%a' "$venv_dir" 2>/dev/null || printf 'absent|absent')
+  predicate_equals venv_owner_is_intermediate "${observed%|*}" root:root || valid=0
+  predicate_equals venv_mode_is_intermediate "${observed##*|}" 755 || valid=0
+  observed=$([[ -f $venv_dir/pyvenv.cfg ]] && printf present || printf absent)
+  predicate_equals pyvenv_cfg_present "$observed" present || valid=0
+  observed=$(probe_venv_semantics && printf valid || printf invalid)
+  predicate_equals venv_semantics_valid "$observed" valid || valid=0
+  package_state=$(check_installed_package_versions >/dev/null 2>&1 && printf valid || printf invalid)
+  predicate_equals package_versions_valid "$package_state" valid || valid=0
+  observed=$(gunicorn_shebang_is_final && printf valid || printf invalid)
+  predicate_equals gunicorn_shebang_valid "$observed" valid || valid=0
+  observed=$(venv_build_references_are_absent && printf absent || printf present)
+  predicate_equals build_path_references_absent "$observed" absent || valid=0
+  artifact_state=$(check_installed_artifact_hashes >/dev/null 2>&1 && printf valid || printf invalid)
+  predicate_equals installed_artifacts_match_bundle "$artifact_state" valid || valid=0
+  observed=$(repair_permissions_match && printf valid || printf invalid)
+  predicate_equals installed_permissions_valid "$observed" valid || valid=0
+
+  read_service_snapshot
+  predicate_equals unit_enabled "$SERVICE_UNIT_FILE_STATE" enabled || valid=0
+  predicate_equals service_inactive_dead "$SERVICE_ACTIVE_STATE/$SERVICE_SUB_STATE" inactive/dead || valid=0
+  process_state=$(pgrep -x gunicorn >/dev/null 2>&1 && printf present || printf absent)
+  predicate_equals gunicorn_process_absent "$process_state" absent || valid=0
+  port_state=$(port_is_free && printf free || printf occupied)
+  predicate_equals loopback_port_free "$port_state" free || valid=0
+
+  ((valid == 1))
 }
 
 check_direct_venv_failure_shape() {
@@ -461,6 +669,7 @@ check_direct_venv_failure_shape() {
 
 check_install_state() {
   local -a markers existing
+  local absent_identity=0
   markers=(
     "$app_dir" "$app_dir/$WHEEL" "$app_dir/runtime.lock"
     "$venv_dir" "$venv_dir/bin/gunicorn" "$version_file"
@@ -470,10 +679,20 @@ check_install_state() {
   for marker in "${markers[@]}"; do
     [[ -e $marker ]] && existing+=("$marker")
   done
-  if [[ ! -e $bootstrap_root && ${#existing[@]} == 0 ]]; then
+  if [[ -z $(getent passwd "$EXPECTED_USER" 2>/dev/null || true) && -z $(getent group "$EXPECTED_GROUP" 2>/dev/null || true) && ! -e $unit_file ]]; then
+    absent_identity=1
+  fi
+  if [[ ! -e $bootstrap_root && ${#existing[@]} == 0 && $absent_identity == 1 ]]; then
     INSTALL_STATE='absent'
-  elif check_repair_validation_failure_shape; then
-    INSTALL_STATE='recoverable_venv_repair_validation_failure'
+    CLASSIFICATION_FAILURES=()
+    CLASSIFICATION_OBSERVED=()
+    CLASSIFICATION_EXPECTED=()
+  elif [[ -e $repair_marker ]]; then
+    if evaluate_repair_validation_state; then
+      INSTALL_STATE='recoverable_venv_repair_validation_failure'
+    else
+      INSTALL_STATE='partial'
+    fi
   elif check_moved_venv_shape; then
     INSTALL_STATE='recoverable_moved_venv_exec_failure'
   elif ((${#existing[@]} == ${#markers[@]})) && [[ ! -e $state_db ]]; then
@@ -486,10 +705,13 @@ check_install_state() {
     INSTALL_STATE='partial'
   fi
   if [[ $INSTALL_STATE == complete ]]; then
-    check_installed_artifact_hashes || fail 'Vorhandene Installationsartefakte weichen vom Bundle ab.'
+    if ! check_installed_artifact_hashes; then
+      INSTALL_STATE='partial'
+      record_failed_predicate installed_artifacts_match_bundle invalid valid
+    fi
   fi
-  if [[ $INSTALL_STATE == absent ]] && { [[ -e "$unit_file" ]] || [[ -n $(getent passwd "$EXPECTED_USER" || true) ]] || [[ -n $(getent group "$EXPECTED_GROUP" || true) ]]; }; then
-    fail 'Benutzer, Gruppe oder systemd-Unit ist ohne vollständige Installation vorhanden.'
+  if [[ $INSTALL_STATE == partial && ${#CLASSIFICATION_FAILURES[@]} == 0 ]]; then
+    record_failed_predicate recognized_installation_shape unmatched 'one allowed state'
   fi
 }
 
@@ -514,6 +736,36 @@ check_port() {
   fi
 }
 
+run_classification() {
+  local command_name
+  for command_name in find getent grep head id mountpoint paste pgrep python3 sha256sum sleep sort stat systemctl; do
+    command -v "$command_name" >/dev/null 2>&1 || {
+      INSTALL_STATE='partial'
+      record_failed_predicate classification_command "$command_name:missing" present
+      printf 'RALF_BOOTSTRAP_STATE_V1=%s\n' "$INSTALL_STATE"
+      emit_classification_diagnostics
+      return 0
+    }
+  done
+  if ! probe_bundle; then
+    INSTALL_STATE='partial'
+    record_failed_predicate bundle_valid invalid valid
+  else
+    check_install_state
+  fi
+  case $INSTALL_STATE in
+    absent|complete|recoverable_venv_failure|recoverable_direct_venv_failure|recoverable_moved_venv_exec_failure|recoverable_venv_repair_validation_failure|partial) ;;
+    *)
+      INSTALL_STATE='partial'
+      record_failed_predicate state_value unknown 'allowed state'
+      ;;
+  esac
+  printf 'RALF_BOOTSTRAP_STATE_V1=%s\n' "$INSTALL_STATE"
+  if [[ $INSTALL_STATE == partial ]]; then
+    emit_classification_diagnostics
+  fi
+}
+
 check_preflight() {
   check_root
   check_commands
@@ -528,6 +780,10 @@ check_preflight() {
   check_package_state
   check_user_group
   check_install_state
+  if [[ $INSTALL_STATE == partial ]]; then
+    emit_classification_diagnostics
+    fail 'Eine teilweise oder abweichende Bootstrap-Installation ist nicht automatisch behandelbar.'
+  fi
   check_port
   if [[ $RESUME == 1 && $INSTALL_STATE != recoverable_venv_failure && $INSTALL_STATE != recoverable_direct_venv_failure ]]; then
     fail "Resume ist nur für einen bekannten Venv-Teilzustand zulässig; erkannt: $INSTALL_STATE."
@@ -547,9 +803,6 @@ check_preflight() {
   fi
   if [[ $REPAIR_VENV == 0 && $INSTALL_STATE == recoverable_venv_repair_validation_failure ]]; then
     fail 'Der erkannte recoverable_venv_repair_validation_failure darf nicht mit --apply oder --resume fortgesetzt werden; verwende ausdrücklich --repair-venv.'
-  fi
-  if [[ $INSTALL_STATE == partial ]]; then
-    fail 'Eine teilweise oder abweichende Bootstrap-Installation ist nicht automatisch behandelbar.'
   fi
   PREFLIGHT_COMPLETED=1
 }
@@ -611,27 +864,7 @@ ensure_user_group() {
 validate_final_venv() {
   local python_path=$venv_dir/bin/python shebang
   [[ -x $python_path && -f $venv_dir/pyvenv.cfg && ! -L $venv_dir ]] || fail 'Die endgültige Python-Umgebung ist unvollständig oder ein Symlink.'
-  "$python_path" - "$venv_dir" <<'PY' || fail 'Die Venv-Interpreterprüfung ist fehlgeschlagen.'
-import os
-import pathlib
-import sys
-import sysconfig
-expected = pathlib.Path(sys.argv[1]).resolve()
-if pathlib.Path(sys.prefix).resolve() != expected:
-    raise SystemExit(f'sys.prefix={sys.prefix!r}, erwartet={expected!s}')
-if pathlib.Path(sys.exec_prefix).resolve() != expected:
-    raise SystemExit(f'sys.exec_prefix={sys.exec_prefix!r}, erwartet={expected!s}')
-if sys.prefix == sys.base_prefix or sys.exec_prefix == sys.base_exec_prefix:
-    raise SystemExit('Die Venv ist nicht von der Basisinstallation getrennt.')
-launcher = expected / 'bin' / 'python'
-if not sys.executable or not launcher.is_file() or not os.access(launcher, os.X_OK):
-    raise SystemExit('Venv-Launcher oder sys.executable fehlt beziehungsweise ist nicht ausführbar.')
-if not os.path.samefile(sys.executable, launcher):
-    raise SystemExit('sys.executable und Venv-Launcher referenzieren nicht dieselbe Datei.')
-purelib = pathlib.Path(sysconfig.get_paths()['purelib']).resolve()
-if not purelib.is_relative_to(expected):
-    raise SystemExit(f'site-packages liegt außerhalb der Venv: {purelib}')
-PY
+  probe_venv_semantics || fail 'Die Venv-Interpreterprüfung ist fehlgeschlagen.'
   "$python_path" -m pip --version | grep -Fq "$venv_dir" || fail 'Pip verweist nicht auf die endgültige Venv.'
   "$python_path" -c 'import gunicorn, ralf_bootstrap' || fail 'Gunicorn oder ralf_bootstrap ist nicht importierbar.'
   shebang=$(head -n 1 "$venv_dir/bin/gunicorn" 2>/dev/null) || fail 'Gunicorn-Skript fehlt.'
@@ -884,6 +1117,10 @@ validate_service() {
 
 main() {
   parse_args "$@"
+  if ((CLASSIFY == 1)); then
+    run_classification
+    exit 0
+  fi
   check_preflight
   print_plan
   if [[ $MODE == plan ]]; then

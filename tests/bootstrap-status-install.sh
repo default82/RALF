@@ -41,7 +41,7 @@ make_stubs() {
   mkdir -p "$bin"
   make_stub "$bin" id 'if [[ ${TEST_NON_ROOT:-0} == 1 ]]; then printf "1000\n"; elif [[ ${1:-} == -Gn ]]; then printf "ralf-bootstrap\n"; else printf "0\n"; fi'
   make_stub "$bin" uname 'printf "x86_64\n"'
-  make_stub "$bin" systemctl 'case "$1" in is-system-running) printf "running\n";; is-enabled) [[ -f "$TEST_STATE/service-enabled" || -f "$TEST_STATE/service" ]] && printf "enabled\n" || exit 1;; is-active) [[ -f "$TEST_STATE/service" ]] && printf "active\n" || exit 1;; enable) touch "$TEST_STATE/service-enabled";; start) touch "$TEST_STATE/service";; stop) rm -f "$TEST_STATE/service";; reset-failed) touch "$TEST_STATE/reset-failed";; daemon-reload|status) :;; show) if [[ ${TEST_REPAIR_VALIDATION_STATE:-0} == 1 && ${4:-} == ActiveState ]]; then printf "inactive\n"; elif [[ ${TEST_REPAIR_VALIDATION_STATE:-0} == 1 && ${4:-} == SubState ]]; then printf "dead\n"; else printf "203\n"; fi;; *) exit 0;; esac'
+  make_stub "$bin" systemctl 'case "$1" in is-system-running) printf "running\n";; is-enabled) [[ -f "$TEST_STATE/service-enabled" || -f "$TEST_STATE/service" ]] && printf "enabled\n" || exit 1;; is-active) [[ -f "$TEST_STATE/service" ]] && printf "active\n" || exit 1;; enable) touch "$TEST_STATE/service-enabled";; start) touch "$TEST_STATE/service";; stop) rm -f "$TEST_STATE/service";; reset-failed) touch "$TEST_STATE/reset-failed";; daemon-reload|status) :;; show) active=${TEST_SYSTEMD_ACTIVE:-inactive}; sub=${TEST_SYSTEMD_SUB:-dead}; if [[ ${TEST_SYSTEMD_SEQUENCE:-} == transient-then-stable ]]; then count=$(cat "$TEST_STATE/show-count" 2>/dev/null || printf 0); count=$((count + 1)); printf "%s\n" "$count" >"$TEST_STATE/show-count"; if ((count < 3)); then active=deactivating; sub=stop-sigterm; fi; fi; printf "%s\n" "LoadState=loaded" "UnitFileState=$([[ -f "$TEST_STATE/service-enabled" || -f "$TEST_STATE/service" ]] && printf enabled || printf disabled)" "ActiveState=$active" "SubState=$sub" "Result=exit-code" "ExecMainCode=1" "ExecMainStatus=203";; *) exit 0;; esac'
   make_stub "$bin" ip 'printf "default via 192.0.2.1 dev eth0\n"'
   make_stub "$bin" getent 'case "$1" in ahostsv4) printf "192.0.2.1 STREAM archive.ubuntu.com\n";; passwd) [[ -f "$TEST_STATE/user" ]] && printf "ralf-bootstrap:x:997:997::/nonexistent:/usr/sbin/nologin\n" || exit 2;; group) [[ -f "$TEST_STATE/group" ]] && printf "ralf-bootstrap:x:997:\n" || exit 2;; esac'
   make_stub "$bin" dpkg 'exit 0'
@@ -286,7 +286,14 @@ run_repair_validation_case() {
   make_repair_validation_install "$root" "$bundle"
   make_stubs "$bin"
   touch "$state/user" "$state/group" "$state/service-enabled"
+  set +e
   output=$(TEST_REPAIR_VALIDATION_STATE=1 TEST_VENV_DIR="$root/opt/ralf/bootstrap/venv" TEST_STATE="$state" TEST_LOG="$state/commands.log" TEST_ENSUREPIP=1 RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" "$SCRIPT" --repair-venv --plan --bundle "$bundle" 2>&1)
+  status=$?
+  set -e
+  if [[ $status != 0 ]]; then
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
   grep -Fq 'recoverable_venv_repair_validation_failure' <<<"$output"
   [[ -f "$root/opt/ralf/bootstrap/.venv-repair-in-progress" && ! -e "$state/venv-mode-final" ]]
   set +e
@@ -301,6 +308,52 @@ run_repair_validation_case() {
   [[ ! -e "$root/opt/ralf/bootstrap/.venv-repair-in-progress" ]]
   [[ ! -e "$state/apt-installed" && ! -e "$state/venv-created" ]]
   printf 'PASS repair-validation-resume\n'
+}
+
+run_classification_case() {
+  local name=$1 expected=$2
+  local root="$TEST_ROOT/$name/root" bundle="$TEST_ROOT/$name/bundle" bin="$TEST_ROOT/$name/bin" state="$TEST_ROOT/$name/state"
+  local stdout_file="$TEST_ROOT/$name/stdout" stderr_file="$TEST_ROOT/$name/stderr"
+  mkdir -p "$root/etc" "$root/var/lib/dpkg/updates" "$root/var/run" "$state"
+  printf '%s\n' 'ID=ubuntu' 'VERSION_ID="26.04"' 'VERSION_CODENAME=resolute' >"$root/etc/os-release"
+  make_bundle "$bundle"
+  WHEEL_NAME=ralf_bootstrap-0.1.0-py3-none-any.whl
+  make_repair_validation_install "$root" "$bundle"
+  make_stubs "$bin"
+  touch "$state/user" "$state/group" "$state/service-enabled"
+  TEST_REPAIR_VALIDATION_STATE=1 \
+    TEST_SYSTEMD_ACTIVE="${TEST_CLASSIFY_ACTIVE:-inactive}" \
+    TEST_SYSTEMD_SUB="${TEST_CLASSIFY_SUB:-dead}" \
+    TEST_SYSTEMD_SEQUENCE="${TEST_CLASSIFY_SEQUENCE:-}" \
+    TEST_VENV_DIR="$root/opt/ralf/bootstrap/venv" TEST_STATE="$state" TEST_LOG="$state/commands.log" \
+    RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" \
+    "$SCRIPT" --classify --bundle "$bundle" >"$stdout_file" 2>"$stderr_file"
+  [[ $(wc -l <"$stdout_file") == 1 ]]
+  [[ $(cat "$stdout_file") == "RALF_BOOTSTRAP_STATE_V1=$expected" ]]
+  [[ ! -e "$state/reset-failed" && ! -e "$state/service" && ! -e "$state/venv-chowned" && ! -e "$state/venv-mode-final" ]]
+  [[ -f "$root/opt/ralf/bootstrap/.venv-repair-in-progress" ]]
+  if [[ $expected == partial ]]; then
+    grep -Fxq 'state=partial' "$stderr_file"
+    grep -Fxq 'failed_check=service_inactive_dead' "$stderr_file"
+    grep -Fxq "observed_active_state=${TEST_CLASSIFY_ACTIVE}" "$stderr_file"
+    grep -Fxq "observed_sub_state=${TEST_CLASSIFY_SUB}" "$stderr_file"
+  else
+    [[ ! -s $stderr_file ]]
+  fi
+  printf 'PASS classify-%s\n' "$name"
+}
+
+run_classification_bundle_failure() {
+  local name=classify-invalid-bundle root="$TEST_ROOT/classify-invalid-bundle/root" bundle="$TEST_ROOT/classify-invalid-bundle/bundle"
+  local bin="$TEST_ROOT/classify-invalid-bundle/bin" state="$TEST_ROOT/classify-invalid-bundle/state"
+  mkdir -p "$root/etc" "$state"
+  make_bundle "$bundle"; make_stubs "$bin"
+  printf 'broken\n' >"$bundle/SHA256SUMS"
+  TEST_STATE="$state" RALF_INSTALL_ROOT="$root" PATH="$bin:/usr/bin:/bin" \
+    "$SCRIPT" --classify --bundle "$bundle" >"$TEST_ROOT/$name/stdout" 2>"$TEST_ROOT/$name/stderr"
+  [[ $(cat "$TEST_ROOT/$name/stdout") == 'RALF_BOOTSTRAP_STATE_V1=partial' ]]
+  grep -Fxq 'failed_check=bundle_valid' "$TEST_ROOT/$name/stderr"
+  printf 'PASS classify-invalid-bundle\n'
 }
 
 run_direct_venv_source_checks() {
@@ -379,3 +432,7 @@ run_direct_resume_case
 run_repair_venv_case moved
 run_repair_venv_case repair-failure
 run_repair_validation_case
+run_classification_case classify-current recoverable_venv_repair_validation_failure
+TEST_CLASSIFY_ACTIVE=activating TEST_CLASSIFY_SUB=auto-restart run_classification_case classify-transient partial
+TEST_CLASSIFY_SEQUENCE=transient-then-stable run_classification_case classify-stabilizes recoverable_venv_repair_validation_failure
+run_classification_bundle_failure

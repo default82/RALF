@@ -1,0 +1,24 @@
+{% extends "controller/base.html" %}
+{% block content %}
+<section>
+  <h2>Deterministischer Zielplan</h2>
+  <p>Der Plan enthält keine Befehle und seine Bestätigung ist keine Apply-Freigabe.</p>
+  <form method="post" action="{{ url_for('controller.plan_generate') }}">
+    <input type="hidden" name="csrf_token" value="{{ generate_token }}">
+    <button type="submit">Zielplan erzeugen</button>
+  </form>
+  {% if plan %}
+  <dl><dt>Status</dt><dd>{{ plan.status }}</dd><dt>Hash</dt><dd><code>{{ plan.plan_hash }}</code></dd></dl>
+  {% if plan.blockers %}<h3>Blocker</h3><ul>{% for item in plan.blockers %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+  {% if plan.open_checks %}<h3>Offene Prüfungen</h3><ul>{% for item in plan.open_checks %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+  <ol>{% for step in plan.steps %}<li><strong>{{ step.title }}</strong><br>{{ step.rationale }}<br>Klasse: {{ step.mutation_class }}</li>{% endfor %}</ol>
+  {% if plan.status == 'ready' %}
+  <form method="post" action="{{ url_for('controller.plan_confirm') }}">
+    <input type="hidden" name="csrf_token" value="{{ confirm_token }}">
+    <input type="hidden" name="plan_hash" value="{{ plan.plan_hash }}">
+    <button type="submit">Dieser Zielplan ist korrekt</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

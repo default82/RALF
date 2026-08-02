@@ -24,6 +24,19 @@
       </dl>
     </section>
 
+    <section aria-labelledby="controller-heading">
+      <h2 id="controller-heading">Inventory-first Controller</h2>
+      <dl>
+        <dt>Zustand</dt><dd>{{ controller.setup_status }}</dd>
+        <dt>Inventareinträge</dt><dd>{{ controller.inventory_count }}</dd>
+        <dt>Konflikte</dt><dd>{{ controller.conflict_count }}</dd>
+        <dt>Offene Prüfungen</dt><dd>{{ controller.open_verifications }}</dd>
+        <dt>Zielplan</dt><dd>{{ controller.plan_status }}</dd>
+      </dl>
+      <p>{{ controller.message }}</p>
+      <p><a href="{{ url_for('controller.dashboard') }}">Controller öffnen</a></p>
+    </section>
+
     <section aria-labelledby="system-heading">
       <h2 id="system-heading">System</h2>
       <dl>

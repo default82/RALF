@@ -1,4 +1,4 @@
-"""Flask application factory for the read-only Bootstrap status service."""
+"""Flask application factory for Bootstrap status and local controller."""
 
 from __future__ import annotations
 
@@ -9,6 +9,12 @@ from typing import Callable
 from flask import Flask, jsonify, render_template
 
 from . import __version__
+from .controller.blueprint import (
+    controller_summary,
+    create_controller_blueprint,
+    register_controller_api,
+)
+from .storage import DEFAULT_DATABASE_PATH
 from .status import StatusCollector
 
 StatusProvider = Callable[[], dict[str, object]]
@@ -20,10 +26,11 @@ def create_app(
     *,
     database_path: Path | None = None,
 ) -> Flask:
-    """Create an application without performing writes or external calls."""
+    """Create the application without initializing storage or making external calls."""
 
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config.update(DEBUG=False, TESTING=False)
+    controller_database = Path(database_path or DEFAULT_DATABASE_PATH)
     if status_provider is None:
         collector = StatusCollector(
             **({"database_path": database_path} if database_path is not None else {})
@@ -41,7 +48,7 @@ def create_app(
                 "bootstrap": {
                     "version": __version__,
                     "service": "ralf-bootstrap",
-                    "mode": "read-only",
+                    "mode": "controller-local-state",
                     "schema_version": 1,
                     "sqlite": {"status": "unknown", "user_version": None},
                 },
@@ -67,7 +74,11 @@ def create_app(
 
     @app.get("/")
     def index():
-        return render_template("index.html", status=safe_status())
+        return render_template(
+            "index.html",
+            status=safe_status(),
+            controller=controller_summary(controller_database),
+        )
 
     @app.get("/healthz")
     def healthz():
@@ -76,6 +87,9 @@ def create_app(
     @app.get("/api/v1/status")
     def api_status():
         return jsonify(safe_status())
+
+    app.register_blueprint(create_controller_blueprint(controller_database))
+    register_controller_api(app, controller_database)
 
     return app
 

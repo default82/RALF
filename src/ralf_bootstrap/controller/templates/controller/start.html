@@ -1,0 +1,17 @@
+{% extends "controller/base.html" %}
+{% block content %}
+<section>
+  <h2>Bestandsaufnahme beginnen</h2>
+  {% if initialized.status != 'ready' %}
+  <p>Die Controllerdatenbank ist nicht initialisiert. Die Initialisierung erfolgt ausschließlich über den dokumentierten CLI-Weg.</p>
+  {% elif run %}
+  <p>Ein Setup-Lauf ist bereits vorhanden. <a href="{{ url_for('controller.inventory') }}">Weiter zum Inventar</a>.</p>
+  {% else %}
+  <p>Es werden zunächst nur Nutzerangaben und lokale Controllerdaten gespeichert. Es erfolgen keine Providerprüfung und keine Infrastrukturmutation.</p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Bestandsaufnahme starten</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

@@ -8,9 +8,9 @@ def sample_status():
         "schema_version": 1,
         "collected_at": "2026-08-01T12:00:00Z",
         "bootstrap": {
-            "version": "0.1.0",
+            "version": "0.2.0",
             "service": "ralf-bootstrap",
-            "mode": "read-only",
+            "mode": "controller-local-state",
             "schema_version": 1,
             "sqlite": {"status": "not_initialized", "user_version": None},
         },
@@ -59,7 +59,7 @@ def test_index_is_html_and_local_only():
 def test_healthcheck():
     response = client().get("/healthz")
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok", "service": "ralf-bootstrap", "version": "0.1.0"}
+    assert response.get_json() == {"status": "ok", "service": "ralf-bootstrap", "version": "0.2.0"}
 
 
 def test_status_api_has_schema():

@@ -86,7 +86,7 @@ class StatusCollector:
             "bootstrap": {
                 "version": __version__,
                 "service": "ralf-bootstrap",
-                "mode": "read-only",
+                "mode": "controller-local-state",
                 "schema_version": SCHEMA_VERSION,
                 "sqlite": sqlite_state,
             },

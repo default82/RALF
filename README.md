@@ -30,7 +30,7 @@ Diese Installation ist vorläufig **RALF Standalone** und noch nicht der endgül
 /var/log/ralf/         Installations- und Betriebsprotokolle
 ```
 
-Der Bootstrap ist keine Wegwerfkomponente. Er bleibt nach der Erstinstallation als kleine, dauerhaft betriebene RALF-Basis bestehen und soll den allgemeinen Zustand, installierte und erreichbare Komponenten, offene Installations- oder Konfigurationsschritte sowie grundlegende Fehler und Warnungen anzeigen. Er stellt später den regelbasierten Setup-Dialog, nachvollziehbare Installationspläne und ausdrücklich freigegebene Einzelschritte bereit. Ein umfangreiches Administrationsinterface bleibt eine getrennte optionale Komponente.
+Der Bootstrap ist keine Wegwerfkomponente. Er bleibt nach der Erstinstallation als kleine, dauerhaft betriebene RALF-Basis bestehen und zeigt den allgemeinen Zustand, Inventar, gewünschte Fähigkeiten, Providerpräferenzen und einen regelbasiert erzeugten Zielplan. Ein umfangreiches Administrationsinterface und der spätere privilegierte Installer bleiben getrennte Komponenten.
 
 Der Bootstrap benötigt kein Sprachmodell. Der Setup-Dialog wird zunächst durch einen deterministischen Fragen-, Entscheidungs- und Abhängigkeitsgraphen gesteuert und kann vollständig ohne Ollama, lokales Modell oder externe KI funktionieren. Eine KI-gestützte Gesprächsschicht kann später optional Nutzereingaben in eine strukturierte Zielkonfiguration übersetzen; Validierung, Abhängigkeitsauflösung und Installation bleiben regelbasiert.
 
@@ -38,11 +38,11 @@ Spätere Modellwege werden als Setup-Optionen behandelt: vorhandenen Modellserve
 
 Vor jeder optionalen Installation gilt verbindlich Inventory-first: Der Bootstrap erfragt vorhandene Plattformen, Komponenten, Fähigkeiten und Provider, trennt Nutzerangaben von ausdrücklich read-only verifizierten Tatsachen und erzeugt daraus zunächst nur einen nachvollziehbaren Zielplan. Geeignete vorhandene Dienste werden gegenüber Neuinstallationen bevorzugt. Ohne abgeschlossene Bestandsaufnahme und ausdrückliche Planfreigabe werden weder Reverse Proxy, DNS-/Identitätskomponenten, Modellruntime und Modelle noch Datenbanken, Speicher-, Backup-, Monitoring-, Secrets- oder zusätzliche Webdienste installiert oder konfiguriert. RALF führt dafür keine ungefragten Netzwerkscans aus.
 
-## Technische Grundlage des Statusdienstes
+## Technische Grundlage des Bootstrap-Controllers
 
-Das Grundgerüst des Bootstrap-Statusdienstes ist mit Python 3, Flask, Jinja, eingebettetem `sqlite3`, Gunicorn und systemd umgesetzt. Die read-only Oberfläche bietet `GET /`, `GET /healthz` und `GET /api/v1/status`, rendert lokale HTML-/CSS-Dateien und bindet in VMID 100 ausschließlich an `127.0.0.1:8080`. Sie ist damit nicht aus dem LAN erreichbar.
+Das lokale Paket `ralf-bootstrap` 0.2.0 erweitert den Statusdienst um das produktneutrale Inventory-first-Controller-Grundgerüst. Python 3, Flask, Jinja und `sqlite3` genügen weiterhin; es gibt keine neue Runtime-Abhängigkeit. Die bestehende Statusoberfläche bietet unverändert `GET /`, `GET /healthz` und `GET /api/v1/status`. Der Controller ergänzt serverseitig gerenderte Seiten unter `/controller/` und ausschließlich lesende JSON-Endpunkte unter `/api/v1/controller/`.
 
-Der Dienst läuft unprivilegiert als `ralf-bootstrap` und führt keine Paket-, systemd- oder Proxmox-Mutationen aus. Das read-only Grundgerüst ist als installierbares Paket unter `src/ralf_bootstrap/` umgesetzt, benötigt kein Modell und keine Modellruntime und ist in VMID 100 als Version `0.1.0` installiert.
+Der Controller läuft im selben unprivilegierten Webprozess und darf ausschließlich seine explizit initialisierte lokale SQLite-Datenbank ändern. Er führt keine Paket-, systemd-, Proxmox-, OPNsense- oder Providermutationen aus und besitzt weder Netzwerkscan noch Shellausführung. VMID 100 verwendet weiterhin die installierte Statusversion `0.1.0`; Version `0.2.0` ist in diesem Meilenstein nur lokal implementiert und noch nicht dorthin ausgerollt.
 
 ### Lokale Entwicklung und Prüfung
 
@@ -57,10 +57,18 @@ python3 -m venv .venv
 Die Statusansicht ist über `GET /`, der technische Healthcheck über `GET /healthz` und der vollständige JSON-Status über `GET /api/v1/status` verfügbar. Für einen lokalen Gunicorn-Test wird ausschließlich Loopback verwendet:
 
 ```bash
-.venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 ralf_bootstrap.wsgi:app
+.venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8080 --no-control-socket ralf_bootstrap.wsgi:app
 ```
 
-Der erste Dienst ist vollständig read-only: Er schreibt keine SQLite-Daten, installiert nichts und bietet keine mutierenden Aktionen, Authentifizierung, TLS- oder LAN-Freigabe. Der reale Dienst ist in VMID 100 aktiviert und lokal erreichbar; `state.db` bleibt nicht initialisiert.
+Die Controllerdatenbank wird weder beim Import noch beim Start automatisch angelegt. Für eine lokale Entwicklung erfolgt die Initialisierung ausdrücklich:
+
+```bash
+.venv/bin/python -m ralf_bootstrap.controller_db init --database /tmp/ralf-controller.db
+```
+
+Der Pfad muss in einem vorhandenen Verzeichnis liegen. Der Controller speichert Inventarzustände (`unknown`, `reported`, `verified`, `unavailable`, `conflict`, `declined`), Verifikationsevidenz ohne Geheimnisse, Anforderungen, Providerpräferenzen, Abschnittsbestätigungen, Zielpläne, gehashte Einmal-CSRF-Tokens und inhaltsarme Auditereignisse. Planbestätigungen lösen keine Ausführung aus; jeder spätere infrastrukturelle Schritt benötigt einen neuen technischen Plan und eine eigene Apply-Freigabe.
+
+Der Webflow führt von Fragen und Inventar über Anforderungen, Verifikationsfreigaben und Providerpräferenzen zu vier eigenen „Diese Angaben sind korrekt“-Bestätigungen. Jede nachträgliche Änderung invalidiert betroffene Bestätigungen und vorhandene Pläne. Der deterministische Planer bevorzugt verifizierte oder gemeldete vorhandene Provider, weist offene Prüfungen und Konflikte aus und speichert keine Shellbefehle. Schreibende Formulare verwenden nur `POST`, POST/Redirect/GET und kurzlebige, formulargebundene Einmal-CSRF-Tokens; eine Benutzeranmeldung oder externe Proxyvertrauenskonfiguration ist noch nicht implementiert.
 
 ### Bestandsaufnahme und sicherer LAN-Zugang
 
@@ -70,7 +78,9 @@ Inventare unterscheiden mindestens `unknown`, `reported`, `verified`, `unavailab
 
 Für die aktuelle Referenzumgebung ist deployment-spezifisch angegeben: Proxmox als Plattform, OPNsense als Firewall/Router und Caddy über das OPNsense-Plugin `os-caddy` als vorhandener Kandidat für `secure-ingress`. Diese Angaben haben derzeit den Zustand `reported`, nicht `verified`, und sind keine allgemeine Vorgabe für andere RALF-Installationen. Der sichere Backendpfad vom OPNsense-Caddy zum weiterhin nur auf Container-Loopback erreichbaren Statusdienst ist offen; insbesondere wird Port 8080 nicht stillschweigend im LAN geöffnet.
 
-Bis zur Providerentscheidung bleibt der Installer lokal beziehungsweise nur über einen ausdrücklich aufgebauten administrativen Tunnel erreichbar. In VMID 100 ist kein zusätzlicher LAN-Ingress installiert oder aktiviert. Es gibt weiterhin keine LAN-Freigabe, keine mutierenden Setup-Formulare und keine zusätzlichen Netzwerk-Capabilities.
+Der zugehörige Controller-Testfall erzeugt deshalb die Reihenfolge `verify_provider`, `decide_integration`, `reuse_provider`, markiert den offenen Backendvertrag als Blocker und erzeugt ausdrücklich keinen Schritt zur Installation eines lokalen Caddy. Der lokale Caddy bleibt lediglich ein nicht automatisch ausgewählter experimenteller Fallback im versionierten Providerkatalog.
+
+Bis zur Providerentscheidung bleibt der Controller lokal beziehungsweise nur über einen ausdrücklich aufgebauten administrativen Tunnel erreichbar. In VMID 100 ist kein zusätzlicher LAN-Ingress installiert oder aktiviert. Es gibt weiterhin keine LAN-Freigabe, keine externe Providerverifikation, keinen Apply-Endpunkt und keine zusätzlichen Netzwerk-Capabilities.
 
 Die direkten Laufzeitabhängigkeiten sind `Flask==3.1.3` und `Gunicorn==26.0.0`; die exakt geprüfte transitive Auflösung steht in [`requirements/runtime.lock`](requirements/runtime.lock). Für Tests werden ausschließlich `pytest==9.1.1` und `build==1.5.0` verwendet.
 
@@ -96,6 +106,8 @@ Der reproduzierbare Deploymentpfad prüft den laufenden Container, baut das aktu
 sudo ./scripts/ralf-bootstrap-status-deploy.sh --plan --vmid 100
 sudo ./scripts/ralf-bootstrap-status-deploy.sh --apply --vmid 100
 ```
+
+Der allgemeine Fresh-Install-/Resume-Pfad baut nun Paketversion `0.2.0`. Er ist kein Upgradepfad für die in VMID 100 installierte Version `0.1.0` und wird in M-039 nicht gegen diesen Container ausgeführt. Ein späteres reales Controller-Upgrade benötigt einen eigenen geprüften Plan und eine ausdrückliche Freigabe.
 
 Vor dem Erzeugen einer Virtualenv prüft der Gastinstaller nicht nur das `venv`-Modul, sondern auch `ensurepip` und dessen eingebettete Pip-Version. Fehlt `ensurepip`, wird im Plan das aus dem Interpreter abgeleitete Paket (bei Python 3.14: `python3.14-venv`) samt Apt-Candidate angezeigt. Installiert wird ausschließlich dieses Paket; danach wird die Prüfung wiederholt.
 
@@ -187,7 +199,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript umgesetzt und wurde 
 
 ## Status
 
-Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002 und M-035 sind damit erfüllt. M-038 wurde durch den aktiven Inventory-first-Meilenstein M-039 ersetzt; O-011 und O-012 sowie D-003 bis D-005 bleiben offen.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002, M-035 und die lokale M-039-Implementierung sind erfüllt. M-040 ist der nächste lokale Schritt für read-only Verifikationsaufträge; O-011 und O-012 sowie D-003 bis D-005 bleiben offen. Version `0.2.0` wurde noch nicht in VMID 100 installiert.
 
 ## Lizenz
 

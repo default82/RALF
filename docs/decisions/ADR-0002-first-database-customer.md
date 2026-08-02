@@ -1,17 +1,17 @@
-# ADR-0002: RALF Core und Conversation als erster Datenbankkunde
+# ADR-0002: RALF Core und Conversation als erster RALF-nativer Database Consumer
 
 - **Status:** Angenommen
 - **Datum:** 2026-08-02
 
 ## Kontext
 
-ADR-0001 hat den Database Service als providerneutrale persistente Fähigkeit festgelegt und fachliche Datenzugriffe den jeweiligen Domänenverträgen zugeordnet. Für den nächsten Schritt muss ein realer fachlicher Kunde benannt werden, damit die Abstraktion an einem kleinen, nützlichen Datenbestand präzisiert werden kann, ohne bereits PostgreSQL oder eine technische Schnittstelle zu implementieren.
+ADR-0001 hat den Database Service als providerneutrale persistente Fähigkeit festgelegt und fachliche Datenzugriffe den jeweiligen Domänenverträgen zugeordnet. Für den nächsten Schritt muss ein erster RALF-nativer Consumer benannt werden, damit die Abstraktion an einem kleinen, nützlichen Datenbestand präzisiert werden kann, ohne bereits PostgreSQL oder eine technische Schnittstelle zu implementieren.
 
 RALF soll nach dem Architektur-Neustart von innen nach außen zu einem nutzbaren Assistentenkern wachsen. Unterhaltung ist dafür zentral, während Installer-, Inventar-, Memory-, Benutzer- oder Providerdaten noch keinen vergleichbar unmittelbaren Kernnutzen begründen.
 
 ## Entscheidung
 
-RALF Core ist der erste fachliche Kunde des Database Service. Seine erste persistente Domäne ist Conversation; der erste dauerhafte fachliche Datenbestand besteht ausschließlich aus Unterhaltungen und deren geordneten Nachrichten.
+RALF Core ist der erste spezifizierte RALF-native Database Consumer. Seine erste persistente Domäne ist Conversation; der erste dauerhafte RALF-Fachdatenbestand besteht ausschließlich aus Unterhaltungen und deren geordneten Nachrichten.
 
 Conversation bleibt in Version 0.1 Bestandteil von RALF Core und verwendet den domänenspezifischen `ConversationRepository`-Vertrag. Es entsteht kein eigenständig deploybarer Conversation-Microservice.
 
@@ -19,13 +19,15 @@ RALF Core besitzt das Conversation-Modell und dessen fachliches Schema. Der Data
 
 Andere RALF-Komponenten erhalten keinen direkten Zugriff auf Conversation-Persistenzstrukturen.
 
+[ADR-0003](ADR-0003-shared-database-platform.md) präzisiert, dass RALF Core weder einziger Consumer noch Eigentümer des Database Service oder einer PostgreSQL-Providerinstanz ist. ConversationRepository gilt ausschließlich für die RALF-Core-Allocation; externe Anwendungen verwenden eigene Datenbankzugriffe.
+
 ## Begründung
 
 - Conversation liefert früh einen erkennbaren Nutzen für den eigentlichen RALF-Kern.
 - Ein begrenzter fachlicher Bestand prüft die in ADR-0001 gewählte Repository-Grenze konkret.
 - Die Einbettung in RALF Core vermeidet derzeit unnötige Netzwerk-, Deployment- und Betriebsgrenzen.
 - Klare Domänen- und Repository-Verträge erlauben eine spätere Auslagerung, falls reale Skalierungs- oder Sicherheitsanforderungen entstehen.
-- Nur tatsächlich benötigte Database-Service-Fähigkeiten werden für den ersten Kunden verbindlich.
+- Nur tatsächlich benötigte Database-Service-Fähigkeiten werden für den ersten RALF-nativen Consumer verbindlich.
 
 ## Konsequenzen
 
@@ -35,7 +37,7 @@ Andere RALF-Komponenten erhalten keinen direkten Zugriff auf Conversation-Persis
 - Conversation und Database Service besitzen klar getrennte Verantwortlichkeiten.
 - PostgreSQL bleibt austauschbarer Referenzprovider hinter der Vertragsgrenze.
 - Version 0.1 benötigt weder Benutzer-, Mandanten-, Memory-, Tool- noch Modellpersistenz.
-- `json_documents` und `full_text_search` werden für den ersten Kunden nicht verpflichtend.
+- `json_documents` und `full_text_search` werden für den ersten RALF-nativen Consumer nicht verpflichtend.
 
 ### Aufwand und Risiken
 
@@ -80,4 +82,4 @@ Zurückgestellt, weil 0.1 zunächst einen einzelnen RALF-Instanzkontext verwende
 
 ## Nächster Schritt
 
-Als Nächstes wird fachlich entschieden, welche minimale Verantwortung RALF Core zwischen Benutzereingabe, `ConversationRepository` und einer späteren Modellruntime besitzt. Dies ist weiterhin keine PostgreSQL-Installation und keine Implementierung.
+Die minimale Verantwortung von RALF Core zwischen Benutzereingabe, `ConversationRepository` und einer späteren Modellruntime bleibt als Core-Folgefrage offen. ADR-0003 setzt als nächsten projektweiten Schritt zunächst die Spezifikation des PostgreSQL-Referenzproviders und des Allocation-Lebenszyklus fest. Dies ist weiterhin keine PostgreSQL-Installation und keine Implementierung.

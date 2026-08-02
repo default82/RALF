@@ -2,222 +2,249 @@
 
 ## Status und Zweck
 
-Dieses Dokument definiert die fachliche Vertragsoberfläche des Database Service in Version 0.1. Es legt weder REST, RPC, MCP, Python-Signaturen noch ein SQL- oder Dateiformat fest. PostgreSQL ist der erste Referenzprovider, bleibt jedoch außerhalb des öffentlichen Vertrags.
+Dieser Vertrag beschreibt die providerneutrale Verwaltungsebene der gemeinsam nutzbaren Database-Service-Plattform. Er legt weder REST, RPC, MCP, Python-Signaturen, SQL noch ein Konfigurationsformat fest.
+
+PostgreSQL ist der erste Referenzprovider, bleibt aber außerhalb des öffentlichen Vertrags. Der detaillierte Vertrag einer isolierten Zuweisung steht im [Database Allocation Contract 0.1](database-allocation-v0.1.md).
 
 ## Vertragsumfang 0.1
 
-Der Vertrag gilt für genau einen aktiven Provider, eine RALF-Datenbankinstanz und eine logische RALF-Datenbank. Er beschreibt Fähigkeiten, Provider- und Schemazustand, kontrollierte Migrationen, Health, Readiness, Backup, Restore, Rollenanforderungen und providerneutrale Fehler.
+Version 0.1 beschreibt einen oder mehrere Datenbankprovider, mindestens eine Providerinstanz und mehrere voneinander isolierbare Database Allocations für RALF-native, externe und spätere plattforminterne Consumer. Pro Allocation ist genau ein Provider aktiv. Eine Installation muss nicht sofort mehrere Allocations oder Providerinstanzen anlegen.
 
-Er definiert keine fachlichen Tabellen, Datenmodelle, Queries oder allgemeine Datenbankverwaltung für fremde Anwendungen.
+Der Vertrag umfasst:
 
-## Fähigkeiten
+- Providerinstanzen und ihre Fähigkeiten,
+- Consumer-Profile und Database Allocations,
+- Isolation und technische Identitäten,
+- nicht geheime Secret-Referenzen,
+- Provider- und Allocation-Lebenszyklus,
+- Health und Readiness,
+- Schema-Lebenszyklus und Kompatibilität,
+- allocation-bezogene Backups und Restores,
+- providerneutrale Fehler und Freigabegrenzen.
 
-### Erforderlich
+Er setzt weder genau einen Consumer noch genau eine logische Datenbank voraus.
 
-- `relational_storage`
-- `transactions`
-- `schema_migrations`
-- `constraints`
-- `indexes`
-- `backup`
-- `restore`
+## Verwaltungs- und Datenebene
 
-Ohne eine dieser Fähigkeiten ist ein Provider für Database Service 0.1 nicht kompatibel.
+Der Vertrag steuert ausschließlich die Verwaltungsebene. Er beschreibt Zustände, Pläne und kontrollierte Lebenszyklusaktionen für Providerinstanzen und Allocations.
 
-### Optional nutzbar
+Die Datenebene verwendet das native Protokoll des Providers. Der Database Service ist kein SQL-Proxy, übersetzt keine Anwendungsabfragen und bietet keine universellen Lese-, Schreib- oder CRUD-Operationen.
 
-- `json_documents`
-- `full_text_search`
-- `advisory_locks`
+RALF-native Consumer konkretisieren fachliche Datenzugriffe durch eigene Repository-Verträge. Externe Anwendungen verwenden ihre eigenen Treiber und Schemata. Kein externer Consumer wird zur Verwendung eines RALF-Domänenvertrags verpflichtet.
 
-Eine RALF-Domäne darf eine optionale Fähigkeit für ihr eigenes Profil zur Voraussetzung machen. Dadurch wird sie nicht automatisch für alle Database-Service-Nutzer verpflichtend.
+## Consumer und Profile
 
-Der erste Kunde, die Conversation-Domäne in RALF Core, benötigt keine dieser optionalen Fähigkeiten.
+Ein Database Consumer benötigt genau eine oder mehrere ausdrücklich geplante Allocations. Zulässige Consumer-Arten sind:
 
-### Später
+- `ralf_native`
+- `external_application`
+- `platform_internal`
 
-- `vector_search`
-- `point_in_time_recovery`
-- `replication`
-- `high_availability`
+Ein Consumer-Profil beschreibt unterstützte Provider, benötigte und optionale Fähigkeiten, Schema-Lebenszyklus, Identitätsmodell, Backup- und Health-Erwartungen sowie bekannte Einschränkungen. Es ist keine laufende Allocation und erzeugt keine Datenbank.
 
-Diese Fähigkeiten sind ausdrücklich nicht Teil der Mindestzusage von 0.1.
+RALF Core ist der erste spezifizierte `ralf_native` Consumer. Gitea und OpenBao sind mögliche `external_application` Consumer; ihre tatsächliche Auswahl bleibt offen.
 
-## Fachliche Vertragsoperationen
+## Providerfähigkeiten
 
-Die folgenden Namen gliedern Verantwortungen. Sie sind Platzhalter und keine öffentlichen Funktionssignaturen.
+### Grundlegender Katalog
 
-### Status
+| Fähigkeit | Einordnung für das Database-Service-Profil 0.1 |
+| --- | --- |
+| `relational_storage` | erforderlich |
+| `transactions` | erforderlich |
+| `schema_migrations` | erforderlich, wenn eine Allocation Migrationen verlangt |
+| `constraints` | erforderlich |
+| `indexes` | erforderlich |
+| `backup` | erforderlich |
+| `restore` | erforderlich |
+| `json_documents` | optional |
+| `full_text_search` | optional |
+| `advisory_locks` | optional |
+| `vector_search` | später |
+| `point_in_time_recovery` | später |
+| `replication` | später |
+| `high_availability` | später |
 
-- `get_service_status`
-- `get_provider_information`
-- `get_capabilities`
-- `get_schema_status`
+Jede Allocation erklärt ihre tatsächlich erforderlichen Fähigkeiten. Ein Provider kann grundsätzlich verfügbar sein und dennoch für eine konkrete Allocation inkompatibel bleiben.
 
-### Datenoperationen
+## Fachliche Vertragsgruppen
 
-- `begin_transaction`
-- `commit_transaction`
-- `rollback_transaction`
-- `execute_read`
-- `execute_write`
+Die folgenden Gruppen beschreiben Verantwortungen, keine technischen Methoden oder Signaturen.
 
-Diese Begriffe beschreiben die benötigten Transaktions- und Datenzugriffseigenschaften. Gemäß ADR‑0001 werden fachliche Lese- und Schreiboperationen später in domänenspezifischen Repository-Verträgen konkretisiert, nicht als universelle Database-Service-API.
+### Providerverwaltung
 
-### Schema
+- Provideridentität und Version erfassen,
+- Providerfähigkeiten bewerten,
+- Providerinstanz planen und ihren Lebenszyklus kontrollieren,
+- Provider-Health und -Readiness melden.
 
-- `get_current_schema_version`
-- `get_target_schema_version`
-- `plan_migrations`
-- `apply_migrations`
+### Allocation-Verwaltung
 
-### Sicherung
+- Consumer und Profil referenzieren,
+- Isolation und Providerzuordnung planen,
+- Identitäts- und Secret-Referenzen prüfen,
+- Allocation-Lebenszyklus und Kompatibilität melden,
+- Schema-, Backup- und Restorevertrag zuordnen.
 
-- `plan_backup`
-- `create_backup`
-- `verify_backup`
-- `plan_restore`
-- `restore_backup`
+### Schema und Migration
 
-### Diagnose
+- Schema-Lebenszyklusmodus kennen,
+- aktuelle und erwartete Version beziehungsweise den anwendungseigenen Zustand bewerten,
+- freizugebende Migrationen planen,
+- ausschließlich dafür autorisierte Migrationen ausführen,
+- keine unbekannte oder stille Migration beim Dienststart vortäuschen.
 
-- `health_check`
-- `readiness_check`
-- `diagnose`
+### Sicherung und Wiederherstellung
+
+- allocation-bezogene Backups planen, erzeugen und verifizieren,
+- einen Restore separat planen und bestätigen lassen,
+- Quelle, Ziel und betroffene Allocation eindeutig benennen,
+- andere Allocations vor unbeabsichtigten Auswirkungen schützen.
+
+## Isolation und Identitäten
+
+Referenzstandard ist `logical_database`: eine logische Datenbank, eigene Identitäten und keine Rechte auf andere Allocations pro Consumer. Weitere Klassen sind `dedicated_provider_instance` und `external_provider`.
+
+Identitätsreferenzen sind allocation-bezogen:
+
+- `allocation_owner`
+- `migration_identity`
+- `application_identity`
+- `backup_identity`
+- `monitoring_identity`
+
+Eine gemeinsame Anwendungsidentität, ein gemeinsames Kennwort oder ein gemeinsames Anwendungsschema für mehrere Consumer ist unzulässig. Consumer verwenden keine Provider-Superuseridentität.
+
+Consumer-Profile dürfen begründete Abweichungen deklarieren, etwa eine nicht trennbare Migrationsidentität bei `application_managed`. Die Abweichung muss sichtbar und hinsichtlich ihrer zeitweise erweiterten Rechte bewertet sein.
+
+## Schema-Lebenszyklus
+
+Jede Allocation besitzt genau einen Modus:
+
+- `domain_managed`
+- `application_managed`
+- `platform_preprovisioned`
+
+Bei `domain_managed` liefert eine RALF-Domäne versionierte Migrationspakete; der Database Service plant und führt sie nach eigener Freigabe aus. Bei `application_managed` besitzt die externe Anwendung Schema und Migrationen. Bei `platform_preprovisioned` legt die Plattform ausdrücklich vertraglich verlangte Objekte vor Anwendungsstart an.
+
+Der Database Service beansprucht nicht die fachliche Eigentümerschaft externer Anwendungsschemata.
+
+## Secrets-Vertrag
+
+Alle geheimen Datenbankwerte liegen ausschließlich unter der absoluten externen Wurzel `/secrets`. Normale Konfiguration enthält nur nicht geheime `secret_references`, deren Ziel innerhalb `/secrets/database-service/` liegt.
+
+Der Vertrag speichert keine Kennwörter, privaten Schlüssel, Tokens oder vollständigen Connection Strings. Das Repository behält zusätzlich `secrets/` als ausgeschlossenen lokalen Pfad.
+
+Secret-Referenzen werden später auf absoluten Pfad, Verbleib innerhalb der Wurzel, fehlende Traversierung, unerwartete Symlinks und restriktive Rechte geprüft. Erzeugung und Rotation sind eigene freizugebende Vorgänge; diese Spezifikation schreibt oder liest keine Secretdatei.
+
+OpenBao kann später Secrets-Provider werden, ersetzt `/secrets` aber nicht automatisch. Insbesondere dürfen OpenBao-Bootstrap-Geheimnisse bei einer eigenen PostgreSQL-Allocation nicht zirkulär aus OpenBao bezogen werden.
 
 ## Lebenszykluszustände
 
-„Administrativ“ bedeutet eine ausdrücklich geplante und autorisierte Lebenszyklusaktion. Diagnose ist in jedem Zustand lesend zulässig, soweit der Provider erreichbar ist.
+Providerinstanzen und Allocations verwenden getrennte Zustandsmeldungen. Der gemeinsame Katalog lautet:
 
-| Zustand | Bedeutung | Lesen | Schreiben | Administrative Aktionen |
-| --- | --- | --- | --- | --- |
-| `unknown` | Zustand wurde noch nicht zuverlässig ermittelt. | nein | nein | nur Diagnose und sichere Bestandsaufnahme |
-| `unconfigured` | Provider oder logische Datenbank ist noch nicht vollständig konfiguriert. | nein | nein | Konfiguration darf geplant werden |
-| `configured` | Konfiguration ist vorhanden, Betriebsbereitschaft aber noch nicht bestätigt. | nein | nein | Start und Prüfung dürfen geplant werden |
-| `starting` | Provider startet oder stellt Verbindungen her. | nein | nein | Statusprüfung, kein paralleler Lebenszykluswechsel |
-| `ready` | Alle Pflichtfähigkeiten, Schema- und Sicherheitsprüfungen sind erfüllt. | ja | ja | geplante Standardaktionen zulässig |
-| `degraded` | Betrieb ist eingeschränkt; Umfang ist diagnostiziert. | nur wenn ausdrücklich als sicher bewertet | nur wenn ausdrücklich als sicher bewertet | Diagnose und freigegebene Korrekturplanung |
-| `maintenance` | Geplanter Wartungsmodus. | standardmäßig nein | nein | ausschließlich freigegebene Wartungsaktionen |
-| `migration_required` | Provider ist gesund, aber das Schema ist nicht zur Zielversion kompatibel. | höchstens ausdrücklich kompatible Reads | nein | Migrationsplanung zulässig |
-| `migrating` | Eine freigegebene Migration läuft. | nein, sofern Migration nichts anderes garantiert | nein | nur der laufende Migrationsvorgang |
-| `backup_running` | Eine Sicherung läuft. | ja, wenn der Provider konsistente Reads garantiert | nur wenn die Backupmethode Konsistenz garantiert | nur Backupüberwachung oder Abbruch nach eigener Regel |
-| `restore_running` | Eine Wiederherstellung läuft. | nein | nein | nur der laufende Restorevorgang |
-| `failed` | Ein kritischer Fehler verhindert sicheren Betrieb. | nein | nein | Diagnose und ausdrücklich geplante Wiederherstellung |
-| `stopped` | Provider ist kontrolliert gestoppt. | nein | nein | Start, Diagnose oder Restoreplanung zulässig |
+- `unknown`
+- `unconfigured`
+- `configured`
+- `starting`
+- `ready`
+- `degraded`
+- `maintenance`
+- `migration_required`
+- `migrating`
+- `backup_running`
+- `restore_running`
+- `failed`
+- `stopped`
 
-Zugriffe in `degraded` oder `backup_running` benötigen später eine konkrete, providerseitig belegte Zusage. Ohne diese Zusage gilt „nicht zulässig“.
+Nicht jeder Zustand ist auf beide Ebenen gleich anwendbar. `migration_required` bezieht sich beispielsweise auf eine Allocation, während ein Provider gleichzeitig `ready` sein kann. Zugriff ist nur erlaubt, wenn die konkrete Allocation dafür bereit ist; ein Fehler einer Allocation macht andere Allocations nicht automatisch fehlerhaft.
 
 ## Health und Readiness
 
-**Health** beantwortet, ob Provider beziehungsweise Datenbankprozess grundsätzlich funktionieren. Mögliche Kriterien sind Erreichbarkeit, Verbindungsaufbau und eine einfache interne Prüfung.
+Eine Providerinstanz meldet getrennt `provider_health` und `provider_readiness`. Jede Allocation meldet unabhängig `allocation_health` und `allocation_readiness`.
 
-**Readiness** beantwortet, ob RALF die Datenbank aktuell sicher verwenden darf. Zusätzlich müssen mindestens gelten:
+Provider-Health beantwortet, ob der Provider grundsätzlich funktioniert. Provider-Readiness berücksichtigt zusätzlich den für neue oder bestehende Allocations nutzbaren Betriebszustand.
 
-- alle erforderlichen Fähigkeiten sind vorhanden,
-- die richtige logische Datenbank ist erreichbar,
-- die Schemaversion ist bekannt und kompatibel,
-- keine notwendige Migration und kein Restore steht im Weg,
-- kein kritischer Speicherzustand liegt vor,
-- die Anwendungsidentität besitzt genau die erforderlichen minimalen Rechte.
+Allocation-Readiness verlangt mindestens:
 
-Health und Readiness sind unabhängig. Ein laufender, erreichbarer PostgreSQL-Provider kann gesund, aber wegen einer fehlenden RALF-Schemamigration nicht bereit sein.
+- Providerinstanz ist bereit,
+- zugewiesene logische Datenbank beziehungsweise Ressource ist vorhanden,
+- erforderliche Fähigkeiten sind erfüllt,
+- Secret-Referenzen sind sicher auflösbar,
+- technische Identitäten sind mit den minimal notwendigen Rechten verwendbar,
+- Schema entspricht dem gewählten Lebenszyklusmodus,
+- erforderlicher Backupvertrag ist vorhanden,
+- kein Zugriff auf fremde Allocations ist möglich.
 
-## Schema- und Migrationsvertrag
-
-- Migrationen sind versioniert und eindeutig geordnet.
-- Der aktuelle Schemawert wird in der Datenbank selbst gespeichert.
-- Jede Migration besitzt eine stabile ID.
-- Vor jeder Migration wird ein nachvollziehbarer Plan angezeigt.
-- Jede Migration benötigt eine eigene ausdrückliche Freigabe.
-- Ein normaler Dienststart führt keine unbekannte oder stillschweigende Migration aus.
-- Eine fehlgeschlagene Migration wird niemals als erfolgreich markiert.
-- Rollbackfähigkeit wird für jede Migration einzeln dokumentiert; Rückwärtsausführung ist keine allgemeine Zusage.
-- Struktur- und Datenmigrationen werden unterscheidbar dokumentiert.
-- Unbekannte neuere oder inkompatible Schemaversionen führen zu `schema_mismatch` statt zu einem vorgetäuschten Downgrade.
-- Providerspezifische Migrationsartefakte und SQL-Dateien gehören ausschließlich zum jeweiligen Provider.
-
-Die technische Paketierung von Migrationen bleibt offen.
+Ein Provider kann gesund sein, während eine einzelne Allocation wegen `migration_required`, fehlender Identität oder Konfigurationskonflikt nicht bereit ist.
 
 ## Backupvertrag
 
-Ein Backupdatensatz beschreibt mindestens:
+Ein allocation-bezogener Backupdatensatz beschreibt mindestens:
 
-| Feld | Bedeutung |
-| --- | --- |
-| `backup_id` | Stabile Identität der Sicherung. |
-| `provider_id` | Provider, der die Sicherung erzeugt hat. |
-| `created_at` | Nachvollziehbarer Erstellungszeitpunkt. |
-| `schema_version` | Gesicherte RALF-Schemaversion. |
-| `database_identity` | Nicht geheime Identität der gesicherten logischen Datenbank. |
-| `backup_type` | Art der Sicherung. |
-| `integrity_status` | Ergebnis der technischen Überprüfbarkeit. |
-| `encryption_status` | Deklarierter Verschlüsselungszustand ohne Schlüsselmaterial. |
-| `storage_reference` | Deployment-spezifischer Verweis auf den Speicherort. |
+- `backup_id`
+- `provider_instance_id`
+- `allocation_id`
+- `consumer_id`
+- `created_at`
+- `schema_version_or_state`
+- `backup_type`
+- `integrity_status`
+- `encryption_status`
+- `storage_reference`
 
-Zulässige fachliche Typen sind zunächst `logical`, `physical` und `snapshot`. Für 0.1 wird `logical` bevorzugt; die konkrete Umsetzung ist noch nicht entschieden.
-
-Eine Sicherung ist erst erfolgreich, wenn ihre Erzeugung technisch abgeschlossen und ihre Überprüfbarkeit bestätigt ist. Eine vorhandene Datei allein gilt nicht als verifiziertes Backup. Der Vertrag enthält keine Kennwörter oder Schlüssel. Speicherort, Aufbewahrung und Verschlüsselung bleiben deployment-spezifisch. Automatische Löschung alter Sicherungen gehört nicht zu 0.1.
+Der Standard für 0.1 ist ein logisches Backup pro Allocation. Eine erzeugte Datei allein ist noch kein verifiziertes Backup. Speicherort, Aufbewahrung und Verschlüsselung bleiben deployment-spezifisch. Providerweite Sicherungen können später zusätzlich bestehen.
 
 ## Restorevertrag
 
-Jeder Restore ist ein eigener geplanter Vorgang und benötigt mindestens:
+Ein Restore benötigt eine geprüfte Sicherung, eindeutige Quell- und Ziel-Allocation, Schema- beziehungsweise Anwendungszustandsprüfung, sichtbare Auswirkungen, ausdrückliche Bestätigung, kontrollierte Ausführung sowie anschließende Integritäts- und Readiness-Prüfung.
 
-1. Auswahl eines verifizierten Backups,
-2. sichtbare Angabe von Quelle und Ziel,
-3. Prüfung von Schemaversion und Zielzustand,
-4. ausdrückliche Bestätigung,
-5. kontrollierte einmalige Ausführung,
-6. anschließende Integritäts-, Health- und Readiness-Prüfung.
-
-Es gibt keinen automatischen Restore und kein stillschweigendes Überschreiben einer produktiven Datenbank.
+Ein Allocation-Restore darf weder eine andere Allocation noch die gesamte Providerinstanz stillschweigend überschreiben. Es gibt keinen automatischen Restore.
 
 ## Providerneutrale Fehlerklassen
 
 | Kategorie | Bedeutung |
 | --- | --- |
-| `configuration_error` | Nicht geheime Konfiguration ist ungültig oder unvollständig. |
-| `connection_error` | Verbindung konnte nicht hergestellt oder gehalten werden. |
-| `authentication_error` | Identität konnte nicht erfolgreich nachgewiesen werden. |
-| `authorization_error` | Identität besitzt nicht die erforderlichen minimalen Rechte. |
-| `capability_missing` | Eine erforderliche Fähigkeit fehlt. |
-| `schema_mismatch` | Datenbankschema ist unbekannt oder inkompatibel. |
-| `migration_required` | Eine bekannte Migration ist vor sicherem Betrieb erforderlich. |
+| `configuration_error` | Nicht geheime Vertragsdaten sind ungültig oder unvollständig. |
+| `provider_unavailable` | Providerinstanz ist nicht verfügbar. |
+| `provider_conflict` | Providerzustand oder Fähigkeiten widersprechen dem Vertrag. |
+| `allocation_unavailable` | Zugewiesene Datenbankressource ist nicht verfügbar. |
+| `allocation_conflict` | Isolation, Identitäten oder Zuordnung widersprechen dem Allocation-Vertrag. |
+| `connection_error` | Native Verbindung konnte nicht hergestellt oder gehalten werden. |
+| `authentication_error` | Technische Identität konnte nicht nachgewiesen werden. |
+| `authorization_error` | Identität besitzt falsche oder unzureichende Rechte. |
+| `secret_reference_error` | Secret-Referenz ist ungültig oder nicht sicher auflösbar. |
+| `capability_missing` | Eine für die Allocation erforderliche Fähigkeit fehlt. |
+| `schema_mismatch` | Schema- oder Anwendungszustand ist unbekannt oder inkompatibel. |
+| `migration_required` | Eine bekannte Migration ist vor Bereitschaft erforderlich. |
 | `migration_failed` | Eine freigegebene Migration ist fehlgeschlagen. |
-| `transaction_failed` | Eine Transaktion konnte nicht erfolgreich abgeschlossen werden. |
-| `constraint_violation` | Eine deklarierte Integritätsbedingung wurde verletzt. |
-| `storage_exhausted` | Verfügbarer Speicher reicht für den sicheren Vorgang nicht aus. |
-| `backup_failed` | Sicherung oder deren Verifikation ist fehlgeschlagen. |
+| `storage_exhausted` | Ressource reicht für sicheren Betrieb nicht aus. |
+| `backup_failed` | Sicherung oder Verifikation ist fehlgeschlagen. |
 | `restore_failed` | Wiederherstellung oder Abschlussprüfung ist fehlgeschlagen. |
-| `provider_unavailable` | Provider ist nicht verfügbar. |
-| `provider_conflict` | Providerzustand widerspricht dem ausgewählten Vertrag. |
 | `unknown_error` | Fehler konnte keiner stabilen Kategorie zugeordnet werden. |
 
-Jeder spätere Fehlerdatensatz enthält mindestens `error_code`, `category`, `message`, `retryable`, `provider_reference` und `operation_reference`. Providerspezifische Fehlercodes dürfen intern für Diagnose und Audit erhalten bleiben, werden aber nicht Teil des allgemeinen RALF-Fehlervertrags.
+Providerspezifische Fehler dürfen intern für Diagnose erhalten bleiben, werden aber nicht allgemeiner Vertragsbestandteil.
 
-## Sicherheits- und Auditvertrag
+## Freigabegrenzen
 
-- Die fachlichen Rollen `database_owner`, `migration_role`, `application_role`, `backup_role` und `monitoring_role` bleiben getrennt.
-- Die Anwendung arbeitet nie mit einer administrativen Superuseridentität.
-- Geheimnisse stehen weder im Repository noch in normaler Konfiguration, Statusantworten oder Logs.
-- Migrationen, Backups und Restores sind mit Plan, Operation, Ergebnis und nicht geheimen Referenzen nachvollziehbar.
-- Providerdiagnosen werden redigiert, bevor sie eine öffentliche Vertragsgrenze überschreiten.
+Anlage, Änderung, Migration, Backup, Restore, Identitätsänderung, Secret-Erzeugung oder -Rotation sowie Verschiebung einer Allocation auf eine andere Providerinstanz benötigen später jeweils einen sichtbaren Plan und eine eigene Freigabe. Eine Beschreibung in diesem Vertrag ist keine Ausführungsfreigabe.
 
-## Erster Datenbankkunde
+## Erster RALF-nativer Consumer
 
-[ADR-0002](../decisions/ADR-0002-first-database-customer.md) entscheidet RALF Core als ersten Kunden und Conversation als erste persistente Domäne. Der [ConversationRepository Contract 0.1](conversation-repository-v0.1.md) konkretisiert fachliche Lese- und Schreibvorgänge domänenspezifisch, ohne sie in eine allgemeine Database-Service-API zu überführen.
+[ADR-0002](../decisions/ADR-0002-first-database-customer.md) legt RALF Core als ersten spezifizierten RALF-nativen Consumer fest. Seine Conversation-Domäne verwendet ausschließlich in ihrer eigenen Allocation den [ConversationRepository Contract](conversation-repository-v0.1.md). Gitea, OpenBao und andere externe Anwendungen verwenden diesen Vertrag nicht.
 
-Conversation verlangt `relational_storage`, `transactions`, `schema_migrations`, `constraints` und `indexes`. Backup und Restore verbleiben im Database Service. Schemaeigentum und fachliche Bedeutung bleiben bei RALF Core; der Database Service verantwortet die kontrollierte Ausführung freigegebener Migrationen, nicht das Conversation-Modell.
+[ADR-0003](../decisions/ADR-0003-shared-database-platform.md) präzisiert die gemeinsam nutzbare Plattform und die Mehrkundenstruktur.
 
-## Offene Vertragsfragen
+## Offene Entscheidungen
 
-Die frühere Frage nach dem ersten Datenbankkunden und dessen Repository-Grenze ist durch ADR-0002 entschieden. Offen bleiben:
+1. Welche Allocations werden zuerst tatsächlich angelegt?
+2. Welche Provider- und Allocation-Zustandsübergänge gehören in das Referenzprofil?
+3. Welche Consumer benötigen dedizierte Providerinstanzen?
+4. Wie werden externe anwendungseigene Migrationen sicher freigegeben oder beobachtet?
+5. Wie erhalten Consumer Zugriff auf Secretdateien unter `/secrets`?
+6. Welche Eigentümer-, Gruppen- und Rotationsregeln gelten dort?
+7. Welche Backups sind allocation-bezogen und welche providerweit?
+8. Wie werden Ressourcen- und Netzwerkgrenzen abgebildet?
+9. Welche PostgreSQL-Version wird Referenzversion?
 
-1. **Unmittelbar nächste Entscheidung:** Welche minimale Verantwortung besitzt RALF Core zwischen Benutzereingabe, `ConversationRepository` und einer späteren Modellruntime?
-2. Welche PostgreSQL-Version wird als Referenzversion gewählt?
-3. Wie wird ein domänenspezifischer Repository-Vertrag technisch angebunden, ohne eine universelle Datenzugriffs-API zu schaffen?
-4. Wie werden Secrets sicher und deployment-spezifisch bereitgestellt?
-5. Wo liegen Daten und Backups in den ersten unterstützten Betriebsprofilen?
-6. Welche Backup-Retention wird später verlangt?
-7. Wie werden Migrationen technisch paketiert und ihrem Provider eindeutig zugeordnet?
-
-Keine dieser Fragen autorisiert bereits eine Implementierung oder Installation.
+**Nächster kleiner Schritt:** PostgreSQL-Referenzprovider und Allocation-Lebenszyklus spezifizieren, ohne PostgreSQL zu installieren.

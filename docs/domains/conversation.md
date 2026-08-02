@@ -152,7 +152,7 @@ Zu klären sind insbesondere doppelte Benutzernachrichten nach Netzwerkfehlern, 
 
 Das fachliche Conversation-Schema gehört RALF Core beziehungsweise dieser Domäne. Andere Domänen ändern es nicht direkt. Spätere versionierte Migrationspakete stammen aus der Conversation-Domäne; der Database Service plant, validiert und führt freigegebene Migrationen aus. PostgreSQL-spezifische Artefakte bleiben in einem späteren Provideradapter. Core-Start allein löst keine Migration aus.
 
-RALF Core verwendet im Normalbetrieb ausschließlich `application_role` für Conversation-Lese- und Schreibvorgänge sowie deren Transaktionen. Diese Rolle darf weder Schema und Rollen verändern noch Backups oder Datenbankadministration ausführen. Schemaänderungen verwenden ausschließlich `migration_role`; Backup und Monitoring bleiben `backup_role` und `monitoring_role` vorbehalten.
+RALF Core verwendet im Normalbetrieb ausschließlich die `application_identity` seiner eigenen Database Allocation für Conversation-Lese- und Schreibvorgänge sowie deren Transaktionen. Diese Identität darf weder Schema und Identitäten verändern noch Backups oder Datenbankadministration ausführen. Schemaänderungen verwenden ausschließlich `migration_identity`; Backup und Monitoring bleiben getrennten allocation-bezogenen Identitäten vorbehalten.
 
 ## Datenschutz und Löschung
 
@@ -188,4 +188,4 @@ Version 0.1 definiert keine Benutzerkonten, Organisationen, Mandanten oder Works
 9. Welche Komponente orchestriert Conversation und Modellruntime?
 10. Wie wird der erste PostgreSQL-Repositoryadapter strukturiert?
 
-**Unmittelbar nächste Entscheidung:** Welche minimale Verantwortung besitzt RALF Core zwischen Benutzereingabe, `ConversationRepository` und einer späteren Modellruntime?
+**Offene Conversation-Folgefrage:** Welche minimale Verantwortung besitzt RALF Core zwischen Benutzereingabe, `ConversationRepository` und einer späteren Modellruntime? Der nächste projektweite Schritt ist zunächst die Spezifikation des PostgreSQL-Referenzproviders und des Allocation-Lebenszyklus.

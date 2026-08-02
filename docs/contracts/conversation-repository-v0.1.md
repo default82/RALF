@@ -6,6 +6,8 @@ Dieser Vertrag beschreibt die fachliche Persistenzgrenze der Conversation-Domän
 
 Er schützt das fachliche Modell vor Providerdetails und verhindert generische Tabellen- oder CRUD-Zugriffe. Der Database Service bleibt für Providerbetrieb, Fähigkeiten, Schemaausführung, Health, Backup und Restore verantwortlich.
 
+Der Vertrag gilt ausschließlich für die RALF-Core-Allocation. Gitea, OpenBao und andere externe Database Consumer verwenden ihre eigenen nativen Datenbank- beziehungsweise Storage-Zugriffe und niemals ConversationRepository.
+
 ## Verantwortung
 
 Das Repository ermöglicht ausschließlich das konsistente Speichern und Wiederherstellen von `Conversation` und `Message` gemäß den [Domänenregeln](../domains/conversation.md). Es erzwingt beziehungsweise bewahrt fachlich relevante Invarianten, Reihenfolge, Statusübergänge, Transaktionsgrenzen und Löschzusammenhang.
@@ -108,7 +110,7 @@ Nicht erforderlich sind `json_documents`, `full_text_search`, `advisory_locks`, 
 
 ## Rollen- und Schemavertrag
 
-Normale Repository-Operationen verwenden ausschließlich `application_role` mit minimalen Conversation-Lese- und Schreibrechten. Der Vertrag bietet keine Rollenverwaltung und keine Schemaänderung. Migrationspakete gehören fachlich zur Conversation-Domäne, werden aber nur über den Database Service und `migration_role` geplant und ausgeführt.
+Normale Repository-Operationen verwenden ausschließlich die allocation-eigene `application_identity` mit minimalen Conversation-Lese- und Schreibrechten. Der Vertrag bietet keine Rollenverwaltung und keine Schemaänderung. Migrationspakete gehören fachlich zur Conversation-Domäne, werden aber nur über den Database Service und `migration_identity` geplant und ausgeführt.
 
 Der konkrete PostgreSQL-Adapter, Objektbezeichnungen, Datentypen, Constraints und Indizes werden in diesem Vertrag nicht festgelegt.
 

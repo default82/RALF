@@ -1,0 +1,26 @@
+schema_version = 1
+checked_at = "2026-08-02"
+
+[postgresql]
+major = 18
+documented_minor = "18.4"
+package = "postgresql-18"
+update_policy = "latest-stable-18.x"
+
+[gitea]
+version = "1.27.1"
+postgresql_requirement = ">=12"
+
+[openbao]
+version = "2.6.1"
+postgresql_requirement = ">=9.5"
+storage_backend = "postgresql"
+
+[semaphore]
+version = "2.18.29"
+database_backend = "postgres"
+
+[nodered]
+version = "5.0.4"
+nodejs_reference = "24"
+database_usage = "flow_application_data_only"

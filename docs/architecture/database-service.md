@@ -238,7 +238,7 @@ Der Database Service ist kein SQL-Proxy, allgemeiner CRUD-Dienst, Datei- oder Ob
 
 PostgreSQL ist als [Provider 001](../providers/postgresql.md) der erste konkrete Referenzprovider. Eine PostgreSQL Provider Instance ist ein betriebener Server beziehungsweise Cluster mit null oder mehr isolierten Allocations. Providerinstanz und Allocation besitzen getrennte [Lebenszyklen](../lifecycle/database-allocation.md); eine bereite Instanz macht eine einzelne Allocation nicht automatisch bereit.
 
-Der Referenzstandard verwendet eine logische Datenbank und eigene technische Identitäten pro Allocation. ADR-0005 legt PostgreSQL Major 18, die 18.x-Minor-Policy, `postgresql-main` und vier initiale Allocations fest. Paketquelle, Betriebsform, Netzwerkgrenze, Serverkonfiguration, konkrete Datenbanknamen, PostgreSQL-Benutzernamen, Port, Adresse und Secretwerte bleiben bis zum Folgeplan offen. [ADR-0004](../decisions/ADR-0004-postgresql-reference-provider.md) und ADR-0005 halten diese Grenzen fest.
+Der Referenzstandard verwendet eine logische Datenbank und eigene technische Identitäten pro Allocation. ADR-0005 legt PostgreSQL Major 18, die 18.x-Minor-Policy, `postgresql-main` und vier initiale Allocations fest. [ADR-0006](../decisions/ADR-0006-postgresql-runtime-profile.md) ergänzt den eigenen unprivilegierten Ubuntu-26.04-LTS-LXC, die offiziellen Ubuntu-Paketquellen, Referenzressourcen sowie TLS-, SCRAM-, Secret- und Backupgrenzen. Konkrete VMID, Storage, Bridge, Adresse, FQDN, DNS-Server, Consumer-CIDRs, Datenbanknamen, Anwendungsidentitäten und Backupziel bleiben lokale Deploymentangaben. [ADR-0004](../decisions/ADR-0004-postgresql-reference-provider.md) hält die allgemeine Providerentscheidung fest.
 
 ## Offene Entscheidungen
 
@@ -249,7 +249,7 @@ Der Referenzstandard verwendet eine logische Datenbank und eigene technische Ide
 5. Wie erfolgt Secret-Rotation?
 6. Welche Backups erfolgen pro Allocation und welche providerweit?
 7. Wie werden Ressourcenlimits pro Allocation abgebildet?
-8. Welche Netzwerkgrenzen gelten zwischen Consumer und Provider?
-9. Wie wird das in ADR-0005 gewählte Profil konkret betrieben und read-only geplant?
+8. Welche konkreten Netzwerkgrenzen gelten im Deployment innerhalb des TLS- und Allowlist-Vertrags?
+9. Wie werden Apply, Recovery und Einzelbestätigungen für die vollständig geplanten Mutationen begrenzt?
 
-**Nächster kleiner Schritt:** Einen ausschließlich read-only arbeitenden Deploymentplan für PostgreSQL 18, `postgresql-main` und die vier ausgewählten Allocations erstellen.
+**Nächster kleiner Schritt:** Einen getrennten Apply-Vertrag mit sichtbaren Mutationen, Recovery-Grenzen und eigener Freigabe spezifizieren; der vorhandene Deploymentplaner bleibt read-only.

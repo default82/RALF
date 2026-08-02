@@ -114,4 +114,4 @@ Verworfen als Zwang, weil Sicherheits-, Verfügbarkeits-, Versions-, Erweiterung
 
 ## Nächster Schritt
 
-ADR-0005 beantwortet Versions-, Profil- und Allocation-Auswahl. Als Nächstes entsteht ein konkreter, zunächst read-only geplanter Implementierungspfad. PostgreSQL, Datenbanken, Identitäten, Secrets und Netzwerkfreigaben bleiben bis zu einem separat bestätigten Apply unverändert.
+ADR-0005 beantwortet Versions-, Profil- und Allocation-Auswahl; ADR-0006 konkretisiert das Laufzeitprofil. Der [read-only Deploymentplan](../operations/postgresql-main-deployment-plan.md) validiert diese Entscheidungen, ohne Infrastruktur zu verändern. Als Nächstes wird ein eigener Apply-Vertrag mit sichtbaren Mutationen, Recovery-Grenzen und separater Freigabe spezifiziert. PostgreSQL, Datenbanken, Identitäten, Secrets und Netzwerkfreigaben bleiben bis zu einem solchen bestätigten Apply unverändert.

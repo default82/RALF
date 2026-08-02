@@ -292,14 +292,13 @@ Ein Restore für eine Allocation darf niemals stillschweigend andere Allocations
 
 ## Offene Entscheidungen
 
-1. Auf welchem Betriebssystem und in welcher Betriebsform läuft `postgresql-main`?
-2. Welche Netzwerkgrenze gilt zwischen Consumern und PostgreSQL?
-3. Welche Ressourcen gelten für Providerinstanz und Allocations?
-4. Wo werden logische Backups gespeichert und wie lange aufbewahrt?
-5. Welche Dateieigentümer und Zugriffsmodi gelten unter `/secrets`?
-6. Wie erfolgt Secret-Rotation?
-7. Welche konkreten Versionen von Gitea, OpenBao, Semaphore UI und Node-RED sind mit der gewählten 18.x-Version kompatibel?
-8. Welche Providererweiterungen sind im Basisprofil zulässig?
-9. Wie werden PostgreSQL-Major-Upgrades durchgeführt?
+1. Welche lokalen VMID-, Storage-, Bridge-, Adress-, FQDN-, DNS- und Allowlistwerte werden bestätigt?
+2. Wie erhalten Consumer kontrolliert Zugriff auf ihre Dateien unter `/secrets`?
+3. Wie erfolgt Secret-Rotation?
+4. Wie lange werden logische Backups aufbewahrt und regelmäßig wiederherstellbar geprüft?
+5. Welche Ressourcenlimits gelten innerhalb der gemeinsamen Providerinstanz?
+6. Welche Providererweiterungen sind im Basisprofil zulässig?
+7. Wie werden PostgreSQL-Major-Upgrades durchgeführt?
+8. Welche Apply-, Recovery- und Einzelbestätigungsgrenzen gelten für die geplanten Mutationen?
 
-**Nächster Schritt:** Einen konkreten, zunächst read-only geplanten Implementierungspfad für PostgreSQL 18, `postgresql-main`, vier isolierte Allocations und Secrets ausschließlich unter `/secrets` entwerfen.
+**Nächster Schritt:** Der [read-only Deploymentplan](../operations/postgresql-main-deployment-plan.md) ist vorhanden. Nun wird ein getrennter Apply-Vertrag mit sichtbaren Mutationen, Recovery-Grenzen und eigener Freigabe spezifiziert.

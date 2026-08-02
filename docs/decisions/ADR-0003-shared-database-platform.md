@@ -94,8 +94,8 @@ Zurückgestellt, weil OpenBao als eigener Database Consumer eine zirkuläre Boot
 - Secret-Rotation,
 - allocation- und providerweite Backups,
 - Ressourcen- und Netzwerkgrenzen,
-- konkrete Betriebs- und Netzwerkgrenzen des gewählten Referenzprofils.
+- konkrete lokale Werte innerhalb der durch ADR-0006 festgelegten Betriebs- und Netzwerkgrenzen.
 
 ## Nächster Schritt
 
-[ADR-0004](ADR-0004-postgresql-reference-provider.md) hat PostgreSQL als ersten konkreten Referenzprovider sowie die getrennten Provider- und Allocation-Lebenszyklen festgelegt. [ADR-0005](ADR-0005-first-postgresql-deployment-profile.md) wählt PostgreSQL Major 18, `postgresql-main` und vier initiale Allocations. Als Nächstes entsteht ausschließlich ein read-only Deploymentplan; es wird weiterhin keine PostgreSQL-Instanz, Datenbank, Identität oder Allocation angelegt.
+[ADR-0004](ADR-0004-postgresql-reference-provider.md) hat PostgreSQL als ersten konkreten Referenzprovider sowie die getrennten Provider- und Allocation-Lebenszyklen festgelegt. [ADR-0005](ADR-0005-first-postgresql-deployment-profile.md) wählt PostgreSQL Major 18, `postgresql-main` und vier initiale Allocations; [ADR-0006](ADR-0006-postgresql-runtime-profile.md) legt das Laufzeitprofil fest. Der read-only Deploymentplan ist nun vorhanden. Als Nächstes wird ein eigener Apply-Vertrag spezifiziert; es wird weiterhin keine PostgreSQL-Instanz, Datenbank, Identität oder Allocation angelegt.

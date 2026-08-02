@@ -560,3 +560,18 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Risiken oder Blocker: Die reale Installation bleibt bis zu einem erfolgreichen neuen read-only Reparaturplan und einer danach gesonderten ausdrücklichen Applyfreigabe unvollständig. Runtime-Artefakte von PyPI besitzen weiterhin keine verpflichtenden Hash-Pins.
 - Nächster sinnvoller Zielbild-Eintrag: M-027/M-034 – Implementierung veröffentlichen und mergen, danach genau einen realen read-only `--repair-venv --plan --vmid 100` ausführen.
 - Veröffentlichung: Noch nicht veröffentlicht; gezielter Commit, Push, PR und Merge folgen nach der abschließenden Diffprüfung.
+
+## 2026-08-02 – Vereinheitlichte Klassifikation veröffentlicht und realen Reparaturplan bestätigt
+
+- Bearbeitete Zielbild-IDs: M-027, M-034, A-028, P-001
+- Veröffentlichung der Implementierung: Commit `83c9009` wurde über PR `#28` gemergt; Merge-Commit `cb65764` war vor dem realen Plan identisch in `main` und `origin/main`. Skripthashes: Host `bddccd9c5c77324210e99cba327fd98734cf3eca6596cbe629013f7ed3befdc9`, Gast `eb9317cf0ba6c5bb8c1313f4afcb2fb45999aa063071392f668548259a7dde8c`.
+- Genau einmal ausgeführter Realplan: `sudo ./scripts/ralf-bootstrap-status-deploy.sh --repair-venv --plan --vmid 100` endete erfolgreich und erkannte über die zentrale Gastklassifikation exakt `recoverable_venv_repair_validation_failure`.
+- Bestätigter Plan: Die vorhandene direkte Venv und ihre Pakete bleiben erhalten. Nach einer späteren ausdrücklichen Freigabe sind ausschließlich Venv-Eigentümer `root:ralf-bootstrap`, Wurzelmodus `0750`, Unitprüfung, genau ein `systemctl reset-failed`, genau ein Dienststart, read-only Dienst-/Loopback-/Endpunktprüfung sowie Marker- und Bundleentfernung erst nach vollständigem Erfolg vorgesehen.
+- Ausdrücklich ausgeschlossen: Venv-Löschung oder -Erstellung, Paket-/Wheel-Installation, Artefaktübertragung, Benutzer-/Gruppenmutation, erneutes `enable`, Shebang-Umschreibung, `state.db`, Containerneustart, LAN-Freigabe, Rollback und zweiter Reparaturversuch.
+- Mutationsnachweis: Vor und nach dem Plan blieb VMID 100 `running` und ohne Pending-Änderung. Die Venv blieb `root:root`/`0755`, die Reparaturmarkierung `root:ralf-bootstrap`/`0640`, die Unit `enabled` und `inactive/dead` mit historischem `ExecMainStatus=203`; es liefen null Gunicorn-Prozesse, Port 8080 blieb frei, `state.db` fehlte und alle sechs Bundle-Dateien blieben vorhanden. Es erfolgten kein Dienststart, keine Rechte-, Venv-, Marker-, Bundle-, Paket-, Container- oder Proxmox-Mutation.
+- Geänderte Dateien: `Ergebnis.md`.
+- Ausgeführte Prüfungen: Repository-/Remote-Synchronität; Skripthashes; read-only `pct status` und `pct pending`; Venv-/Markerrechte; kohärenter systemd-Snapshot; genau ein realer Reparaturplan; anschließende read-only Prozess-, Port-, `state.db`- und Bundleprüfung; `git diff --check`; Secrets-Ausschluss.
+- Nicht ausgeführte Prüfungen oder Änderungen: Kein `--repair-venv --apply`, keine Endpunktprüfung eines laufenden Dienstes, weil der Dienst planmäßig inaktiv blieb, und keine sonstige Mutation.
+- Risiken oder Blocker: Die reale Statusdienstinstallation bleibt bis zum separat freigegebenen Reparatur-Apply unvollständig. Der historische 203-Fehlerstatus besteht weiterhin, ist aber nicht mehr die Ursache der neu aufgebauten Venv.
+- Nächster sinnvoller Zielbild-Eintrag: M-027 – genau einen ausdrücklich bestätigten `--repair-venv --apply --vmid 100`-Lauf ausführen und danach ausschließlich read-only Dienst, Loopback-Endpunkte, Rechte, Marker- und Bundlezustand validieren.
+- Veröffentlichung: Dieser Planprotokolleintrag wird separat committed, gepusht und gemergt; `secrets/` bleibt ungetrackt und unstaged.

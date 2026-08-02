@@ -14,8 +14,15 @@ Die erste fachliche Spezifikation trennt den fähigkeitsorientierten RALF-Vertra
 - [RALF Database Contract 0.1](docs/contracts/database-service-v0.1.md)
 - [ADR-0001: providerneutrale Datenbankfähigkeit](docs/decisions/ADR-0001-database-service.md)
 
-Es gibt derzeit noch keine Implementierung. Insbesondere existieren noch kein Installer, Controller, Webinterface, Provider, Connector, Datenmodell, ORM, REST-Endpunkt, `pgvector`, Modellruntime oder Reverse Proxy.
+Der erste Datenbankkunde ist **RALF Core**. Seine erste persistente Domäne **Conversation** speichert ausschließlich Unterhaltungen und geordnete Nachrichten. Conversation bleibt zunächst eine Core-Domäne und verwendet einen fachlichen Repository-Vertrag:
 
-Der nächste kleine Schritt ist die fachliche Entscheidung, welche Daten zuerst gespeichert werden und welche RALF-Komponente der erste Datenbankkunde wird. Auch danach erfolgt nicht automatisch eine PostgreSQL-Installation.
+- [Architekturrahmen von RALF Core](docs/architecture/ralf-core.md)
+- [Conversation-Domäne 0.1](docs/domains/conversation.md)
+- [ConversationRepository Contract 0.1](docs/contracts/conversation-repository-v0.1.md)
+- [ADR-0002: erster Datenbankkunde](docs/decisions/ADR-0002-first-database-customer.md)
+
+Es gibt weiterhin keine Implementierung. Insbesondere existieren noch kein SQL, keine Tabellen, PostgreSQL-Installation, Programmierschnittstelle, Modellruntime, Benutzerverwaltung, Weboberfläche oder Infrastruktur.
+
+Der nächste kleine Schritt ist die fachliche Entscheidung, welche minimale Verantwortung RALF Core zwischen Benutzereingabe, ConversationRepository und einer späteren Modellruntime besitzt. Auch danach erfolgt nicht automatisch eine PostgreSQL-Installation.
 
 RALF entsteht transparent durch Vibe Coding: Menschen bestimmen Ziele, Entscheidungen und Grenzen; Coding-Agenten unterstützen die Umsetzung in kleinen, überprüfbaren Schritten.

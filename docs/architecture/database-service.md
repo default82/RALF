@@ -47,6 +47,14 @@ Damit wird keine universelle RALF-Datenbanksprache geschaffen. Die im Vertrag ge
 
 Diese Grenze vermeidet eine künstliche Universal-API und hält fachliche Modelle bei ihren Eigentümern. Dafür müssen spätere Domänenverträge Providerneutralität und benötigte Fähigkeiten ausdrücklich berücksichtigen.
 
+### Erster fachlicher Kunde
+
+[ADR-0002](../decisions/ADR-0002-first-database-customer.md) legt RALF Core als ersten Datenbankkunden und [Conversation](../domains/conversation.md) als erste persistente Domäne fest. Die fachliche Persistenzgrenze bildet der [ConversationRepository Contract 0.1](../contracts/conversation-repository-v0.1.md).
+
+Conversation benötigt `relational_storage`, `transactions`, `schema_migrations`, `constraints` und `indexes`. `json_documents`, `full_text_search` und `advisory_locks` werden dadurch nicht verpflichtend. Backup und Restore bleiben Pflichten des Database Service, liegen aber außerhalb des Repository-Vertrags.
+
+Das Conversation-Schema gehört fachlich RALF Core. Der Database Service besitzt weder Conversation noch Message; er plant, validiert und führt später ausschließlich freigegebene, von der Domäne verantwortete Migrationen aus.
+
 ## Umfang von Database Service 0.1
 
 Version 0.1 umfasst bewusst:
@@ -84,7 +92,7 @@ Nicht Bestandteil von 0.1 sind Vektorsuche und `pgvector`, Hochverfügbarkeit, R
 | `replication` | Bereitstellung replizierter Datenbankkopien. | später |
 | `high_availability` | Betrieb mit definierten Verfügbarkeits- und Ausfallzielen. | später |
 
-Die Einordnung ist der Architekturvorschlag für Vertrag 0.1. Ob `json_documents` oder `full_text_search` bereits verpflichtend werden, hängt von den zuerst festgelegten fachlichen Daten und Datenbankkunden ab.
+Die Einordnung gilt für Vertrag 0.1. Der erste Datenbankkunde Conversation benötigt weder `json_documents` noch `full_text_search`; beide bleiben optional.
 
 ## Verantwortlichkeiten
 

@@ -32,6 +32,8 @@ Ohne eine dieser Fähigkeiten ist ein Provider für Database Service 0.1 nicht k
 
 Eine RALF-Domäne darf eine optionale Fähigkeit für ihr eigenes Profil zur Voraussetzung machen. Dadurch wird sie nicht automatisch für alle Database-Service-Nutzer verpflichtend.
 
+Der erste Kunde, die Conversation-Domäne in RALF Core, benötigt keine dieser optionalen Fähigkeiten.
+
 ### Später
 
 - `vector_search`
@@ -200,16 +202,22 @@ Jeder spätere Fehlerdatensatz enthält mindestens `error_code`, `category`, `me
 - Migrationen, Backups und Restores sind mit Plan, Operation, Ergebnis und nicht geheimen Referenzen nachvollziehbar.
 - Providerdiagnosen werden redigiert, bevor sie eine öffentliche Vertragsgrenze überschreiten.
 
+## Erster Datenbankkunde
+
+[ADR-0002](../decisions/ADR-0002-first-database-customer.md) entscheidet RALF Core als ersten Kunden und Conversation als erste persistente Domäne. Der [ConversationRepository Contract 0.1](conversation-repository-v0.1.md) konkretisiert fachliche Lese- und Schreibvorgänge domänenspezifisch, ohne sie in eine allgemeine Database-Service-API zu überführen.
+
+Conversation verlangt `relational_storage`, `transactions`, `schema_migrations`, `constraints` und `indexes`. Backup und Restore verbleiben im Database Service. Schemaeigentum und fachliche Bedeutung bleiben bei RALF Core; der Database Service verantwortet die kontrollierte Ausführung freigegebener Migrationen, nicht das Conversation-Modell.
+
 ## Offene Vertragsfragen
 
-1. **Unmittelbar nächste Entscheidung:** Welche fachlichen Daten werden zuerst gespeichert, und welche erste RALF-Komponente benötigt den Database Service?
-2. Wie sehen die domänenspezifischen Repository-Verträge dieses ersten Datenbankkunden aus?
-3. Welche PostgreSQL-Version wird als Referenzversion gewählt?
-4. Wie kommunizieren RALF-Komponenten mit dem Database Service, ohne eine universelle Datenzugriffs-API zu schaffen?
-5. Wie werden Secrets sicher und deployment-spezifisch bereitgestellt?
-6. Wo liegen Daten und Backups in den ersten unterstützten Betriebsprofilen?
-7. Welche Backup-Retention wird später verlangt?
-8. Werden `json_documents` oder `full_text_search` für 0.1 nach Festlegung der ersten Fachdaten verpflichtend?
-9. Wie werden Migrationen technisch paketiert und ihrem Provider eindeutig zugeordnet?
+Die frühere Frage nach dem ersten Datenbankkunden und dessen Repository-Grenze ist durch ADR-0002 entschieden. Offen bleiben:
+
+1. **Unmittelbar nächste Entscheidung:** Welche minimale Verantwortung besitzt RALF Core zwischen Benutzereingabe, `ConversationRepository` und einer späteren Modellruntime?
+2. Welche PostgreSQL-Version wird als Referenzversion gewählt?
+3. Wie wird ein domänenspezifischer Repository-Vertrag technisch angebunden, ohne eine universelle Datenzugriffs-API zu schaffen?
+4. Wie werden Secrets sicher und deployment-spezifisch bereitgestellt?
+5. Wo liegen Daten und Backups in den ersten unterstützten Betriebsprofilen?
+6. Welche Backup-Retention wird später verlangt?
+7. Wie werden Migrationen technisch paketiert und ihrem Provider eindeutig zugeordnet?
 
 Keine dieser Fragen autorisiert bereits eine Implementierung oder Installation.

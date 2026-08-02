@@ -19,6 +19,10 @@ Alle Datenbankgeheimnisse werden ausschließlich unter `/secrets` verwaltet. Pl�
 
 Die konkrete PostgreSQL-Major-Version, das Deploymentprofil und die ersten tatsächlich anzulegenden Allocations werden separat entschieden.
 
+## Spätere Präzisierung
+
+[ADR-0005](ADR-0005-first-postgresql-deployment-profile.md) wählt für die erste Referenzumgebung PostgreSQL Major 18, die Providerinstanz `postgresql-main` und vier isolierte Allocations. Diese deployment-spezifische Auswahl ändert weder die Providerneutralität noch die Möglichkeit anderer Platzierungen.
+
 ## Begründung
 
 - PostgreSQL bildet die für die ersten Consumer benötigten relationalen und transaktionalen Fähigkeiten belastbar ab.
@@ -97,9 +101,8 @@ Verworfen als Zwang, weil Sicherheits-, Verfügbarkeits-, Versions-, Erweiterung
 
 ## Offene Punkte
 
-- PostgreSQL-Referenzversion und Wartungsmatrix,
-- erstes Deploymentprofil,
-- erste tatsächlich anzulegende Allocations,
+- technische Verifikation der in ADR-0005 gewählten Referenzversion und Wartungsmatrix,
+- technische Umsetzung des in ADR-0005 gewählten Deploymentprofils,
 - Netzwerkgrenzen zwischen Consumern und Provider,
 - Eigentümer- und Zugriffsmodell unter `/secrets`,
 - Secret-Rotation,
@@ -111,4 +114,4 @@ Verworfen als Zwang, weil Sicherheits-, Verfügbarkeits-, Versions-, Erweiterung
 
 ## Nächster Schritt
 
-Als Nächstes werden PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations ausgewählt. Bis dahin werden weder PostgreSQL noch Datenbanken, Identitäten, Secrets oder Netzwerkfreigaben angelegt.
+ADR-0005 beantwortet Versions-, Profil- und Allocation-Auswahl. Als Nächstes entsteht ein konkreter, zunächst read-only geplanter Implementierungspfad. PostgreSQL, Datenbanken, Identitäten, Secrets und Netzwerkfreigaben bleiben bis zu einem separat bestätigten Apply unverändert.

@@ -6,7 +6,7 @@ PostgreSQL ist der erste Referenzprovider des Database Service. Der Provider imp
 
 PostgreSQL ist weder Bestandteil des allgemeinen Database-Service-Vertrags noch eine universelle Datenzugriffs-API oder ein SQL-Proxy. Eine Providerentscheidung gilt immer für eine konkrete Allocation; PostgreSQL ist nicht automatisch für jeden Consumer geeignet.
 
-Ein Deployment kann eine Providerinstanz mit mehreren logischen Allocations oder mehrere Providerinstanzen mit unterschiedlichen Isolationsgrenzen verwenden. Diese Spezifikation trifft noch keine Platzierungs-, Versions- oder Deploymententscheidung und legt nichts an.
+Ein Deployment kann eine Providerinstanz mit mehreren logischen Allocations oder mehrere Providerinstanzen mit unterschiedlichen Isolationsgrenzen verwenden. [ADR-0005](../decisions/ADR-0005-first-postgresql-deployment-profile.md) trifft die erste deployment-spezifische Auswahl; diese Spezifikation selbst legt weiterhin nichts an.
 
 ## PostgreSQL Provider Instance
 
@@ -29,7 +29,7 @@ Sie besitzt fachlich mindestens:
 | `backup_policy_reference` | Referenz auf providerweite Sicherungsanforderungen, falls vorhanden. |
 | `resource_policy_reference` | Referenz auf Kapazitäts- und Ressourcengrenzen. |
 
-Keine konkrete Instanz-ID ist Teil dieses Vertrags.
+Der allgemeine Providervertrag schreibt keine Instanz-ID vor. Das erste Referenzdeployment verwendet deployment-spezifisch `postgresql-main`.
 
 ## Versionsvertrag
 
@@ -39,7 +39,17 @@ Keine konkrete Instanz-ID ist Teil dieses Vertrags.
 - Jede Allocation muss mit der gewählten Major-Version und den aktivierten Fähigkeiten kompatibel sein.
 - Eine spätere Versionsmatrix berücksichtigt mindestens Sicherheitsstatus, Wartungsstatus und die Anforderungen der Consumer.
 
-Die konkrete Referenzversion bleibt offen.
+### Erste Referenzversionspolitik
+
+Für das erste Referenzdeployment gilt:
+
+- Major-Version: **18**,
+- initial dokumentierter Minor-Stand: **18.4**,
+- Ziel zum Installationszeitpunkt: neueste stabile **18.x**-Minor-Version,
+- kein automatischer Wechsel auf PostgreSQL 19,
+- jedes Major-Upgrade benötigt einen eigenen Plan und eine eigene ausdrückliche Freigabe.
+
+18.4 ist ein dokumentierter Ausgangsstand und keine dauerhafte Minor-Fixierung. Die konkrete 18.x-Version wird unmittelbar vor einer späteren Installation erneut ermittelt und auf Kompatibilität mit den ausgewählten Consumern geprüft.
 
 ## Fähigkeiten
 
@@ -223,7 +233,50 @@ Gitea erhält eine eigene Allocation und eigene Identitäten. Version, Datenbank
 - Schema-Lebenszyklus: `application_managed` oder `platform_preprovisioned`
 - PostgreSQL ist eine optionale Storage-Wahl.
 
-Integrated Storage bleibt als Alternative offen. Diese Spezifikation plant keinen OpenBao-Consumer und keine OpenBao-Allocation.
+Integrated Storage bleibt allgemein eine Alternative. Das nachfolgend dokumentierte erste Referenzprofil wählt PostgreSQL ausschließlich deployment-spezifisch für OpenBao aus.
+
+## Erstes deployment-spezifisches Referenzprofil
+
+Das in [ADR-0005](../decisions/ADR-0005-first-postgresql-deployment-profile.md) beschlossene Profil lautet:
+
+| Feld | Auswahl |
+| --- | --- |
+| `provider_instance_id` | `postgresql-main` |
+| Provider | PostgreSQL |
+| `isolation_profile` | `shared-provider-with-isolated-logical-databases` |
+| PostgreSQL-Major | 18 |
+| initial dokumentierter Minor-Stand | 18.4 |
+
+Die gemeinsame Providerinstanz enthält zunächst genau vier ausgewählte Allocations:
+
+| `allocation_id` | Consumer | `consumer_type` | `isolation_class` | `schema_lifecycle` | Besondere Festlegung |
+| --- | --- | --- | --- | --- | --- |
+| `gitea` | Gitea | `external_application` | `logical_database` | `application_managed` | `selected: true` |
+| `openbao` | OpenBao | `external_application` | `logical_database` | `application_managed` | `selected: true`, `sensitivity: high` |
+| `semaphore` | Semaphore UI | `external_application` | `logical_database` | `application_managed` | `selected: true` |
+| `nodered` | Node-RED | `external_application` | `logical_database` | `application_managed` | `selected: true`, `purpose: flow_application_data` |
+
+PostgreSQL ist für OpenBao in dieser Referenzumgebung bewusst als Storage gewählt. Die Wahl ist deployment-spezifisch; Integrated Storage bleibt für andere Installationen zulässig. OpenBao kann bei später nachgewiesenem Isolationsbedarf eine dedizierte Providerinstanz erhalten. Seine Bootstrap-Datenbankgeheimnisse stammen weiterhin aus `/secrets` und niemals zirkulär aus OpenBao selbst.
+
+Die Node-RED-Allocation speichert ausschließlich relationale Daten von Node-RED-Flows. Sie wird nicht automatisch zum internen Node-RED-Storage. Flowdateien, Credentials und Context bleiben zunächst außerhalb dieser Allocation. Eine Änderung dieses Storage-Vertrags benötigt eine eigene Entscheidung.
+
+RALF Core ist nicht Teil dieses ersten realen Allocation-Satzes. Seine Allocation wird erst geplant, wenn Core implementiert ist und ein konkretes Schema beziehungsweise Migrationspaket vorliegt.
+
+### Isolation und Secret-Referenzen des Profils
+
+Jede der vier Allocations erhält eine eigene logische Datenbank, eine eigene `application_identity`, keine Rechte auf fremde Allocations und einen eigenen allocation-bezogenen Health-, Readiness-, Backup- und Restorevertrag. Gemeinsame Anwendungsrollen, Anwendungspasswörter oder Anwendungsschemata sind ausgeschlossen.
+
+Vorgesehene, noch nicht angelegte Secret-Referenzen:
+
+```text
+/secrets/database-service/providers/postgresql-main/administrative-password
+/secrets/database-service/allocations/gitea/application-password
+/secrets/database-service/allocations/openbao/application-password
+/secrets/database-service/allocations/semaphore/application-password
+/secrets/database-service/allocations/nodered/application-password
+```
+
+Diese Pfade sind nicht geheime Referenzen. Dieser Spezifikationsschritt erzeugt weder die Dateien noch Secretwerte, Datenbanken, Identitäten oder Rollen. Logische Datenbanknamen und konkrete PostgreSQL-Benutzernamen bleiben offen.
 
 ## Health und Readiness
 
@@ -239,18 +292,14 @@ Ein Restore für eine Allocation darf niemals stillschweigend andere Allocations
 
 ## Offene Entscheidungen
 
-1. Welche PostgreSQL-Major-Version wird Referenzversion?
-2. Wie wird PostgreSQL in der ersten Referenzumgebung betrieben?
-3. Welche Allocations werden im ersten realen Deployment angelegt?
-4. Wird zunächst nur RALF Core angelegt?
-5. Benötigt Gitea bereits im ersten Deployment eine Allocation?
-6. Welches Storage-Backend verwendet OpenBao?
-7. Welche Netzwerkgrenze gilt zwischen Consumer und PostgreSQL?
-8. Welche Dateieigentümer und Zugriffsmodi gelten unter `/secrets`?
-9. Wie erfolgt Secret-Rotation?
-10. Welche Ressourcenlimits gelten je Allocation?
-11. Wo werden logische Backups gespeichert und wie lange aufbewahrt?
-12. Welche Providererweiterungen sind im Basisprofil zulässig?
-13. Wie werden PostgreSQL-Major-Upgrades durchgeführt?
+1. Auf welchem Betriebssystem und in welcher Betriebsform läuft `postgresql-main`?
+2. Welche Netzwerkgrenze gilt zwischen Consumern und PostgreSQL?
+3. Welche Ressourcen gelten für Providerinstanz und Allocations?
+4. Wo werden logische Backups gespeichert und wie lange aufbewahrt?
+5. Welche Dateieigentümer und Zugriffsmodi gelten unter `/secrets`?
+6. Wie erfolgt Secret-Rotation?
+7. Welche konkreten Versionen von Gitea, OpenBao, Semaphore UI und Node-RED sind mit der gewählten 18.x-Version kompatibel?
+8. Welche Providererweiterungen sind im Basisprofil zulässig?
+9. Wie werden PostgreSQL-Major-Upgrades durchgeführt?
 
-**Nächste Entscheidung:** PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations auswählen.
+**Nächster Schritt:** Einen konkreten, zunächst read-only geplanten Implementierungspfad für PostgreSQL 18, `postgresql-main`, vier isolierte Allocations und Secrets ausschließlich unter `/secrets` entwerfen.

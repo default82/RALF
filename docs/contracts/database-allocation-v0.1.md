@@ -219,15 +219,24 @@ Möglicher `external_application` Consumer mit eigenem Datenbankzugriff und `app
 
 Möglicher `external_application` Consumer. PostgreSQL bleibt optionale Storage-Wahl; Integrated Storage muss gleichwertig geprüft werden. OpenBao verwendet nicht ConversationRepository.
 
+## Erstes Referenzdeployment
+
+[ADR-0005](../decisions/ADR-0005-first-postgresql-deployment-profile.md) wählt für die Providerinstanz `postgresql-main` genau vier Allocations: `gitea`, `openbao`, `semaphore` und `nodered`. Alle sind `external_application`, verwenden `logical_database`, besitzen `application_managed` als Schema-Lebenszyklus und sind ausdrücklich ausgewählt.
+
+Jede Allocation besitzt eine eigene logische Datenbank, eine eigene `application_identity` und eine eigene Referenz auf `application-password` unter `/secrets/database-service/allocations/<allocation-id>/`. Rechte auf fremde Allocations, gemeinsame Anwendungsrollen, gemeinsame Anwendungspasswörter und gemeinsam genutzte Anwendungsschemata sind ausgeschlossen. Health, Readiness, Backup und Restore bleiben allocation-bezogen.
+
+OpenBao verwendet in diesem Deployment PostgreSQL als Storage; die Auswahl gilt nicht allgemein. Node-RED verwendet seine Allocation ausschließlich für relationale Flow-Anwendungsdaten, nicht automatisch für Flowdateien, Credentials, Context oder den internen Node-RED-Storage.
+
+RALF Core erhält in diesem ersten realen Deployment keine Allocation. Seine spätere `domain_managed` Allocation setzt einen implementierten Core sowie ein konkretes Schema oder Migrationspaket voraus.
+
 ## Offene Punkte
 
-- tatsächliche erste Allocations,
 - Platzierungsentscheidung gemeinsam oder dediziert,
 - Rechte bei anwendungseigenen Migrationen,
 - Zugriff der Consumer auf `/secrets`,
 - Eigentümer-, Gruppen- und Rotationsmodell,
 - Ressourcen- und Netzwerkgrenzen,
 - allocation- und providerweite Backupbeziehung,
-- PostgreSQL-Referenzversion.
+- konkrete Consumer-Versionskompatibilität.
 
-**Nächster Schritt:** PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations auswählen, ohne eine Providerinstanz oder Allocation anzulegen.
+**Nächster Schritt:** Einen zunächst read-only geplanten Implementierungspfad ausarbeiten, ohne eine Providerinstanz oder Allocation anzulegen.

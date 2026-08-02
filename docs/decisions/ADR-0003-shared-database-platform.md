@@ -101,4 +101,4 @@ Zurückgestellt, weil OpenBao als eigener Database Consumer eine zirkuläre Boot
 
 ## Nächster Schritt
 
-Als Nächstes werden PostgreSQL-Referenzprovider und Allocation-Lebenszyklus spezifiziert. Es wird noch keine PostgreSQL-Instanz, Datenbank, Identität oder Allocation angelegt.
+[ADR-0004](ADR-0004-postgresql-reference-provider.md) hat PostgreSQL als ersten konkreten Referenzprovider sowie die getrennten Provider- und Allocation-Lebenszyklen festgelegt. Als Nächstes werden PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations ausgewählt. Es wird noch keine PostgreSQL-Instanz, Datenbank, Identität oder Allocation angelegt.

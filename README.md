@@ -13,8 +13,11 @@ Die erste fachliche Spezifikation trennt den fähigkeitsorientierten RALF-Vertra
 - [Architektur des Database Service](docs/architecture/database-service.md)
 - [RALF Database Contract 0.1](docs/contracts/database-service-v0.1.md)
 - [Database Allocation Contract 0.1](docs/contracts/database-allocation-v0.1.md)
+- [Provider 001: PostgreSQL](docs/providers/postgresql.md)
+- [Database-Allocation-Lebenszyklus](docs/lifecycle/database-allocation.md)
 - [ADR-0001: providerneutrale Datenbankfähigkeit](docs/decisions/ADR-0001-database-service.md)
 - [ADR-0003: gemeinsam nutzbare Datenbankplattform](docs/decisions/ADR-0003-shared-database-platform.md)
+- [ADR-0004: PostgreSQL als erster Referenzprovider](docs/decisions/ADR-0004-postgresql-reference-provider.md)
 
 Der erste spezifizierte RALF-native Database Consumer ist **RALF Core**. Seine erste persistente Domäne **Conversation** speichert ausschließlich Unterhaltungen und geordnete Nachrichten. Conversation bleibt zunächst eine Core-Domäne und verwendet nur in der RALF-Core-Allocation einen fachlichen Repository-Vertrag:
 
@@ -27,6 +30,8 @@ Externe Anwendungen wie Gitea oder optional OpenBao können eigene Allocations m
 
 Es gibt weiterhin keine Implementierung. Insbesondere existieren noch kein SQL, keine Tabellen, PostgreSQL-Installation, Programmierschnittstelle, Modellruntime, Benutzerverwaltung, Weboberfläche oder Infrastruktur.
 
-Der nächste kleine Schritt ist die Spezifikation des PostgreSQL-Referenzproviders und des Allocation-Lebenszyklus. Auch danach erfolgt nicht automatisch eine PostgreSQL-Installation.
+Provider 001 beschreibt PostgreSQL nun als konkrete Referenz hinter dem providerneutralen Vertrag. Providerinstanz und Allocation besitzen getrennte Zustände; der Referenzstandard bleibt eine logische Datenbank mit eigenen Identitäten pro Consumer. Die Spezifikation legt weder eine PostgreSQL-Version noch ein Deployment oder reale Allocations fest.
+
+Der nächste kleine Schritt ist die Auswahl der PostgreSQL-Referenzversion, des ersten Deploymentprofils und der tatsächlich anzulegenden Allocations. Auch danach erfolgt nicht automatisch eine PostgreSQL-Installation.
 
 RALF entsteht transparent durch Vibe Coding: Menschen bestimmen Ziele, Entscheidungen und Grenzen; Coding-Agenten unterstützen die Umsetzung in kleinen, überprüfbaren Schritten.

@@ -236,7 +236,9 @@ Der Database Service ist kein SQL-Proxy, allgemeiner CRUD-Dienst, Datei- oder Ob
 
 ## PostgreSQL als Referenzprovider
 
-PostgreSQL ist der erste Provider. Eine konkrete Version, Paketquelle, Betriebsform, Netzwerkgrenze, Serverkonfiguration, Datenbankbezeichnung, Identität, Port, Adresse oder Zugangsdaten werden noch nicht festgelegt.
+PostgreSQL ist als [Provider 001](../providers/postgresql.md) der erste konkrete Referenzprovider. Eine PostgreSQL Provider Instance ist ein betriebener Server beziehungsweise Cluster mit null oder mehr isolierten Allocations. Providerinstanz und Allocation besitzen getrennte [Lebenszyklen](../lifecycle/database-allocation.md); eine bereite Instanz macht eine einzelne Allocation nicht automatisch bereit.
+
+Der Referenzstandard verwendet eine logische Datenbank und eigene technische Identitäten pro Allocation. Eine konkrete Version, Paketquelle, Betriebsform, Netzwerkgrenze, Serverkonfiguration, Datenbankbezeichnung, Identität, Port, Adresse oder Zugangsdaten werden noch nicht festgelegt. [ADR-0004](../decisions/ADR-0004-postgresql-reference-provider.md) hält diese Grenze verbindlich fest.
 
 ## Offene Entscheidungen
 
@@ -253,4 +255,4 @@ PostgreSQL ist der erste Provider. Eine konkrete Version, Paketquelle, Betriebsf
 11. Welche Netzwerkgrenzen gelten zwischen Consumer und Provider?
 12. Welche PostgreSQL-Version wird Referenzversion?
 
-**Nächster kleiner Schritt:** Definiere den PostgreSQL-Referenzprovider und den Allocation-Lebenszyklus, ohne PostgreSQL zu installieren.
+**Nächster kleiner Schritt:** PostgreSQL-Referenzversion, erstes Deploymentprofil und tatsächlich anzulegende Allocations auswählen, ohne PostgreSQL zu installieren.

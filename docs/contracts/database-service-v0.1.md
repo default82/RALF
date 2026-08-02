@@ -4,7 +4,7 @@
 
 Dieser Vertrag beschreibt die providerneutrale Verwaltungsebene der gemeinsam nutzbaren Database-Service-Plattform. Er legt weder REST, RPC, MCP, Python-Signaturen, SQL noch ein Konfigurationsformat fest.
 
-PostgreSQL ist der erste Referenzprovider, bleibt aber außerhalb des öffentlichen Vertrags. Der detaillierte Vertrag einer isolierten Zuweisung steht im [Database Allocation Contract 0.1](database-allocation-v0.1.md).
+PostgreSQL ist der erste Referenzprovider, bleibt aber außerhalb des öffentlichen Vertrags. Seine konkrete Spezifikation steht unter [Provider 001: PostgreSQL](../providers/postgresql.md). Der detaillierte Vertrag einer isolierten Zuweisung steht im [Database Allocation Contract 0.1](database-allocation-v0.1.md), dessen Zustandsübergänge der [Database-Allocation-Lebenszyklus](../lifecycle/database-allocation.md) präzisiert.
 
 ## Vertragsumfang 0.1
 
@@ -42,7 +42,7 @@ Ein Database Consumer benötigt genau eine oder mehrere ausdrücklich geplante A
 
 Ein Consumer-Profil beschreibt unterstützte Provider, benötigte und optionale Fähigkeiten, Schema-Lebenszyklus, Identitätsmodell, Backup- und Health-Erwartungen sowie bekannte Einschränkungen. Es ist keine laufende Allocation und erzeugt keine Datenbank.
 
-RALF Core ist der erste spezifizierte `ralf_native` Consumer. Gitea und OpenBao sind mögliche `external_application` Consumer; ihre tatsächliche Auswahl bleibt offen.
+RALF Core ist der erste spezifizierte `ralf_native` Consumer. Im ersten Referenzdeployment erhält Core noch keine Allocation; ADR-0005 wählt stattdessen Gitea, OpenBao, Semaphore UI und Node-RED als vier `external_application` Consumer aus.
 
 ## Providerfähigkeiten
 
@@ -141,23 +141,9 @@ OpenBao kann später Secrets-Provider werden, ersetzt `/secrets` aber nicht auto
 
 ## Lebenszykluszustände
 
-Providerinstanzen und Allocations verwenden getrennte Zustandsmeldungen. Der gemeinsame Katalog lautet:
+Providerinstanzen und Allocations verwenden ausdrücklich getrennte Zustandskataloge. Der [PostgreSQL-Providervertrag](../providers/postgresql.md) definiert den Instanzlebenszyklus von `unknown` und `declared` bis `ready`, `failed` oder `retired`. Der [Allocation-Lebenszyklus](../lifecycle/database-allocation.md) reicht von `requested` und `planned` über Bereitstellung, Migration, Backup und Restore bis `deleted` oder `failed`.
 
-- `unknown`
-- `unconfigured`
-- `configured`
-- `starting`
-- `ready`
-- `degraded`
-- `maintenance`
-- `migration_required`
-- `migrating`
-- `backup_running`
-- `restore_running`
-- `failed`
-- `stopped`
-
-Nicht jeder Zustand ist auf beide Ebenen gleich anwendbar. `migration_required` bezieht sich beispielsweise auf eine Allocation, während ein Provider gleichzeitig `ready` sein kann. Zugriff ist nur erlaubt, wenn die konkrete Allocation dafür bereit ist; ein Fehler einer Allocation macht andere Allocations nicht automatisch fehlerhaft.
+`migration_required` bezieht sich auf eine Allocation, während ihr Provider gleichzeitig `ready` sein kann. Zugriff ist nur erlaubt, wenn die konkrete Allocation dafür bereit ist; ein Fehler einer Allocation macht andere Allocations nicht automatisch fehlerhaft. Kein mutierender Übergang erfolgt allein durch einen Dienststart.
 
 ## Health und Readiness
 
@@ -206,21 +192,35 @@ Ein Allocation-Restore darf weder eine andere Allocation noch die gesamte Provid
 | Kategorie | Bedeutung |
 | --- | --- |
 | `configuration_error` | Nicht geheime Vertragsdaten sind ungültig oder unvollständig. |
+| `provider_not_ready` | Providerinstanz ist vorhanden, aber für die Operation nicht bereit. |
+| `provider_version_incompatible` | Provider-Version ist mit Allocation oder Plan unvereinbar. |
 | `provider_unavailable` | Providerinstanz ist nicht verfügbar. |
 | `provider_conflict` | Providerzustand oder Fähigkeiten widersprechen dem Vertrag. |
 | `allocation_unavailable` | Zugewiesene Datenbankressource ist nicht verfügbar. |
 | `allocation_conflict` | Isolation, Identitäten oder Zuordnung widersprechen dem Allocation-Vertrag. |
+| `allocation_not_found` | Referenzierte Allocation existiert nicht. |
+| `allocation_not_ready` | Allocation ist vorhanden, aber für die Operation nicht bereit. |
+| `allocation_already_exists` | Die geplante Allocation kollidiert mit einer bestehenden Zuweisung. |
 | `connection_error` | Native Verbindung konnte nicht hergestellt oder gehalten werden. |
 | `authentication_error` | Technische Identität konnte nicht nachgewiesen werden. |
 | `authorization_error` | Identität besitzt falsche oder unzureichende Rechte. |
+| `identity_conflict` | Geplante oder vorhandene Identitäten verletzen den Allocation-Vertrag. |
 | `secret_reference_error` | Secret-Referenz ist ungültig oder nicht sicher auflösbar. |
+| `secret_reference_invalid` | Secret-Referenz verletzt Pfad- oder Sicherheitsregeln. |
+| `secret_already_exists` | Eine nicht zu überschreibende Secretdatei ist bereits vorhanden. |
+| `secret_unavailable` | Eine benötigte Secret-Referenz ist nicht sicher verwendbar. |
 | `capability_missing` | Eine für die Allocation erforderliche Fähigkeit fehlt. |
 | `schema_mismatch` | Schema- oder Anwendungszustand ist unbekannt oder inkompatibel. |
+| `schema_lifecycle_conflict` | Schemaeigentum oder Migrationsmodus widerspricht dem Consumervertrag. |
 | `migration_required` | Eine bekannte Migration ist vor Bereitschaft erforderlich. |
 | `migration_failed` | Eine freigegebene Migration ist fehlgeschlagen. |
 | `storage_exhausted` | Ressource reicht für sicheren Betrieb nicht aus. |
+| `resource_exhausted` | Eine vereinbarte Allocation- oder Providerressource ist erschöpft. |
 | `backup_failed` | Sicherung oder Verifikation ist fehlgeschlagen. |
+| `backup_not_verified` | Backup existiert, ist aber nicht als verwendbar verifiziert. |
+| `restore_conflict` | Restorequelle, Ziel oder Zustand widerspricht dem Restorevertrag. |
 | `restore_failed` | Wiederherstellung oder Abschlussprüfung ist fehlgeschlagen. |
+| `isolation_violation` | Eine Consumer- oder Allocation-Grenze wurde verletzt. |
 | `unknown_error` | Fehler konnte keiner stabilen Kategorie zugeordnet werden. |
 
 Providerspezifische Fehler dürfen intern für Diagnose erhalten bleiben, werden aber nicht allgemeiner Vertragsbestandteil.
@@ -235,16 +235,19 @@ Anlage, Änderung, Migration, Backup, Restore, Identitätsänderung, Secret-Erze
 
 [ADR-0003](../decisions/ADR-0003-shared-database-platform.md) präzisiert die gemeinsam nutzbare Plattform und die Mehrkundenstruktur.
 
+[ADR-0004](../decisions/ADR-0004-postgresql-reference-provider.md) konkretisiert den ersten Provider, ohne ihn in den öffentlichen Vertrag aufzunehmen.
+
+[ADR-0005](../decisions/ADR-0005-first-postgresql-deployment-profile.md) wählt deployment-spezifisch PostgreSQL Major 18, `postgresql-main` und die ersten vier Allocations. Der allgemeine Vertrag bleibt providerneutral.
+
 ## Offene Entscheidungen
 
-1. Welche Allocations werden zuerst tatsächlich angelegt?
-2. Welche Provider- und Allocation-Zustandsübergänge gehören in das Referenzprofil?
-3. Welche Consumer benötigen dedizierte Providerinstanzen?
-4. Wie werden externe anwendungseigene Migrationen sicher freigegeben oder beobachtet?
-5. Wie erhalten Consumer Zugriff auf Secretdateien unter `/secrets`?
-6. Welche Eigentümer-, Gruppen- und Rotationsregeln gelten dort?
-7. Welche Backups sind allocation-bezogen und welche providerweit?
-8. Wie werden Ressourcen- und Netzwerkgrenzen abgebildet?
-9. Welche PostgreSQL-Version wird Referenzversion?
+1. Welche Consumer benötigen dedizierte Providerinstanzen?
+2. Wie werden externe anwendungseigene Migrationen sicher freigegeben oder beobachtet?
+3. Wie erhalten Consumer Zugriff auf Secretdateien unter `/secrets`?
+4. Welche Eigentümer-, Gruppen- und Rotationsregeln gelten dort?
+5. Welche Backups sind allocation-bezogen und welche providerweit?
+6. Wie werden Ressourcen- und Netzwerkgrenzen abgebildet?
+7. Welche Erweiterungen sind im PostgreSQL-Basisprofil zulässig?
+8. Wie wird das in ADR-0005 gewählte Profil konkret und mutierungsfrei geplant?
 
-**Nächster kleiner Schritt:** PostgreSQL-Referenzprovider und Allocation-Lebenszyklus spezifizieren, ohne PostgreSQL zu installieren.
+**Nächster kleiner Schritt:** Einen ausschließlich read-only arbeitenden Deploymentplaner spezifizieren und implementieren, ohne PostgreSQL oder eine Allocation anzulegen.

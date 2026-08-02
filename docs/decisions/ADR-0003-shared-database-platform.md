@@ -88,17 +88,14 @@ Zurückgestellt, weil OpenBao als eigener Database Consumer eine zirkuläre Boot
 
 ## Offene Punkte
 
-- erste tatsächlich anzulegende Allocations,
-- RALF-Core-only oder zusätzlich Gitea im ersten Referenzdeployment,
-- OpenBao Integrated Storage oder PostgreSQL,
 - Kriterien für dedizierte Providerinstanzen,
 - Behandlung anwendungseigener Migrationen,
 - Zugriff und Rechte unter `/secrets`,
 - Secret-Rotation,
 - allocation- und providerweite Backups,
 - Ressourcen- und Netzwerkgrenzen,
-- PostgreSQL-Referenzversion.
+- konkrete Betriebs- und Netzwerkgrenzen des gewählten Referenzprofils.
 
 ## Nächster Schritt
 
-Als Nächstes werden PostgreSQL-Referenzprovider und Allocation-Lebenszyklus spezifiziert. Es wird noch keine PostgreSQL-Instanz, Datenbank, Identität oder Allocation angelegt.
+[ADR-0004](ADR-0004-postgresql-reference-provider.md) hat PostgreSQL als ersten konkreten Referenzprovider sowie die getrennten Provider- und Allocation-Lebenszyklen festgelegt. [ADR-0005](ADR-0005-first-postgresql-deployment-profile.md) wählt PostgreSQL Major 18, `postgresql-main` und vier initiale Allocations. Als Nächstes entsteht ausschließlich ein read-only Deploymentplan; es wird weiterhin keine PostgreSQL-Instanz, Datenbank, Identität oder Allocation angelegt.

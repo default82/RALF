@@ -13,8 +13,12 @@ Die erste fachliche Spezifikation trennt den fähigkeitsorientierten RALF-Vertra
 - [Architektur des Database Service](docs/architecture/database-service.md)
 - [RALF Database Contract 0.1](docs/contracts/database-service-v0.1.md)
 - [Database Allocation Contract 0.1](docs/contracts/database-allocation-v0.1.md)
+- [Provider 001: PostgreSQL](docs/providers/postgresql.md)
+- [Database-Allocation-Lebenszyklus](docs/lifecycle/database-allocation.md)
 - [ADR-0001: providerneutrale Datenbankfähigkeit](docs/decisions/ADR-0001-database-service.md)
 - [ADR-0003: gemeinsam nutzbare Datenbankplattform](docs/decisions/ADR-0003-shared-database-platform.md)
+- [ADR-0004: PostgreSQL als erster Referenzprovider](docs/decisions/ADR-0004-postgresql-reference-provider.md)
+- [ADR-0005: erstes PostgreSQL-Deploymentprofil](docs/decisions/ADR-0005-first-postgresql-deployment-profile.md)
 
 Der erste spezifizierte RALF-native Database Consumer ist **RALF Core**. Seine erste persistente Domäne **Conversation** speichert ausschließlich Unterhaltungen und geordnete Nachrichten. Conversation bleibt zunächst eine Core-Domäne und verwendet nur in der RALF-Core-Allocation einen fachlichen Repository-Vertrag:
 
@@ -27,6 +31,10 @@ Externe Anwendungen wie Gitea oder optional OpenBao können eigene Allocations m
 
 Es gibt weiterhin keine Implementierung. Insbesondere existieren noch kein SQL, keine Tabellen, PostgreSQL-Installation, Programmierschnittstelle, Modellruntime, Benutzerverwaltung, Weboberfläche oder Infrastruktur.
 
-Der nächste kleine Schritt ist die Spezifikation des PostgreSQL-Referenzproviders und des Allocation-Lebenszyklus. Auch danach erfolgt nicht automatisch eine PostgreSQL-Installation.
+Provider 001 beschreibt PostgreSQL als konkrete Referenz hinter dem providerneutralen Vertrag. Das erste deployment-spezifische Profil wählt PostgreSQL Major 18 und die gemeinsame Providerinstanz `postgresql-main`. Ihr initial dokumentierter Minor-Stand ist 18.4; installiert wird später die dann neueste stabile 18.x-Minor-Version. Ein automatischer Wechsel auf PostgreSQL 19 ist ausgeschlossen.
+
+Für die erste Referenzinstallation sind vier isolierte Allocations ausgewählt: Gitea, OpenBao, Semaphore UI und Node-RED. RALF Core erhält noch keine Allocation. OpenBao verwendet in diesem Deployment bewusst PostgreSQL; Node-RED nutzt seine Allocation nur für relationale Flow-Anwendungsdaten, nicht automatisch als internen Speicher.
+
+Der nächste kleine Schritt ist ein zunächst read-only geplanter Implementierungspfad. Vor jeder Mutation werden noch Betriebsform, Netzwerkgrenze, Ressourcen, Backupziel, Rechte unter `/secrets` und kompatible Anwendungsversionen festgelegt. PostgreSQL ist weiterhin nicht installiert.
 
 RALF entsteht transparent durch Vibe Coding: Menschen bestimmen Ziele, Entscheidungen und Grenzen; Coding-Agenten unterstützen die Umsetzung in kleinen, überprüfbaren Schritten.

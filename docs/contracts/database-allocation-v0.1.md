@@ -121,25 +121,15 @@ RALF Core Conversation verlangt `relational_storage`, `transactions`, `schema_mi
 
 ## Zustände
 
-Eine Allocation verwendet zunächst:
+Der normative [Database-Allocation-Lebenszyklus](../lifecycle/database-allocation.md) definiert die Zustände `requested`, `planned`, `provisioning`, `configured`, `migration_required`, `migrating`, `ready`, `degraded`, `backup_running`, `restore_planned`, `restore_running`, `suspended`, `deleting`, `deleted` und `failed` einschließlich erlaubter Zugriffe und administrativer Grenzen.
 
-| Zustand | Bedeutung |
-| --- | --- |
-| `unknown` | Zustand ist nicht verlässlich bekannt. |
-| `unconfigured` | Pflichtzuordnung oder Vertragsdaten fehlen. |
-| `configured` | Vertrag ist vollständig, Bereitschaft aber nicht bestätigt. |
-| `starting` | Zuweisung wird für den Consumer bereitgestellt oder geprüft. |
-| `ready` | Isolation, Identitäten, Fähigkeiten und Schema sind verwendbar. |
-| `degraded` | Allocation ist eingeschränkt; erlaubte Zugriffe müssen explizit sein. |
-| `maintenance` | Geplanter Wartungszustand. |
-| `migration_required` | Schema-Lebenszyklus verlangt eine Migration. |
-| `migrating` | Eine autorisierte Migration läuft. |
-| `backup_running` | Allocation-bezogenes Backup läuft. |
-| `restore_running` | Allocation-bezogener Restore läuft. |
-| `failed` | Sicherer Betrieb ist nicht möglich. |
-| `stopped` | Allocation ist kontrolliert nicht verfügbar. |
+Eine Allocation darf nicht `ready` melden, nur weil ihre Providerinstanz gesund ist. Ein Dienststart erzeugt weder eine Allocation noch eine Migration oder einen anderen mutierenden Zustandsübergang.
 
-Die vollständigen Zustandsübergänge bleiben Teil des nächsten Spezifikationsschritts. Eine Allocation darf nicht `ready` melden, nur weil ihre Providerinstanz gesund ist.
+## Fachliche Operationen und Allocation-Plan
+
+Der Lebenszyklus beschreibt die fachlichen Operationen von Planung und Anlage über Verifikation, Migration, Suspendierung, Backup, Restore und Secret-Rotation bis zur geplanten Löschung. Diese Namen sind keine technischen Signaturen.
+
+Jede Mutation benötigt einen Plan mit Ausgangs- und Zielzustand, Voraussetzungen, sichtbaren Mutationen, Risiken, ausdrücklicher Freigabe und Abschlussverifikation. Der Plan benennt Consumer, Profil, Providerinstanz, Version, Isolation, Datenbankreferenz, Schema-Lebenszyklus, Fähigkeiten, Identitäten, Secret-Referenzen, Netzwerkgrenze, Policies, Ressourcen, Validierung und Rollback-Grenzen. Er enthält keine Secretwerte oder ausführbaren freien Befehle.
 
 ## Health und Readiness
 
@@ -173,20 +163,29 @@ Ein Restore darf keine fremde Allocation oder die gesamte Providerinstanz stills
 ## Providerneutrale Fehlerklassen
 
 - `allocation_not_found`
+- `allocation_not_ready`
+- `allocation_already_exists`
 - `allocation_conflict`
 - `consumer_conflict`
+- `provider_not_ready`
+- `provider_version_incompatible`
 - `provider_unavailable`
 - `provider_conflict`
 - `capability_missing`
 - `isolation_violation`
-- `identity_error`
-- `secret_reference_error`
+- `identity_conflict`
+- `secret_reference_invalid`
+- `secret_already_exists`
+- `secret_unavailable`
 - `schema_mismatch`
+- `schema_lifecycle_conflict`
 - `migration_required`
 - `migration_failed`
 - `backup_failed`
+- `backup_not_verified`
+- `restore_conflict`
 - `restore_failed`
-- `storage_exhausted`
+- `resource_exhausted`
 - `unknown_error`
 
 Fehler enthalten später eine nicht geheime Allocation-, Consumer-, Provider- und Operationsreferenz. Providerrohfehler und Secretwerte werden nicht Bestandteil des allgemeinen Vertrags.
@@ -220,16 +219,24 @@ Möglicher `external_application` Consumer mit eigenem Datenbankzugriff und `app
 
 Möglicher `external_application` Consumer. PostgreSQL bleibt optionale Storage-Wahl; Integrated Storage muss gleichwertig geprüft werden. OpenBao verwendet nicht ConversationRepository.
 
+## Erstes Referenzdeployment
+
+[ADR-0005](../decisions/ADR-0005-first-postgresql-deployment-profile.md) wählt für die Providerinstanz `postgresql-main` genau vier Allocations: `gitea`, `openbao`, `semaphore` und `nodered`. Alle sind `external_application`, verwenden `logical_database`, besitzen `application_managed` als Schema-Lebenszyklus und sind ausdrücklich ausgewählt.
+
+Jede Allocation besitzt eine eigene logische Datenbank, eine eigene `application_identity` und eine eigene Referenz auf `application-password` unter `/secrets/database-service/allocations/<allocation-id>/`. Rechte auf fremde Allocations, gemeinsame Anwendungsrollen, gemeinsame Anwendungspasswörter und gemeinsam genutzte Anwendungsschemata sind ausgeschlossen. Health, Readiness, Backup und Restore bleiben allocation-bezogen.
+
+OpenBao verwendet in diesem Deployment PostgreSQL als Storage; die Auswahl gilt nicht allgemein. Node-RED verwendet seine Allocation ausschließlich für relationale Flow-Anwendungsdaten, nicht automatisch für Flowdateien, Credentials, Context oder den internen Node-RED-Storage.
+
+RALF Core erhält in diesem ersten realen Deployment keine Allocation. Seine spätere `domain_managed` Allocation setzt einen implementierten Core sowie ein konkretes Schema oder Migrationspaket voraus.
+
 ## Offene Punkte
 
-- tatsächliche erste Allocations,
-- vollständige Zustandsübergänge,
 - Platzierungsentscheidung gemeinsam oder dediziert,
 - Rechte bei anwendungseigenen Migrationen,
 - Zugriff der Consumer auf `/secrets`,
 - Eigentümer-, Gruppen- und Rotationsmodell,
 - Ressourcen- und Netzwerkgrenzen,
 - allocation- und providerweite Backupbeziehung,
-- PostgreSQL-Referenzversion.
+- konkrete Consumer-Versionskompatibilität.
 
-**Nächster Schritt:** PostgreSQL-Referenzprovider und Allocation-Lebenszyklus spezifizieren, ohne eine Providerinstanz oder Allocation anzulegen.
+**Nächster Schritt:** Einen zunächst read-only geplanten Implementierungspfad ausarbeiten, ohne eine Providerinstanz oder Allocation anzulegen.

@@ -60,6 +60,12 @@ Die Statusansicht ist über `GET /`, der technische Healthcheck über `GET /heal
 
 Der erste Dienst ist vollständig read-only: Er schreibt keine SQLite-Daten, installiert nichts und bietet keine mutierenden Aktionen, Authentifizierung, TLS- oder LAN-Freigabe. Der reale Dienst ist in VMID 100 aktiviert und lokal erreichbar; `state.db` bleibt nicht initialisiert.
 
+### Sicherer LAN-Zugang (geplant)
+
+Gunicorn bleibt dauerhaft ausschließlich auf `127.0.0.1:8080`. LAN-Zugang wird als optionale, austauschbare Fähigkeit `secure-ingress` vor den lokalen Webprozess gesetzt; die erste Standalone-Referenz verwendet dafür Caddy im selben LXC. Der Zugriff verlangt HTTPS, einen bestätigten lokalen FQDN, eine ausdrücklich bestätigte CIDR-Allowlist und Authentifizierung. Caddy verwendet zunächst eine lokale CA und speichert für Basic Auth ausschließlich einen Argon2id-Hash des Kennworts; Clientgeräte müssen dem kontrolliert ausgegebenen öffentlichen Root-Zertifikat ausdrücklich vertrauen.
+
+In VMID 100 ist noch kein LAN-Ingress installiert oder aktiviert. Es gibt weiterhin keine LAN-Freigabe, keine mutierenden Setup-Formulare und keine zusätzlichen Netzwerk-Capabilities. Vorhandene externe Reverse Proxies sollen später über weitere Provider eingebunden werden, ohne Gunicorn direkt im LAN zu öffnen.
+
 Die direkten Laufzeitabhängigkeiten sind `Flask==3.1.3` und `Gunicorn==26.0.0`; die exakt geprüfte transitive Auflösung steht in [`requirements/runtime.lock`](requirements/runtime.lock). Für Tests werden ausschließlich `pytest==9.1.1` und `build==1.5.0` verwendet.
 
 ## Langfristige Richtung
@@ -175,7 +181,7 @@ Die kontrollierte Vorbereitung ist als separates Gastskript umgesetzt und wurde 
 
 ## Status
 
-Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002 und M-035 sind damit erfüllt. O-010 und O-011 sowie D-003 bis D-005 bleiben offen.
+Der technische Ausgangszustand des dauerhaften Bootstraps ist erreicht: Der reale unprivilegierte LXC `ralf-standalone` (VMID 100) wurde erstellt, am 2026-08-01 nach Aktivierung von `nesting=1` kontrolliert neu gestartet und read-only validiert. Ubuntu 26.04 ist aktualisiert, Netzwerk und DHCP funktionieren, und die vier Basisverzeichnisse sind vorbereitet. Der Container enthält noch keine Modellruntime und kein Modell. Der Statusdienst `0.1.0` ist aktiviert, läuft unprivilegiert und antwortet ausschließlich über `127.0.0.1:8080`; `state.db` wurde nicht angelegt. Die korrigierte Unit läuft ohne Gunicorn-Control-Socket-Fehler und meldet dank `AF_NETLINK` den lokalen Netzwerkzustand korrekt als `configured`. D-002 und M-035 sind damit erfüllt. O-010 ist entschieden; M-038 ist der nächste lokale Implementierungsschritt. O-011 und O-012 sowie D-003 bis D-005 bleiben offen.
 
 ## Lizenz
 

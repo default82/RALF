@@ -684,4 +684,4 @@ Diese Datei wird nach jedem Arbeitsdurchlauf erweitert. Bestehende Einträge ble
 - Nicht ausgeführte Änderungen: Kein zweiter Apply oder Restart, kein Rollback, keine Paket-, Wheel-, Venv-, Konfigurations-, Benutzer-, Daten-, Container-, Proxmox-, LAN-, Authentifizierungs-, TLS-, SQLite-, Modell- oder Secrets-Mutation.
 - Risiken oder Blocker: M-035 ist abgeschlossen. D-003 bis D-005 sowie O-010 und O-011 bleiben unverändert offen. Ein Containerneustartnachweis wurde in diesem Lauf bewusst nicht ausgeführt.
 - Nächster sinnvoller Zielbild-Eintrag: O-010 – die sichere LAN-Erreichbarkeit des weiterhin ausschließlich an Loopback gebundenen Statusdienstes getrennt entscheiden; keine LAN-Freigabe ohne diese Entscheidung.
-- Veröffentlichung: Noch nicht veröffentlicht; gezielter Dokumentationscommit, Push und PR folgen nach der abschließenden Diff-, Zielbild- und Secrets-Prüfung.
+- Veröffentlichung: Die ausschließlich notwendige Zustandsdokumentation wurde mit Commit `f0e2a87` auf Branch `agent/m035-real-unit-update` veröffentlicht; PR `#36` enthält nur `ZIELBILD.md`, `README.md` und `Ergebnis.md`. `secrets/` blieb ungetrackt und unstaged.

@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime as dt
+import hashlib
 import ipaddress
+import json
 import os
 import pathlib
 import re
@@ -34,22 +36,28 @@ REFERENCE_MEMORY_MIB = 8192
 REFERENCE_DISK_GIB = 100
 OUTPUT_LIMIT = 65_536
 COMMAND_TIMEOUT_SECONDS = 8
+PLAN_SCHEMA_VERSION = 1
+PLAN_TYPE = "postgresql-main-deployment"
 
 SECRET_ROOT = pathlib.Path("/secrets")
 PROVIDER_SECRET_ROOT = SECRET_ROOT / "database-service/providers/postgresql-main"
 ALLOCATION_SECRET_ROOT = SECRET_ROOT / "database-service/allocations"
 
-MUTATION_PLAN = (
-    "Unprivilegierten Ubuntu-26.04-LXC postgresql-main anlegen",
-    "Ubuntu-Pakete kontrolliert aktualisieren",
-    "PostgreSQL 18 aus den offiziellen Ubuntu-26.04-Quellen installieren",
-    "Dedizierte Provider-TLS-Artefakte nach eigener Freigabe bereitstellen",
-    "PostgreSQL auf SCRAM, TLS und die konkrete Provideradresse begrenzen",
-    "Vier isolierte logische Datenbanken anlegen",
-    "Vier isolierte Anwendungsidentitäten mit minimalen Rechten anlegen",
-    "Secretwerte ausschließlich unter /secrets erzeugen",
-    "Provider- und Allocation-Health sowie Readiness prüfen",
-    "Initiale leere logische Backups im Custom-Format erzeugen und prüfen",
+PLANNED_MUTATIONS = (
+    (1, "planned", "prepare_apply_state", "Plan erneut prüfen, nur sichere Marker-Elternpfade anlegen, Hash binden und Marker atomar anlegen"),
+    (2, "secret_directories_ready", "prepare_secret_directories", "Marker-Eltern revalidieren und ausschließlich PKI- sowie Allocation-Verzeichnisse unter /secrets ergänzen"),
+    (3, "secrets_ready", "create_application_secrets", "Genau vier allocation-eigene Anwendungskennwörter atomar und exklusiv erzeugen"),
+    (4, "pki_ready", "create_provider_pki", "Dedizierte interne Provider-PKI für bestätigten FQDN und Provider-IP erzeugen"),
+    (5, "lxc_created", "create_lxc", "Genau einen unprivilegierten Ubuntu-26.04-LXC postgresql-main gestoppt anlegen"),
+    (6, "lxc_started", "start_lxc", "Den geprüften LXC genau einmal starten und seinen Grundzustand verifizieren"),
+    (7, "guest_bundle_ready", "transfer_guest_bundle", "Geschütztes temporäres Provisionierungsbundle nach /run/ralf-database-provision übertragen"),
+    (8, "guest_os_ready", "prepare_guest_os", "Ubuntu kontrolliert aktualisieren und ausschließlich notwendige Basis- und PostgreSQL-18-Pakete installieren"),
+    (9, "postgresql_installed", "verify_postgresql_installation", "PostgreSQL-18-Paket- und Clusterzustand vor Remote-Freigabe verifizieren"),
+    (10, "postgresql_configured", "configure_postgresql", "PostgreSQL auf Peer, TLS, SCRAM und allocation-spezifische hostssl-Regeln begrenzen"),
+    (11, "allocations_created", "create_allocations", "Genau vier isolierte logische Datenbanken, NOLOGIN-Eigentümer und Login-Anwendungsidentitäten anlegen"),
+    (12, "readiness_verified", "verify_isolation_and_provider", "Allocation-Isolation sowie Provider-Health und Readiness vollständig prüfen"),
+    (13, "backups_verified", "create_and_verify_initial_backups", "Vier initiale logische Custom-Format-Backups erzeugen und technisch prüfen"),
+    (14, "completed", "complete_provisioning", "Provisionierung als abgeschlossen markieren und temporäre Gastgeheimnisse sicher bereinigen"),
 )
 
 EXCLUDED_SCOPE = (
@@ -172,6 +180,12 @@ class PathCheck:
     state: str
     metadata: str
     conflict: str | None = None
+    exists: bool = False
+    file_type: str = "missing"
+    owner: int | None = None
+    group: int | None = None
+    mode: str | None = None
+    safe: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -188,6 +202,7 @@ class PlanReport:
     sections: list[tuple[str, list[str]]] = dataclasses.field(default_factory=list)
     warnings: list[str] = dataclasses.field(default_factory=list)
     blockers: list[str] = dataclasses.field(default_factory=list)
+    machine_plan: dict[str, object] | None = None
 
     def add_section(self, title: str, lines: Sequence[str]) -> None:
         self.sections.append((title, list(lines)))
@@ -208,8 +223,24 @@ class PlanReport:
         if not self.blockers:
             output.append("keine")
         output.append("")
+        if self.machine_plan is None:
+            raise PlannerError("maschinenlesbare Planrepräsentation wurde nicht gebunden")
+        output.append("== PLANBINDUNG ==")
+        output.append(f"Plan-Schema: {self.machine_plan['schema_version']}")
+        output.append(f"Plan-SHA-256: {self.machine_plan['plan_sha256']}")
+        output.append("")
         output.append("PLAN_BLOCKED" if self.blockers else "PLAN_READY")
         return "\n".join(output) + "\n"
+
+    def render_json(self) -> str:
+        if self.machine_plan is None:
+            raise PlannerError("maschinenlesbare Planrepräsentation wurde nicht gebunden")
+        return json.dumps(
+            self.machine_plan,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ) + "\n"
 
 
 def _expect_table(value: object, context: str) -> Mapping[str, object]:
@@ -893,23 +924,41 @@ def inspect_path(
     mode = stat.S_IMODE(info.st_mode)
     metadata = f"uid={info.st_uid} gid={info.st_gid} mode={mode:04o}"
     if stat.S_ISLNK(info.st_mode):
-        return PathCheck(path, "KONFLIKT", metadata, "Symlink ist unzulässig")
-    if kind == "directory" and not stat.S_ISDIR(info.st_mode):
-        return PathCheck(path, "KONFLIKT", metadata, "erwartetes Verzeichnis ist nicht vorhanden")
-    if kind == "file" and not stat.S_ISREG(info.st_mode):
-        return PathCheck(path, "KONFLIKT", metadata, "erwartete reguläre Datei ist nicht vorhanden")
-    if info.st_uid != 0 or info.st_gid != 0:
-        return PathCheck(path, "KONFLIKT", metadata, "Eigentümer muss root:root sein")
-    if mode != expected_mode:
+        file_type = "symlink"
+    elif stat.S_ISDIR(info.st_mode):
+        file_type = "directory"
+    elif stat.S_ISREG(info.st_mode):
+        file_type = "file"
+    else:
+        file_type = "other"
+
+    def checked(state: str, conflict: str | None, *, safe: bool = False) -> PathCheck:
         return PathCheck(
-            path,
-            "KONFLIKT",
-            metadata,
-            f"Modus muss {expected_mode:04o} sein",
+            path=path,
+            state=state,
+            metadata=metadata,
+            conflict=conflict,
+            exists=True,
+            file_type=file_type,
+            owner=info.st_uid,
+            group=info.st_gid,
+            mode=f"{mode:04o}",
+            safe=safe,
         )
+
+    if stat.S_ISLNK(info.st_mode):
+        return checked("KONFLIKT", "Symlink ist unzulässig")
+    if kind == "directory" and not stat.S_ISDIR(info.st_mode):
+        return checked("KONFLIKT", "erwartetes Verzeichnis ist nicht vorhanden")
+    if kind == "file" and not stat.S_ISREG(info.st_mode):
+        return checked("KONFLIKT", "erwartete reguläre Datei ist nicht vorhanden")
+    if info.st_uid != 0 or info.st_gid != 0:
+        return checked("KONFLIKT", "Eigentümer muss root:root sein")
+    if mode != expected_mode:
+        return checked("KONFLIKT", f"Modus muss {expected_mode:04o} sein")
     if require_nonempty and info.st_size == 0:
-        return PathCheck(path, "KONFLIKT", metadata, "Datei darf nicht leer sein")
-    return PathCheck(path=path, state="OK", metadata=metadata)
+        return checked("KONFLIKT", "Datei darf nicht leer sein")
+    return checked("OK", None, safe=True)
 
 
 def inspect_secret_contract() -> tuple[PathCheck, ...]:
@@ -1046,6 +1095,203 @@ def _format_bytes(value: int | None) -> str:
     return f"{value / 1024**3:.1f} GiB"
 
 
+def sha256_file(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            while chunk := handle.read(65_536):
+                digest.update(chunk)
+    except OSError as exc:
+        raise PlannerError(f"SHA-256 kann nicht berechnet werden: {path}: {exc}") from exc
+    return digest.hexdigest()
+
+
+def _canonical_json(value: object) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def calculate_plan_sha256(machine_plan: Mapping[str, object]) -> str:
+    hash_input = {
+        key: value
+        for key, value in machine_plan.items()
+        if key not in {"generated_at", "plan_sha256"}
+    }
+    return hashlib.sha256(_canonical_json(hash_input)).hexdigest()
+
+
+def _secret_observation(check: PathCheck) -> dict[str, object]:
+    return {
+        "path": str(check.path),
+        "exists": check.exists,
+        "file_type": check.file_type,
+        "owner": check.owner,
+        "group": check.group,
+        "mode": check.mode,
+        "safe": check.safe,
+    }
+
+
+def _plan_inputs(config: DeploymentConfig, matrix: VersionMatrix) -> dict[str, object]:
+    return {
+        "provider": {
+            "provider_instance_id": config.provider.provider_instance_id,
+            "hostname": config.provider.hostname,
+            "fqdn": config.provider.fqdn,
+            "postgresql_major": config.provider.postgresql_major,
+            "package": "postgresql-18",
+            "package_source": "official-ubuntu-26.04",
+            "minor_policy": "latest-stable-18.x",
+        },
+        "lxc": {
+            "requested_vmid": config.lxc.vmid,
+            "requested_storage": config.lxc.storage,
+            "requested_bridge": config.lxc.bridge,
+            "ipv4_cidr": str(config.lxc.ipv4_interface),
+            "gateway": str(config.lxc.gateway),
+            "dns_servers": [str(item) for item in config.lxc.dns_servers],
+            "cores": config.lxc.cores,
+            "memory_mib": config.lxc.memory_mib,
+            "swap_mib": config.lxc.swap_mib,
+            "disk_gib": config.lxc.disk_gib,
+            "operating_system": "ubuntu-26.04-lts",
+            "architecture": "amd64",
+            "unprivileged": True,
+            "nesting": True,
+            "mountpoints": [],
+            "gpu_devices": [],
+        },
+        "backup": {
+            "host_root": str(config.backup.host_root),
+            "minimum_free_gib": config.backup.minimum_free_gib,
+            "protection_confirmed": config.backup.protection_confirmed,
+            "format": "postgresql-custom",
+        },
+        "allocations": [
+            {
+                "allocation_id": allocation.allocation_id,
+                "database_name": allocation.database_name,
+                "application_identity": allocation.application_identity,
+                "allowed_client_cidrs": [
+                    str(item) for item in allocation.allowed_client_cidrs
+                ],
+                "schema_lifecycle": "application_managed",
+                "application_version": matrix.applications[allocation.allocation_id][
+                    "version"
+                ],
+                "application_secret_path": str(
+                    ALLOCATION_SECRET_ROOT
+                    / allocation.allocation_id
+                    / "application-password"
+                ),
+            }
+            for allocation in config.allocations
+        ],
+        "version_matrix": {
+            "checked_at": matrix.checked_at,
+            "postgresql": dict(matrix.postgresql),
+            "applications": {
+                name: dict(matrix.applications[name])
+                for name in EXPECTED_ALLOCATIONS
+            },
+        },
+        "security_profile": {
+            "remote_transport": "tls-only",
+            "password_encryption": "scram-sha-256",
+            "remote_authentication": "scram-sha-256",
+            "local_administration": "unix-socket-peer",
+            "remote_superuser_login": False,
+            "global_client_network": False,
+        },
+    }
+
+
+def _proxmox_observations(proxmox: ProxmoxState) -> dict[str, object]:
+    return {
+        "pve_version": proxmox.pve_version,
+        "vmid": proxmox.vmid,
+        "vmid_source": proxmox.vmid_source,
+        "storage": proxmox.storage,
+        "storage_source": proxmox.storage_source,
+        "storage_available_bytes": proxmox.storage_available_bytes,
+        "bridge": proxmox.bridge,
+        "bridge_source": proxmox.bridge_source,
+        "template": proxmox.template,
+        "host_addresses_checked": proxmox.host_addresses_checked,
+        "host_routes_checked": proxmox.host_routes_checked,
+    }
+
+
+def _backup_observations(
+    config: BackupConfig, backup: BackupCheck
+) -> dict[str, object]:
+    return {
+        "path": str(backup.path),
+        "state": backup.state,
+        "free_bytes": backup.free_bytes,
+        "minimum_free_gib": config.minimum_free_gib,
+        "protection_confirmed": config.protection_confirmed,
+        "safe": not backup.blockers,
+    }
+
+
+def _planned_mutations() -> list[dict[str, object]]:
+    return [
+        {
+            "position": position,
+            "phase": phase,
+            "mutation_id": mutation_id,
+            "title": title,
+        }
+        for position, phase, mutation_id, title in PLANNED_MUTATIONS
+    ]
+
+
+def build_machine_plan(
+    *,
+    config: DeploymentConfig,
+    matrix: VersionMatrix,
+    proxmox: ProxmoxState,
+    secret_checks: Sequence[PathCheck],
+    backup: BackupCheck,
+    git_commit: str,
+    configuration_path: pathlib.Path,
+    configuration_sha256: str,
+    version_matrix_sha256: str,
+    warnings: Sequence[str],
+    blockers: Sequence[str],
+    generated_at: str,
+) -> dict[str, object]:
+    machine_plan: dict[str, object] = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "plan_type": PLAN_TYPE,
+        "provider_instance_id": PROVIDER_INSTANCE_ID,
+        "repository_commit": git_commit,
+        "configuration_path": str(configuration_path),
+        "configuration_sha256": configuration_sha256,
+        "version_matrix_sha256": version_matrix_sha256,
+        "generated_at": generated_at,
+        "plan_inputs": _plan_inputs(config, matrix),
+        "proxmox_observations": _proxmox_observations(proxmox),
+        "secret_metadata_observations": [
+            _secret_observation(check) for check in secret_checks
+        ],
+        "backup_observations": _backup_observations(config.backup, backup),
+        "warnings": sorted(set(warnings)),
+        "blockers": sorted(set(blockers)),
+        "planned_mutations": _planned_mutations(),
+        "excluded_scope": list(EXCLUDED_SCOPE),
+        "plan_status": "PLAN_BLOCKED" if blockers else "PLAN_READY",
+    }
+    machine_plan["plan_sha256"] = calculate_plan_sha256(machine_plan)
+    return machine_plan
+
+
 def build_plan(
     config: DeploymentConfig,
     matrix: VersionMatrix,
@@ -1053,12 +1299,19 @@ def build_plan(
     secret_checks: Sequence[PathCheck],
     backup: BackupCheck,
     git_commit: str,
+    *,
+    configuration_path: pathlib.Path = REAL_CONFIG_PATH,
+    configuration_sha256: str = "0" * 64,
+    version_matrix_sha256: str = "0" * 64,
+    generated_at: str = "1970-01-01T00:00:00Z",
 ) -> PlanReport:
     report = PlanReport()
     report.warnings.extend(proxmox.warnings)
     report.blockers.extend(proxmox.blockers)
     report.warnings.extend(backup.warnings)
     report.blockers.extend(backup.blockers)
+    if not re.fullmatch(r"[0-9a-f]{40}", git_commit):
+        report.blockers.append("Repository-Commit konnte nicht eindeutig bestimmt werden")
     for check in secret_checks:
         if check.conflict:
             report.blockers.append(f"{check.path}: {check.conflict}")
@@ -1194,8 +1447,28 @@ def build_plan(
             "Keine automatische Retention oder Löschung in diesem Schritt.",
         ],
     )
-    report.add_section("GEPLANTE SPÄTERE MUTATIONEN", list(MUTATION_PLAN))
+    report.add_section(
+        "GEPLANTE SPÄTERE MUTATIONEN",
+        [
+            f"{position:02d} [{phase}] {title}"
+            for position, phase, _mutation_id, title in PLANNED_MUTATIONS
+        ],
+    )
     report.add_section("AUSDRÜCKLICH NICHT ENTHALTEN", list(EXCLUDED_SCOPE))
+    report.machine_plan = build_machine_plan(
+        config=config,
+        matrix=matrix,
+        proxmox=proxmox,
+        secret_checks=secret_checks,
+        backup=backup,
+        git_commit=git_commit,
+        configuration_path=configuration_path,
+        configuration_sha256=configuration_sha256,
+        version_matrix_sha256=version_matrix_sha256,
+        warnings=report.warnings,
+        blockers=report.blockers,
+        generated_at=generated_at,
+    )
     return report
 
 
@@ -1206,6 +1479,7 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan = subparsers.add_parser("plan", help="read-only Plan erzeugen")
     plan.add_argument("--config", required=True, type=pathlib.Path)
+    plan.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
 
@@ -1215,6 +1489,8 @@ def run_plan(
     runner: CommandRunner | None = None,
     require_real_path: bool = True,
     matrix_path: pathlib.Path = VERSION_MATRIX_PATH,
+    output_format: str = "text",
+    generated_at: str | None = None,
 ) -> tuple[int, str]:
     if require_real_path and config_path.absolute() != REAL_CONFIG_PATH:
         raise ConfigurationError(
@@ -1227,8 +1503,27 @@ def run_plan(
     proxmox = collect_proxmox_state(config, runner or CommandRunner())
     secrets = inspect_secret_contract()
     backup = inspect_backup_target(config.backup)
-    report = build_plan(config, matrix, proxmox, secrets, backup, read_git_commit())
-    rendered = report.render()
+    timestamp = generated_at or dt.datetime.now(dt.timezone.utc).isoformat(
+        timespec="seconds"
+    ).replace("+00:00", "Z")
+    report = build_plan(
+        config,
+        matrix,
+        proxmox,
+        secrets,
+        backup,
+        read_git_commit(),
+        configuration_path=config_path,
+        configuration_sha256=sha256_file(config_path),
+        version_matrix_sha256=sha256_file(matrix_path),
+        generated_at=timestamp,
+    )
+    if output_format == "text":
+        rendered = report.render()
+    elif output_format == "json":
+        rendered = report.render_json()
+    else:
+        raise ConfigurationError(f"unbekanntes Ausgabeformat: {output_format}")
     return (3 if report.blockers else 0), rendered
 
 
@@ -1238,7 +1533,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command != "plan":
         parser.error("nur der read-only Modus plan ist verfügbar")
     try:
-        code, output = run_plan(args.config)
+        code, output = run_plan(args.config, output_format=args.format)
     except PlannerError as exc:
         print(f"PLAN_ERROR: {exc}", file=sys.stderr)
         return 2

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import ast
 import builtins
 import importlib.util
 import io
+import json
 import os
 import pathlib
+import re
 import stat
 import subprocess
 import sys
@@ -132,6 +135,31 @@ class PlannerTestCase(unittest.TestCase):
 
     def load(self, **kwargs):
         return planner.load_config(self.write_config(config_text(self.backup, **kwargs)))
+
+    def build_report(
+        self,
+        *,
+        config=None,
+        proxmox=None,
+        secret_checks=(),
+        backup=None,
+        commit="a" * 40,
+        configuration_sha256="b" * 64,
+        version_matrix_sha256="c" * 64,
+        generated_at="2026-08-02T20:00:00Z",
+    ):
+        return planner.build_plan(
+            config or self.load(),
+            planner.load_version_matrix(),
+            proxmox or ready_proxmox(),
+            secret_checks,
+            backup or ready_backup(self.backup),
+            commit,
+            configuration_path=self.root / "deployment.toml",
+            configuration_sha256=configuration_sha256,
+            version_matrix_sha256=version_matrix_sha256,
+            generated_at=generated_at,
+        )
 
 
 class ConfigurationTests(PlannerTestCase):
@@ -424,15 +452,48 @@ class MutationBoundaryTests(PlannerTestCase):
         parser = planner.create_parser()
         choices = next(action.choices for action in parser._actions if isinstance(action, planner.argparse._SubParsersAction))
         self.assertEqual(set(choices), {"plan"})
+        plan_parser = choices["plan"]
+        format_action = next(
+            action for action in plan_parser._actions if action.dest == "format"
+        )
+        self.assertEqual(format_action.default, "text")
+        self.assertEqual(tuple(format_action.choices), ("text", "json"))
+        self.assertNotIn("output", {action.dest for action in plan_parser._actions})
         with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             parser.parse_args(["apply"])
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            parser.parse_args(["resume"])
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            parser.parse_args(["plan", "--config", "/tmp/input", "--format", "yaml"])
 
     def test_source_has_no_mutating_or_network_executor(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
+        tree = ast.parse(source)
         self.assertNotIn("shell" + "=True", source)
-        self.assertNotRegex(source, r"\b(?:requests|socket|urllib)\b")
         self.assertNotRegex(source, r"subprocess\.(?:Popen|call|check_call|check_output)")
         self.assertNotRegex(source, r"\bdef\s+(?:apply|create|install|provision|delete|restore)\b")
+        forbidden_imports = {"requests", "socket", "urllib", "http", "ftplib"}
+        write_methods = {
+            "write_text",
+            "write_bytes",
+            "mkdir",
+            "touch",
+            "unlink",
+            "rename",
+            "chmod",
+            "chown",
+            "remove",
+            "rmdir",
+        }
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = {alias.name.split(".")[0] for alias in node.names}
+                self.assertFalse(names & forbidden_imports)
+            elif isinstance(node, ast.ImportFrom):
+                self.assertNotIn((node.module or "").split(".")[0], forbidden_imports)
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                self.assertNotIn(node.func.attr, write_methods)
+        self.assertNotIn("os" + ".replace", source)
 
     def test_planning_creates_no_files(self) -> None:
         config_path = self.write_config()
@@ -472,6 +533,7 @@ class OutputTests(PlannerTestCase):
         self.assertIn("DNS-Server: 10.10.0.53", output)
         self.assertIn("/secrets/database-service/allocations/gitea/application-password", output)
         self.assertIn("keine reale Mutation im Planmodus", output)
+        self.assertRegex(output, r"Plan-SHA-256: [0-9a-f]{64}")
 
     def test_secret_text_cannot_leak_through_metadata_plan(self) -> None:
         marker = "TOP-SECRET-CONTENT"
@@ -488,6 +550,278 @@ class OutputTests(PlannerTestCase):
             "a" * 40,
         ).render()
         self.assertNotIn(marker, output)
+
+
+class PlanHashTests(PlannerTestCase):
+    def plan_hash(self, **kwargs) -> str:
+        report = self.build_report(**kwargs)
+        assert report.machine_plan is not None
+        return str(report.machine_plan["plan_sha256"])
+
+    def test_same_state_has_same_hash(self) -> None:
+        self.assertEqual(self.plan_hash(), self.plan_hash())
+
+    def test_generated_at_is_not_hashed(self) -> None:
+        first = self.plan_hash(generated_at="2026-08-02T20:00:00Z")
+        second = self.plan_hash(generated_at="2026-08-03T20:00:00Z")
+        self.assertEqual(first, second)
+
+    def test_repository_commit_changes_hash(self) -> None:
+        self.assertNotEqual(self.plan_hash(commit="a" * 40), self.plan_hash(commit="d" * 40))
+
+    def test_configuration_hash_changes_plan_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(configuration_sha256="a" * 64),
+            self.plan_hash(configuration_sha256="b" * 64),
+        )
+
+    def test_version_matrix_hash_changes_plan_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(version_matrix_sha256="a" * 64),
+            self.plan_hash(version_matrix_sha256="b" * 64),
+        )
+
+    def test_vmid_changes_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(proxmox=dataclasses_replace(ready_proxmox(), vmid=200)),
+            self.plan_hash(proxmox=dataclasses_replace(ready_proxmox(), vmid=201)),
+        )
+
+    def test_storage_changes_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(proxmox=dataclasses_replace(ready_proxmox(), storage="local-lvm")),
+            self.plan_hash(proxmox=dataclasses_replace(ready_proxmox(), storage="fast-ssd")),
+        )
+
+    def test_bridge_changes_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(proxmox=dataclasses_replace(ready_proxmox(), bridge="vmbr0")),
+            self.plan_hash(proxmox=dataclasses_replace(ready_proxmox(), bridge="vmbr1")),
+        )
+
+    def test_provider_ip_changes_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(config=self.load(ipv4_cidr="10.10.0.10/24")),
+            self.plan_hash(config=self.load(ipv4_cidr="10.10.0.11/24")),
+        )
+
+    def test_client_allowlist_changes_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(config=self.load(allowed='"10.20.0.0/16"')),
+            self.plan_hash(config=self.load(allowed='"10.30.0.0/16"')),
+        )
+
+    def test_secret_metadata_changes_hash(self) -> None:
+        missing = planner.PathCheck(
+            pathlib.Path("/secrets/example"), "FEHLT_GEPLANT", "nicht vorhanden"
+        )
+        safe = planner.PathCheck(
+            pathlib.Path("/secrets/example"),
+            "OK",
+            "uid=0 gid=0 mode=0600",
+            exists=True,
+            file_type="file",
+            owner=0,
+            group=0,
+            mode="0600",
+            safe=True,
+        )
+        self.assertNotEqual(
+            self.plan_hash(secret_checks=(missing,)),
+            self.plan_hash(secret_checks=(safe,)),
+        )
+
+    def test_blocker_changes_hash(self) -> None:
+        blocked = dataclasses_replace(ready_proxmox(), blockers=["test blocker"])
+        self.assertNotEqual(self.plan_hash(), self.plan_hash(proxmox=blocked))
+
+    def test_warning_changes_hash(self) -> None:
+        warned = dataclasses_replace(ready_proxmox(), warnings=["security warning"])
+        self.assertNotEqual(self.plan_hash(), self.plan_hash(proxmox=warned))
+
+    def test_resource_changes_hash(self) -> None:
+        config = self.load()
+        reduced = dataclasses_replace(
+            config, lxc=dataclasses_replace(config.lxc, cores=3)
+        )
+        self.assertNotEqual(
+            self.plan_hash(config=config),
+            self.plan_hash(config=reduced),
+        )
+
+    def test_template_changes_hash(self) -> None:
+        self.assertNotEqual(
+            self.plan_hash(
+                proxmox=dataclasses_replace(ready_proxmox(), template="ubuntu-a")
+            ),
+            self.plan_hash(
+                proxmox=dataclasses_replace(ready_proxmox(), template="ubuntu-b")
+            ),
+        )
+
+    def test_diagnostic_order_does_not_change_hash(self) -> None:
+        first = dataclasses_replace(ready_proxmox(), blockers=["a", "b"])
+        second = dataclasses_replace(ready_proxmox(), blockers=["b", "a"])
+        self.assertEqual(
+            self.plan_hash(proxmox=first), self.plan_hash(proxmox=second)
+        )
+
+
+class JsonOutputTests(PlannerTestCase):
+    def test_json_schema_and_complete_content(self) -> None:
+        observation = planner.PathCheck(
+            pathlib.Path("/secrets/database-service/example"),
+            "OK",
+            "uid=0 gid=0 mode=0600",
+            exists=True,
+            file_type="file",
+            owner=0,
+            group=0,
+            mode="0600",
+            safe=True,
+        )
+        report = self.build_report(secret_checks=(observation,))
+        document = json.loads(report.render_json())
+        self.assertEqual(
+            set(document),
+            {
+                "schema_version",
+                "plan_type",
+                "provider_instance_id",
+                "repository_commit",
+                "configuration_path",
+                "configuration_sha256",
+                "version_matrix_sha256",
+                "generated_at",
+                "plan_inputs",
+                "proxmox_observations",
+                "secret_metadata_observations",
+                "backup_observations",
+                "warnings",
+                "blockers",
+                "planned_mutations",
+                "excluded_scope",
+                "plan_status",
+                "plan_sha256",
+            },
+        )
+        self.assertEqual(document["schema_version"], 1)
+        self.assertEqual(document["plan_type"], "postgresql-main-deployment")
+        self.assertEqual(document["provider_instance_id"], "postgresql-main")
+        self.assertEqual(document["plan_status"], "PLAN_READY")
+        self.assertRegex(document["plan_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(
+            document["plan_sha256"], planner.calculate_plan_sha256(document)
+        )
+        self.assertEqual(
+            [item["allocation_id"] for item in document["plan_inputs"]["allocations"]],
+            list(planner.EXPECTED_ALLOCATIONS),
+        )
+        self.assertEqual(len(document["planned_mutations"]), 14)
+        self.assertEqual(
+            [item["position"] for item in document["planned_mutations"]],
+            list(range(1, 15)),
+        )
+        self.assertEqual(
+            set(document["secret_metadata_observations"][0]),
+            {"path", "exists", "file_type", "owner", "group", "mode", "safe"},
+        )
+
+    def test_json_contains_all_blockers(self) -> None:
+        proxmox = dataclasses_replace(ready_proxmox(), blockers=["second", "first"])
+        document = json.loads(self.build_report(proxmox=proxmox).render_json())
+        self.assertEqual(document["blockers"], ["first", "second"])
+        self.assertEqual(document["plan_status"], "PLAN_BLOCKED")
+
+    def test_json_does_not_expose_secret_material(self) -> None:
+        marker = "DO-NOT-EXPOSE-SECRET"
+        document = json.loads(self.build_report().render_json())
+        rendered = json.dumps(document)
+        self.assertNotIn(marker, rendered)
+        for observation in document["secret_metadata_observations"]:
+            self.assertNotIn("content", observation)
+            self.assertNotIn("value", observation)
+            self.assertNotIn("sha256", observation)
+        self.assertNotIn("environment", document)
+
+    def test_run_plan_supports_text_and_json_without_writes(self) -> None:
+        config_path = self.write_config()
+        before = sorted(path.relative_to(self.root) for path in self.root.rglob("*"))
+        patches = (
+            mock.patch.object(planner, "inspect_secret_contract", return_value=()),
+            mock.patch.object(
+                planner,
+                "inspect_backup_target",
+                return_value=ready_backup(self.backup),
+            ),
+            mock.patch.object(planner, "read_git_commit", return_value="a" * 40),
+        )
+        with patches[0], patches[1], patches[2]:
+            text_code, text_output = planner.run_plan(
+                config_path,
+                runner=FakeRunner(),
+                require_real_path=False,
+                output_format="text",
+                generated_at="2026-08-02T20:00:00Z",
+            )
+            json_code, json_output = planner.run_plan(
+                config_path,
+                runner=FakeRunner(),
+                require_real_path=False,
+                output_format="json",
+                generated_at="2026-08-03T20:00:00Z",
+            )
+        self.assertEqual(text_code, 0)
+        self.assertEqual(json_code, 0)
+        self.assertTrue(text_output.endswith("PLAN_READY\n"))
+        self.assertEqual(json.loads(json_output)["plan_status"], "PLAN_READY")
+        self.assertEqual(
+            re.search(r"Plan-SHA-256: ([0-9a-f]{64})", text_output).group(1),
+            json.loads(json_output)["plan_sha256"],
+        )
+        after = sorted(path.relative_to(self.root) for path in self.root.rglob("*"))
+        self.assertEqual(before, after)
+
+
+class DocumentationContractTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.repository = SCRIPT.parents[1]
+        self.apply_contract = (
+            self.repository / "docs/operations/postgresql-main-apply-contract.md"
+        ).read_text(encoding="utf-8")
+        self.recovery_contract = (
+            self.repository
+            / "docs/recovery/postgresql-main-provisioning-recovery.md"
+        ).read_text(encoding="utf-8")
+        self.adr = (
+            self.repository
+            / "docs/decisions/ADR-0007-postgresql-apply-and-recovery-boundaries.md"
+        ).read_text(encoding="utf-8")
+
+    def test_every_planned_phase_has_apply_and_recovery_contract(self) -> None:
+        for _position, phase, _mutation_id, _title in planner.PLANNED_MUTATIONS:
+            self.assertIn(f"`{phase}`", self.apply_contract)
+            self.assertIn(f"`{phase}`", self.recovery_contract)
+
+    def test_contract_separates_normal_apply_and_resume(self) -> None:
+        self.assertIn("Normaler Apply", self.apply_contract)
+        self.assertIn("resume-plan", self.recovery_contract)
+        self.assertIn("resume-apply", self.recovery_contract)
+        self.assertIn("--confirm-resume-sha256", self.recovery_contract)
+        self.assertIn("RESUME_CONFLICT", self.recovery_contract)
+
+    def test_contract_forbids_automatic_rollback(self) -> None:
+        for document in (self.apply_contract, self.recovery_contract, self.adr):
+            self.assertRegex(document.lower(), r"kein(?:en)? automatischen rollback")
+
+    def test_secrets_and_error_cleanup_are_bounded(self) -> None:
+        self.assertIn("/secrets", self.apply_contract)
+        self.assertIn("/run/ralf-database-provision/", self.apply_contract)
+        self.assertIn("bei Erfolg und Fehler entfernt", self.apply_contract)
+        self.assertIn("Sicherheitsbereinigung ist kein Rollback", self.apply_contract)
+
+    def test_no_apply_implementation_exists(self) -> None:
+        self.assertFalse((self.repository / "scripts/postgresql-main-deploy.py").exists())
 
 
 def dataclasses_replace(instance, **changes):

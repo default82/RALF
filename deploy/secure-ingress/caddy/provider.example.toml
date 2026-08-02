@@ -1,0 +1,9 @@
+schema_version = 1
+provider = "caddy"
+
+[site]
+fqdn = "ralf.home.arpa"
+allowed_cidrs = ["10.10.0.0/16"]
+
+[authentication]
+username = "ralf-admin"

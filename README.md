@@ -113,6 +113,21 @@ Bei `--apply` werden Wheel, Runtime-Lock, Konfiguration, systemd-Unit, Gast-Inst
 
 Zielpfade sind `/opt/ralf/bootstrap/{app,venv,VERSION}`, `/etc/ralf/bootstrap/config.toml` und `/var/lib/ralf/bootstrap/`. Ein zweiter Applylauf erkennt eine vollständige Installation und ersetzt keine Dateien. Die Runtime-Versionen sind exakt gepinnt und das Wheel sowie die Deploymentartefakte werden per SHA-256 geprüft. Die Runtime-Abhängigkeiten besitzen derzeit noch keine verpflichtenden Artefakt-Hashes; ein vollständig offline gehashtes Bundle ist eine spätere Erweiterung. Es gibt weiterhin keine LAN-Freigabe, Authentifizierung oder mutierenden Setup-Aktionen. Die korrigierte Unit ist lokal getestet; VMID 100 verwendet bis zu einem getrennt geplanten und freigegebenen Unit-Update weiterhin die vorherige Unit ohne `--no-control-socket` und `AF_NETLINK`.
 
+### Eng begrenztes Unit-Update
+
+Für eine bereits vollständige Installation von `ralf-bootstrap` 0.1.0 steht ein getrennter Plan-/Apply-Pfad bereit:
+
+```bash
+sudo ./scripts/ralf-bootstrap-status-unit-update.sh --plan --vmid 100
+sudo ./scripts/ralf-bootstrap-status-unit-update.sh --apply --vmid 100
+```
+
+Der Plan ist gegenüber dem Container vollständig read-only. Der Gast klassifiziert die Installation maschinenlesbar als `unit_update_required`, `unit_already_current` oder `unit_update_conflict`; der Host baut diese Klassifikation nicht nach. Zulässig ist ausschließlich der Übergang von der bestätigten alten Unit mit SHA-256 `8f5b30c7d9335824dfabb19cab5b338337860a45e785a6985370da9b8f6f48d7` zur Ziel-Unit mit genau zwei Änderungen: `--no-control-socket` und zusätzliches `AF_NETLINK`.
+
+Ein Apply überträgt exakt `ralf-bootstrap.service`, `ralf-bootstrap-status-unit-update-guest.sh` und `SHA256SUMS` nach `/run/ralf-bootstrap-unit-update/`. Die Unit wird innerhalb von `/etc/systemd/system/` über eine validierte temporäre Datei atomar ersetzt; danach folgen höchstens ein `daemon-reload` und genau ein Dienstrestart. Anwendungscode, Wheel, Runtime-Lock, Virtualenv, Konfiguration, Benutzer und Daten werden vorher und nachher verglichen und nicht verändert. Bei Fehlern gibt es keinen automatischen Rollback und keinen zweiten Restart. Eine bereits aktuelle, gesunde Unit wird idempotent nur read-only geprüft.
+
+Dieser Updatepfad ist lokal mit Mocks geprüft, aber noch nicht gegen VMID 100 ausgeführt. Die reale Unit bleibt bis zu einem getrennten read-only Plan und einer ausdrücklichen Applyfreigabe unverändert. LAN-Bindung, Authentifizierung, TLS und zusätzliche Capabilities sind weiterhin ausgeschlossen.
+
 ## Projektdokumente
 
 - [`AGENTS.md`](AGENTS.md) enthält verbindliche Arbeitsregeln für Codex CLI und andere Coding-Agenten.

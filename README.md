@@ -20,7 +20,10 @@ Die erste fachliche Spezifikation trennt den fähigkeitsorientierten RALF-Vertra
 - [ADR-0004: PostgreSQL als erster Referenzprovider](docs/decisions/ADR-0004-postgresql-reference-provider.md)
 - [ADR-0005: erstes PostgreSQL-Deploymentprofil](docs/decisions/ADR-0005-first-postgresql-deployment-profile.md)
 - [ADR-0006: Laufzeitprofil für `postgresql-main`](docs/decisions/ADR-0006-postgresql-runtime-profile.md)
+- [ADR-0007: Apply- und Recovery-Grenzen](docs/decisions/ADR-0007-postgresql-apply-and-recovery-boundaries.md)
 - [Read-only Deploymentplan für `postgresql-main`](docs/operations/postgresql-main-deployment-plan.md)
+- [Apply-Vertrag für `postgresql-main`](docs/operations/postgresql-main-apply-contract.md)
+- [Recovery-Vertrag für die Provisionierung](docs/recovery/postgresql-main-provisioning-recovery.md)
 
 Der erste spezifizierte RALF-native Database Consumer ist **RALF Core**. Seine erste persistente Domäne **Conversation** speichert ausschließlich Unterhaltungen und geordnete Nachrichten. Conversation bleibt zunächst eine Core-Domäne und verwendet nur in der RALF-Core-Allocation einen fachlichen Repository-Vertrag:
 
@@ -45,8 +48,12 @@ sudo python3 scripts/postgresql-main-plan.py \
   --config /secrets/database-service/providers/postgresql-main/deployment.toml
 ```
 
+Die Ausgabe ist standardmäßig Text. Mit `--format json` liefert derselbe read-only Lauf eine kanonische maschinenlesbare Planrepräsentation. Text und JSON zeigen denselben deterministischen Plan-SHA-256; der Erzeugungszeitpunkt selbst beeinflusst den Hash nicht.
+
 Das Referenzprofil ist ein eigener unprivilegierter Ubuntu-26.04-LTS-LXC auf Proxmox, ohne Docker oder Podman. PostgreSQL 18 stammt später aus den offiziellen Ubuntu-Quellen; TLS, SCRAM-SHA-256, allocation-spezifische Netze, ein explizites externes Backupziel und Secrets ausschließlich unter `/secrets` sind verbindliche Planungsgrenzen. Der Planer besitzt keinen Applymodus und verändert weder `/secrets` noch Infrastruktur.
 
-Der nächste kleine Schritt nach Review und Merge ist ein getrenntes Apply-Konzept mit sichtbaren Mutationen, Recovery-Grenzen und eigener Freigabe. PostgreSQL ist weiterhin nicht installiert.
+Apply- und Recovery-Vertrag verlangen später `PLAN_READY`, eine ausdrückliche Nutzerfreigabe für den exakten Plan-Hash, erneute read-only Prüfung unmittelbar vor der ersten Mutation und phasenweise Verifikation. Ein Teilerfolg wird nicht automatisch zurückgerollt und darf nur über einen gesondert hashgebundenen Resume fortgesetzt werden.
+
+Es gibt weiterhin keinen Apply- oder Resumecode, keine reale Deploymentkonfiguration und keine Infrastrukturmutation. Der nächste kleine Schritt nach Review und Merge kann die Zustandsmaschine ausschließlich lokal mit Mocks entwerfen. PostgreSQL ist weiterhin nicht installiert.
 
 RALF entsteht transparent durch Vibe Coding: Menschen bestimmen Ziele, Entscheidungen und Grenzen; Coding-Agenten unterstützen die Umsetzung in kleinen, überprüfbaren Schritten.

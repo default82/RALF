@@ -2,9 +2,9 @@
 
 ## Status und Geltungsbereich
 
-Dieses Dokument spezifiziert einen zukünftigen, streng begrenzten Apply für die PostgreSQL-Providerinstanz `postgresql-main` mit exakt den Allocations `gitea`, `openbao`, `semaphore` und `nodered`.
+Dieses Dokument spezifiziert den streng begrenzten Apply für die PostgreSQL-Providerinstanz `postgresql-main` mit exakt den Allocations `gitea`, `openbao`, `semaphore` und `nodered`.
 
-Es ist kein Apply implementiert. Der bestehende Planer bleibt read-only. Dieses Dokument autorisiert weder eine Infrastrukturmutation noch das Erstellen von `/secrets`, einer realen Deploymentkonfiguration, eines LXC, von PostgreSQL, Datenbanken, Identitäten, Zertifikaten oder Backups.
+Der Vertrag ist durch einen getrennten Host-/Gast-Pfad implementiert und ausschließlich lokal mit Fakes und temporären Dateisystemen geprüft. Der bestehende Planer bleibt read-only. Dieses Dokument autorisiert noch keine reale Infrastrukturmutation und keine Ausführung gegen das echte `/secrets` oder Proxmox.
 
 ## Plan ist die einzige Zielquelle
 
@@ -64,7 +64,7 @@ Nicht gebunden oder ausgegeben werden Secretwerte, Inhalts-Hashes von Secrets, P
 
 ## Spätere Freigabegrenze
 
-Der vorgesehene zukünftige Aufruf lautet:
+Der implementierte, noch nicht real ausgeführte Aufruf lautet:
 
 ```bash
 sudo python3 scripts/postgresql-main-deploy.py \
@@ -73,9 +73,7 @@ sudo python3 scripts/postgresql-main-deploy.py \
   --confirm-plan-sha256 <64-HEX-ZEICHEN>
 ```
 
-Dieser Befehl existiert noch nicht.
-
-Unmittelbar vor der ersten Mutation muss ein späterer Apply:
+Unmittelbar vor der ersten Mutation muss Apply:
 
 1. die reale Konfiguration erneut und symlinksicher laden,
 2. die versionierte Matrix erneut laden,
@@ -132,7 +130,7 @@ Der Marker enthält niemals Secretwerte, Kennworthashes, private Schlüssel oder
 
 | Position | Markerphase nach Erfolg | Mutation | Verifikation vor Fortschritt |
 | --- | --- | --- | --- |
-| 1 | `planned` | Planbindung, minimale Marker-Eltern und Marker | Hash, Markerinhalt und Metadaten stimmen. |
+| 1 | `planned` | vorhandene Konfigurations- und Marker-Eltern revalidieren, Planbindung und Marker | Hash, Markerinhalt und Metadaten stimmen. |
 | 2 | `secret_directories_ready` | Marker-Eltern revalidieren und übrige erlaubte `/secrets`-Verzeichnisse ergänzen | Jeder Pfad ist echtes `root:root`-Verzeichnis `0700`. |
 | 3 | `secrets_ready` | vier Anwendungskennwörter | Genau vier reguläre, nicht leere Dateien `root:root` `0600`; keine Ausgabe. |
 | 4 | `pki_ready` | dedizierte Provider-PKI | Schlüssel und Zertifikate besitzen richtige Metadaten; SAN bindet FQDN und IP. |
@@ -143,7 +141,7 @@ Der Marker enthält niemals Secretwerte, Kennworthashes, private Schlüssel oder
 | 9 | `postgresql_installed` | PostgreSQL 18 installieren | Paket, Major-Version und genau ein erwarteter Cluster sind nachgewiesen. |
 | 10 | `postgresql_configured` | TLS-, SCRAM-, Peer- und HBA-Konfiguration | Effektive Konfiguration besitzt keine breite oder schwache Regel. |
 | 11 | `allocations_created` | vier Datenbanken und getrennte Identitäten | Exakte Objekte und minimale Attribute sind nachgewiesen. |
-| 12 | `readiness_verified` | Isolation und Providerzustand prüfen | Positive und negative Tests sind vollständig erfolgreich. |
+| 12 | `readiness_verified` | Providerzustand und lokale Allocation-Konfiguration prüfen | Provider ist ready; Konfiguration und Isolation sind verifiziert, Consumer-Konnektivität bleibt ausstehend. |
 | 13 | `backups_verified` | vier initiale Backups | Archive existieren geschützt, sind neu und technisch geprüft. |
 | 14 | `completed` | Marker abschließen und temporäre Secrets bereinigen | Keine Gastlaufzeit-Secrets; alle Abschlussprüfungen weiterhin grün. |
 
@@ -151,7 +149,7 @@ Ein späterer Implementierungsplan darf diese Reihenfolge nicht stillschweigend 
 
 ## Phase 1: Apply-Zustand vorbereiten
 
-Der Markerpfad kann nicht atomar angelegt werden, wenn seine Eltern fehlen. Deshalb gilt als enge technische Reihenfolgeauflösung: Phase 1 darf ausschließlich die vier Marker-Eltern `/secrets`, `/secrets/database-service`, `/secrets/database-service/providers` und `/secrets/database-service/providers/postgresql-main` symlinksicher als `root:root` `0700` anlegen. Diese Pfade dienen noch nicht als Secretdateien und werden in Phase 2 vollständig revalidiert. Keine andere Verzeichnis- oder Dateianlage ist in Phase 1 erlaubt.
+Die reale Deploymentkonfiguration liegt vor dem Apply bereits unter `/secrets/database-service/providers/postgresql-main/deployment.toml`. Daher müssen die vier Marker-Eltern `/secrets`, `/secrets/database-service`, `/secrets/database-service/providers` und `/secrets/database-service/providers/postgresql-main` schon als symlinkfreie `root:root`-Verzeichnisse `0700` existieren. Phase 1 validiert sie ausschließlich read-only und legt weder einen fehlenden Elternpfad noch die Konfiguration an.
 
 Danach sind ausschließlich der vollständige erneute read-only Preflight, der exakte Hashvergleich, die atomare Neuanlage des Provisionierungsmarkers und das Speichern des kanonischen Plans sowie nicht geheimer Artefakthashes als Evidenz erlaubt.
 
@@ -160,7 +158,7 @@ Vor Übergang zu `planned` wird geprüft:
 - Marker war zuvor nicht vorhanden,
 - Plan ist `PLAN_READY`,
 - bestätigter und neu berechneter Hash stimmen überein,
-- jeder neu angelegte Marker-Elternpfad ist ein echtes `root:root`-Verzeichnis `0700`,
+- jeder vorhandene Marker-Elternpfad ist ein echtes `root:root`-Verzeichnis `0700`,
 - gespeicherte Evidenz reproduziert dieselben Hashes,
 - Marker ist regulär, `root:root`, `0600` und enthält keine unerlaubten Felder.
 
@@ -181,7 +179,7 @@ Später dürfen exakt folgende Verzeichnisse angelegt werden:
 /secrets/database-service/allocations/nodered
 ```
 
-Die vier Marker-Eltern aus Phase 1 werden nicht erneut angelegt, sondern read-only validiert. Phase 2 darf ausschließlich das PKI-Verzeichnis, den Allocation-Stamm und die vier Allocation-Verzeichnisse ergänzen. Jeder Pfad ist `root:root` und `0700`. Symlinks, Traversierung, Auflösung außerhalb `/secrets` sowie gruppen- oder weltzugängliche Komponenten sind Konflikte. Vor `secret_directories_ready` werden alle Komponenten erneut per Metadaten geprüft.
+Die vier vorhandenen Marker-Eltern werden erneut read-only validiert. Phase 2 darf ausschließlich das PKI-Verzeichnis, den Allocation-Stamm und die vier Allocation-Verzeichnisse ergänzen. Jeder Pfad ist `root:root` und `0700`. Symlinks, Traversierung, Auflösung außerhalb `/secrets` sowie gruppen- oder weltzugängliche Komponenten sind Konflikte. Vor `secret_directories_ready` werden alle Komponenten erneut per Metadaten geprüft.
 
 ## Phase 3: Anwendungskennwörter erzeugen
 
@@ -211,7 +209,7 @@ Vorgesehene Hostpfade:
 
 Die interne CA gilt ausschließlich für diesen Provider. Ihr privater Schlüssel verbleibt auf dem Proxmox-Host. Das Serverzertifikat bindet den bestätigten FQDN und die bestätigte Provider-IP. Private Schlüssel sind `root:root` `0600`; öffentliche Zertifikate sind höchstens `0644`.
 
-Es gibt keine automatische System-Trust-Installation, öffentliche ACME-Anfrage oder OPNsense-Änderung. Zertifikatslaufzeiten werden erst in einer versionierten PKI-Policy entschieden. Vor `pki_ready` sind Metadaten, Zertifikatskette, SAN und Übereinstimmung von Server-Key und Serverzertifikat zu prüfen, ohne private Inhalte zu protokollieren.
+Es gibt keine automatische System-Trust-Installation, öffentliche ACME-Anfrage oder OPNsense-Änderung. Die versionierte [PKI-Policy](../../deploy/postgresql/pki-policy.toml) legt RSA 4096 und 3650 Tage für die CA sowie RSA 3072 und 397 Tage für das Serverzertifikat fest. Vor `pki_ready` werden Metadaten, Zertifikatskette, SAN und Übereinstimmung von Server-Key und Serverzertifikat geprüft, ohne private Inhalte zu protokollieren.
 
 ## Phase 5: LXC anlegen
 
@@ -307,20 +305,31 @@ Die Anwendung darf ausschließlich in ihrer logischen Datenbank eigene Schemaobj
 
 Vor `allocations_created` müssen Objektmenge, Eigentum, Loginstatus, Rollenattribute und fehlende Fremdrechte vollständig bestätigt sein. Ein vorhandener unerwarteter Zustand wird nicht korrigiert oder gelöscht, sondern als Konflikt gemeldet.
 
-## Phase 12: Isolation und Providerzustand prüfen
+## Phase 12: Providerzustand und lokale Allocation-Konfiguration prüfen
 
-Für jede Allocation sind später nachzuweisen:
+Für jede Allocation sind lokal administrativ nachzuweisen:
 
-- TLS-Verbindung zur eigenen Datenbank erfolgreich,
-- SCRAM-Anmeldung, aktueller Benutzer und aktuelle Datenbank korrekt,
-- Lese- und Schreibtest erfolgreich und Testobjekt unmittelbar entfernt,
-- Verbindung zu jeder fremden Allocation abgelehnt,
+- Datenbank, Eigentümer, Login- und NOLOGIN-Rollen besitzen exakt die vorgesehenen Attribute,
+- der gespeicherte Passwortverifier verwendet SCRAM-SHA-256, ohne ihn auszugeben,
+- `SET ROLE` sowie Lese- und Schreibtest in der eigenen Datenbank sind erfolgreich; das Testobjekt wird unmittelbar entfernt,
+- keine Anwendungsidentität besitzt `CONNECT` auf eine fremde Allocation,
 - `CREATEDB`, `CREATEROLE`, Superuser- und Replikationsrechte abgelehnt,
-- Klartextverbindung abgelehnt.
+- HBA und Serverkonfiguration erlauben ausschließlich TLS/SCRAM aus den geplanten Allowlists.
 
-Kennwörter werden nur aus geschützten temporären Passwortdateien gelesen.
+Kennwörter werden bei der Anlage nur aus geschützten temporären Passwortdateien gelesen. Eine echte TLS-/SCRAM-Anmeldung aus einem Consumer-Netz gehört ausdrücklich nicht zu dieser lokalen Prüfung.
 
-Providerweit werden aktiver Dienst, Major-Version, TLS, SCRAM, Listener ausschließlich auf der Provider-IP, Unix-Socket, lokale Peer-Administration, sichere Daten- und Konfigurationsmetadaten sowie das Fehlen fehlgeschlagener Units geprüft. Erst die vollständige positive und negative Testmatrix erlaubt `readiness_verified`.
+Providerweit werden aktiver Dienst, Major-Version, TLS, SCRAM, Listener ausschließlich auf der Provider-IP, Unix-Socket, lokale Peer-Administration, sichere Daten- und Konfigurationsmetadaten sowie das Fehlen fehlgeschlagener Units geprüft.
+
+Ohne laufende Consumer ist kein positiver Verbindungsnachweis aus deren späteren Quellnetzen möglich. Nach erfolgreicher Phase gilt deshalb ausschließlich:
+
+```text
+provider_status = ready
+allocation_configuration = verified
+consumer_connectivity = pending
+allocation_readiness = consumer_validation_pending
+```
+
+Die spätere Consumerinstallation muss TLS/SCRAM aus einer ausdrücklich erlaubten Quelle positiv nachweisen, bevor eine Allocation als `ready` bezeichnet werden darf.
 
 ## Phase 13: Initiale Backups
 
@@ -374,6 +383,6 @@ Nicht als Bereinigung zulässig sind das Löschen einer Datenbank, Identität, e
 
 Normaler Apply und Resume bleiben getrennte Befehls- und Freigabegrenzen. Die vollständige Zustands- und Recovery-Matrix steht in [PostgreSQL Provisioning Recovery](../recovery/postgresql-main-provisioning-recovery.md).
 
-## Noch nicht implementiert
+## Implementierungsstand
 
-Es existieren weder `scripts/postgresql-main-deploy.py` noch Apply-, Resume-, Secret-, PKI-, LXC-, Paket-, PostgreSQL-, Allocation- oder Backupcode. Der nächste Implementierungsschritt darf erst nach Review dieses Vertrags einen weiter begrenzten lokalen Mock- oder Dry-Run-Entwurf festlegen; eine reale Mutation benötigt danach erneut einen vollständigen Plan und ausdrückliche Freigabe.
+Host-/Gast-Pfad, atomarer Marker mit Einzelteilfortschritt, exklusive Sperre, Secret- und PKI-Erzeugung, LXC-Befehlsbau, Gastphasen, allocation-bezogene Backups und hashgebundener Resume sind implementiert. [Implementierungsdetails und lokale Prüfgrenzen](postgresql-main-apply-implementation.md) sind separat dokumentiert. Noch wurden weder reale Deploymentkonfiguration noch reale Infrastruktur verändert.

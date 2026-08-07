@@ -125,6 +125,7 @@ class AllocationConfig:
     allocation_id: str
     database_name: str
     application_identity: str
+    owner_identity: str
     allowed_client_cidrs: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]
 
 
@@ -547,6 +548,14 @@ def load_config(path: pathlib.Path) -> DeploymentConfig:
             required=allocation_keys,
             context=f"allocations[{index}]",
         )
+        application_identity = validate_name(
+            table["application_identity"],
+            f"allocations[{index}].application_identity",
+        )
+        owner_identity = validate_name(
+            f"{application_identity}_owner",
+            f"allocations[{index}].derived_owner_identity",
+        )
         allocations.append(
             AllocationConfig(
                 allocation_id=_require_string(
@@ -555,10 +564,8 @@ def load_config(path: pathlib.Path) -> DeploymentConfig:
                 database_name=validate_name(
                     table["database_name"], f"allocations[{index}].database_name"
                 ),
-                application_identity=validate_name(
-                    table["application_identity"],
-                    f"allocations[{index}].application_identity",
-                ),
+                application_identity=application_identity,
+                owner_identity=owner_identity,
                 allowed_client_cidrs=validate_cidrs(
                     table["allowed_client_cidrs"],
                     f"allocations[{index}].allowed_client_cidrs",
@@ -578,6 +585,13 @@ def load_config(path: pathlib.Path) -> DeploymentConfig:
         raise ConfigurationError("database_name muss pro Allocation eindeutig sein")
     if len(identities) != len(set(identities)):
         raise ConfigurationError("application_identity muss pro Allocation eindeutig sein")
+    owner_identities = [allocation.owner_identity for allocation in allocations]
+    if len(owner_identities) != len(set(owner_identities)):
+        raise ConfigurationError("abgeleitete Eigentümeridentität muss eindeutig sein")
+    if set(owner_identities) & (set(database_names) | set(identities)):
+        raise ConfigurationError(
+            "abgeleitete Eigentümeridentität darf nicht mit Datenbank- oder Loginnamen kollidieren"
+        )
     allocations.sort(key=lambda item: EXPECTED_ALLOCATIONS.index(item.allocation_id))
     return DeploymentConfig(provider=provider, lxc=lxc, backup=backup, allocations=tuple(allocations))
 
@@ -1177,6 +1191,7 @@ def _plan_inputs(config: DeploymentConfig, matrix: VersionMatrix) -> dict[str, o
                 "allocation_id": allocation.allocation_id,
                 "database_name": allocation.database_name,
                 "application_identity": allocation.application_identity,
+                "owner_identity": allocation.owner_identity,
                 "allowed_client_cidrs": [
                     str(item) for item in allocation.allowed_client_cidrs
                 ],
@@ -1483,15 +1498,14 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_plan(
+def create_plan_report(
     config_path: pathlib.Path,
     *,
     runner: CommandRunner | None = None,
     require_real_path: bool = True,
     matrix_path: pathlib.Path = VERSION_MATRIX_PATH,
-    output_format: str = "text",
     generated_at: str | None = None,
-) -> tuple[int, str]:
+) -> PlanReport:
     if require_real_path and config_path.absolute() != REAL_CONFIG_PATH:
         raise ConfigurationError(
             f"reale Deploymentkonfiguration muss exakt {REAL_CONFIG_PATH} sein; das Repository-Beispiel wird nicht verwendet"
@@ -1506,7 +1520,7 @@ def run_plan(
     timestamp = generated_at or dt.datetime.now(dt.timezone.utc).isoformat(
         timespec="seconds"
     ).replace("+00:00", "Z")
-    report = build_plan(
+    return build_plan(
         config,
         matrix,
         proxmox,
@@ -1517,6 +1531,24 @@ def run_plan(
         configuration_sha256=sha256_file(config_path),
         version_matrix_sha256=sha256_file(matrix_path),
         generated_at=timestamp,
+    )
+
+
+def run_plan(
+    config_path: pathlib.Path,
+    *,
+    runner: CommandRunner | None = None,
+    require_real_path: bool = True,
+    matrix_path: pathlib.Path = VERSION_MATRIX_PATH,
+    output_format: str = "text",
+    generated_at: str | None = None,
+) -> tuple[int, str]:
+    report = create_plan_report(
+        config_path,
+        runner=runner,
+        require_real_path=require_real_path,
+        matrix_path=matrix_path,
+        generated_at=generated_at,
     )
     if output_format == "text":
         rendered = report.render()

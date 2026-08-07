@@ -42,7 +42,7 @@ Die technische Hashbestätigung ergänzt die ausdrückliche Nutzerfreigabe, erse
 
 Die stabile Reihenfolge lautet:
 
-1. `planned`: Plan neu prüfen, ausschließlich sichere Marker-Elternpfade anlegen, Hash binden und Marker anlegen.
+1. `planned`: Plan neu prüfen, vorhandene sichere Konfigurations- und Marker-Eltern revalidieren, Hash binden und Marker anlegen.
 2. `secret_directories_ready`: Marker-Eltern revalidieren und ausschließlich PKI- sowie Allocation-Verzeichnisse ergänzen.
 3. `secrets_ready`: genau vier Anwendungskennwörter exklusiv erzeugen.
 4. `pki_ready`: dedizierte interne Provider-PKI erzeugen.
@@ -53,7 +53,7 @@ Die stabile Reihenfolge lautet:
 9. `postgresql_installed`: ausschließlich PostgreSQL Major 18 installieren und prüfen.
 10. `postgresql_configured`: Peer, TLS, SCRAM, Listener und HBA begrenzen.
 11. `allocations_created`: vier logische Datenbanken mit getrennten Eigentümern und Login-Identitäten anlegen.
-12. `readiness_verified`: Provider- und Allocation-Isolation positiv und negativ prüfen.
+12. `readiness_verified`: Providerzustand sowie lokale Allocation-Konfiguration und Isolation prüfen; Consumer-Konnektivität bleibt bis zum externen Nachweis ausstehend.
 13. `backups_verified`: vier initiale logische Backups erzeugen und technisch prüfen.
 14. `completed`: Abschlussmarker schreiben und temporäre Gastgeheimnisse bereinigen.
 
@@ -63,7 +63,7 @@ Jede Phase wird erst nach ihrer vollständigen read-only Verifikation atomar als
 
 Der Marker liegt unter `/secrets/database-service/providers/postgresql-main/provisioning-state.json`, ist `root:root`, `0600`, symlinkfrei und enthält ausschließlich nicht geheime Identitäten, Hashes, Phasen, Zeitstempel, VMID, Artefakthashes und Fehlerstatus.
 
-Da dieser Marker ohne Elternpfade nicht crashfest angelegt werden kann, darf Phase 1 ausschließlich `/secrets`, `database-service`, `providers` und `postgresql-main` als sichere `root:root`-Verzeichnisse `0700` vorbereiten. Phase 2 revalidiert sie und ergänzt erst dann PKI- und Allocation-Verzeichnisse. Diese explizite Ausnahme verhindert einen unmarkierten Secret- oder Infrastruktur-Teilerfolg.
+Da die reale Deploymentkonfiguration vor Apply bereits unter dem Providerpfad liegen muss, setzt Phase 1 die vorhandenen `/secrets`-, `database-service`-, `providers`- und `postgresql-main`-Eltern als sichere `root:root`-Verzeichnisse `0700` voraus und validiert sie read-only. Sie legt keinen fehlenden Elternpfad an. Phase 2 ergänzt erst nach Markeranlage PKI- und Allocation-Verzeichnisse.
 
 Er darf keine Secretwerte, Kennworthashes, privaten Schlüssel oder Connection Strings enthalten. Er wird bei jeder bestätigten Phasenänderung atomar ersetzt und bleibt nach `completed` als historische Provisionierungsevidenz erhalten.
 
@@ -71,7 +71,7 @@ Er darf keine Secretwerte, Kennworthashes, privaten Schlüssel oder Connection S
 
 Persistente Secret- und PKI-Erzeugung ist ausschließlich unter `/secrets` erlaubt. Es entstehen genau vier allocation-eigene Anwendungskennwörter; kein dauerhaftes Remote-Superuserkennwort wird erzeugt. Vorhandene Dateien werden niemals automatisch überschrieben.
 
-Die interne CA verbleibt auf dem Proxmox-Host. Das Serverzertifikat bindet den bestätigten FQDN und die Provider-IP. Laufzeiten und Rotation werden in einer späteren versionierten PKI-Policy entschieden.
+Die interne CA verbleibt auf dem Proxmox-Host. Das Serverzertifikat bindet den bestätigten FQDN und die Provider-IP. Die erste versionierte PKI-Policy ist durch ADR-0008 präzisiert; Rotation bleibt ein eigener Vorgang.
 
 Temporäre Gastkopien dürfen ausschließlich geschützt unter `/run/ralf-database-provision/` liegen und müssen bei Erfolg sowie Fehler entfernt werden. Diese Sicherheitsbereinigung ist kein Rollback. Der notwendige installierte Server-Key ist die einzige vorgesehene persistente Gastkopie eines privaten Schlüssels.
 
@@ -116,7 +116,7 @@ Temporäre Secretkopien, unveröffentlichte temporäre Dateien, offene Deskripto
 ## Konsequenzen
 
 - Der Planer erhält Text- und JSON-Ausgabe sowie einen deterministischen Plan-SHA-256, bleibt aber vollständig read-only.
-- Ein späterer Apply muss exakt die dokumentierte Reihenfolge und Mutationsallowlist implementieren.
+- Die Implementierung muss exakt die dokumentierte Reihenfolge und Mutationsallowlist einhalten; ADR-0008 dokumentiert die lokale Umsetzung.
 - Jeder Apply- und Resume-Hash ist nur für den unmittelbar neu erhobenen Zustand relevant.
 - Warnungen bleiben sichtbar; Blocker sind technisch nicht überstimmbar.
 - Recovery benötigt zusätzliche Planung statt automatischer Rücknahme.
@@ -150,15 +150,13 @@ Verworfen, weil Zeitablauf und Teilerfolg den tatsächlichen Zustand gegenüber 
 
 ## Offene Punkte
 
-- konkrete Implementierung des atomaren Markers,
-- Passwortentropie und sichere Generierungstechnik,
-- versionierte PKI-Laufzeiten und Rotationspolitik,
-- kontrollierte Paketdienststarttechnik während Installation,
-- exakte PostgreSQL-Rechteabbildung für NOLOGIN-Eigentümer und Login-Anwendungen,
-- technisches Schema des Resume-Plans und seiner Hashbindung,
+- reale Validierung der implementierten Marker- und Resume-Grenzen,
+- spätere Secret- und PKI-Rotationspolitik,
+- reale Validierung der kontrollierten Paketdienststarttechnik,
+- Consumer-seitiger TLS-/SCRAM-Readiness-Nachweis,
 - Gestaltung eines getrennten, ausdrücklich freizugebenden Rebootpfads,
 - spätere Wartungs-, Rotations- und Deprovisionierungsverträge.
 
-## Nächster Schritt
+## Präzisierung durch ADR-0008
 
-Nach Review und Merge kann ein weiterer lokaler Meilenstein die Marker-, Apply- und Resume-Logik ausschließlich mit Mocks und ohne reale Infrastrukturmutation entwerfen. Vor jeder echten Mutation bleiben ein vollständiger read-only Plan und eine neue ausdrückliche Hashfreigabe erforderlich.
+ADR-0008 setzt diese Grenzen mit gemeinsam genutzter Planlogik, Host-/Gasttrennung, atomarem Teilfortschritt und vollständig gemockten Mutationsphasen um. Vor jeder echten Mutation bleiben ein vollständiger realer read-only Plan und eine neue ausdrückliche Hashfreigabe erforderlich.

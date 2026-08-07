@@ -21,9 +21,11 @@ Die erste fachliche Spezifikation trennt den fähigkeitsorientierten RALF-Vertra
 - [ADR-0005: erstes PostgreSQL-Deploymentprofil](docs/decisions/ADR-0005-first-postgresql-deployment-profile.md)
 - [ADR-0006: Laufzeitprofil für `postgresql-main`](docs/decisions/ADR-0006-postgresql-runtime-profile.md)
 - [ADR-0007: Apply- und Recovery-Grenzen](docs/decisions/ADR-0007-postgresql-apply-and-recovery-boundaries.md)
+- [ADR-0008: Provisionierungsimplementierung](docs/decisions/ADR-0008-postgresql-provisioning-implementation.md)
 - [Read-only Deploymentplan für `postgresql-main`](docs/operations/postgresql-main-deployment-plan.md)
 - [Apply-Vertrag für `postgresql-main`](docs/operations/postgresql-main-apply-contract.md)
 - [Recovery-Vertrag für die Provisionierung](docs/recovery/postgresql-main-provisioning-recovery.md)
+- [Lokale Apply-/Resume-Implementierung](docs/operations/postgresql-main-apply-implementation.md)
 
 Der erste spezifizierte RALF-native Database Consumer ist **RALF Core**. Seine erste persistente Domäne **Conversation** speichert ausschließlich Unterhaltungen und geordnete Nachrichten. Conversation bleibt zunächst eine Core-Domäne und verwendet nur in der RALF-Core-Allocation einen fachlichen Repository-Vertrag:
 
@@ -34,7 +36,7 @@ Der erste spezifizierte RALF-native Database Consumer ist **RALF Core**. Seine e
 
 Externe Anwendungen wie Gitea oder optional OpenBao können eigene Allocations mit nativen Datenbankzugriffen erhalten; sie verwenden ConversationRepository nicht. Referenzstandard ist eine logische Datenbank mit eigenen Identitäten pro Consumer. Die verbindliche externe Secrets-Wurzel ist `/secrets`; im Repository stehen ausschließlich nicht geheime Referenzen, und `secrets/` bleibt ausgeschlossen.
 
-Die erste Implementierung ist ausschließlich ein read-only Deploymentplaner. Es existieren weiterhin kein SQL, keine Tabellen, keine PostgreSQL-Installation, Programmierschnittstelle, Modellruntime, Benutzerverwaltung, Weboberfläche oder Infrastrukturmutation.
+Der read-only Deploymentplaner wird durch einen getrennten, hashgebundenen Host-/Gast-Provisionierungspfad ergänzt. Der Code ist ausschließlich mit lokalen Fakes und temporären Dateisystemen geprüft; es wurden weder PostgreSQL noch ein LXC oder reale Datenbankobjekte angelegt.
 
 Provider 001 beschreibt PostgreSQL als konkrete Referenz hinter dem providerneutralen Vertrag. Das erste deployment-spezifische Profil wählt PostgreSQL Major 18 und die gemeinsame Providerinstanz `postgresql-main`. Ihr initial dokumentierter Minor-Stand ist 18.4; installiert wird später die dann neueste stabile 18.x-Minor-Version. Ein automatischer Wechsel auf PostgreSQL 19 ist ausgeschlossen.
 
@@ -50,10 +52,12 @@ sudo python3 scripts/postgresql-main-plan.py \
 
 Die Ausgabe ist standardmäßig Text. Mit `--format json` liefert derselbe read-only Lauf eine kanonische maschinenlesbare Planrepräsentation. Text und JSON zeigen denselben deterministischen Plan-SHA-256; der Erzeugungszeitpunkt selbst beeinflusst den Hash nicht.
 
-Das Referenzprofil ist ein eigener unprivilegierter Ubuntu-26.04-LTS-LXC auf Proxmox, ohne Docker oder Podman. PostgreSQL 18 stammt später aus den offiziellen Ubuntu-Quellen; TLS, SCRAM-SHA-256, allocation-spezifische Netze, ein explizites externes Backupziel und Secrets ausschließlich unter `/secrets` sind verbindliche Planungsgrenzen. Der Planer besitzt keinen Applymodus und verändert weder `/secrets` noch Infrastruktur.
+Das Referenzprofil ist ein eigener unprivilegierter Ubuntu-26.04-LTS-LXC auf Proxmox, ohne Docker oder Podman. PostgreSQL 18 stammt später aus den offiziellen Ubuntu-Quellen; TLS, SCRAM-SHA-256, allocation-spezifische Netze, ein explizites externes Backupziel und Secrets ausschließlich unter `/secrets` sind verbindliche Grenzen. Der eigenständige Planer besitzt weiterhin keinen Applymodus und verändert weder `/secrets` noch Infrastruktur.
 
-Apply- und Recovery-Vertrag verlangen später `PLAN_READY`, eine ausdrückliche Nutzerfreigabe für den exakten Plan-Hash, erneute read-only Prüfung unmittelbar vor der ersten Mutation und phasenweise Verifikation. Ein Teilerfolg wird nicht automatisch zurückgerollt und darf nur über einen gesondert hashgebundenen Resume fortgesetzt werden.
+Der getrennte Deploypfad verlangt `PLAN_READY`, eine ausdrückliche Nutzerfreigabe für den exakten Plan-Hash, erneute read-only Prüfung unmittelbar vor der ersten Mutation und phasenweise Verifikation. Ein Teilerfolg wird nicht automatisch zurückgerollt und darf nur über einen gesondert hashgebundenen Resume fortgesetzt werden. Seine produktiven Befehle sind real verwendbar, wurden in diesem Meilenstein aber nicht ausgeführt.
 
-Es gibt weiterhin keinen Apply- oder Resumecode, keine reale Deploymentkonfiguration und keine Infrastrukturmutation. Der nächste kleine Schritt nach Review und Merge kann die Zustandsmaschine ausschließlich lokal mit Mocks entwerfen. PostgreSQL ist weiterhin nicht installiert.
+Die Erstprovisionierung bestätigt nur `provider_status = ready` und `allocation_configuration = verified`. Bis ein realer Consumer aus seinem freigegebenen Netz TLS/SCRAM erfolgreich nachweist, bleibt `allocation_readiness = consumer_validation_pending`.
+
+Es gibt weiterhin keine reale Deploymentkonfiguration und keine Infrastrukturmutation. Nach Review und Merge wird als nächster Schritt die Konfiguration kontrolliert unter `/secrets` angelegt und genau ein realer read-only Plan geprüft. Ein Apply benötigt danach eine neue, ausdrückliche Freigabe des konkreten Hashs. PostgreSQL ist weiterhin nicht installiert.
 
 RALF entsteht transparent durch Vibe Coding: Menschen bestimmen Ziele, Entscheidungen und Grenzen; Coding-Agenten unterstützen die Umsetzung in kleinen, überprüfbaren Schritten.

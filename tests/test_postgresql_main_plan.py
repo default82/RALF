@@ -217,6 +217,21 @@ class ConfigurationTests(PlannerTestCase):
         with self.assertRaisesRegex(planner.ConfigurationError, "application_identity"):
             planner.load_config(self.write_config(text))
 
+    def test_derived_owner_must_fit_postgresql_identifier_limit(self) -> None:
+        identity = "a" * 63
+        text = config_text(self.backup).replace(
+            'application_identity = "gitea"', f'application_identity = "{identity}"'
+        )
+        with self.assertRaisesRegex(planner.ConfigurationError, "derived_owner_identity"):
+            planner.load_config(self.write_config(text))
+
+    def test_derived_owner_must_not_collide_with_database_name(self) -> None:
+        text = config_text(self.backup).replace(
+            'database_name = "gitea"', 'database_name = "gitea_owner"'
+        )
+        with self.assertRaisesRegex(planner.ConfigurationError, "kollidieren"):
+            planner.load_config(self.write_config(text))
+
     def test_invalid_ip(self) -> None:
         with self.assertRaisesRegex(planner.ConfigurationError, "ipv4_cidr"):
             self.load(ipv4_cidr="10.10.0.0/24")
@@ -820,8 +835,16 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("bei Erfolg und Fehler entfernt", self.apply_contract)
         self.assertIn("Sicherheitsbereinigung ist kein Rollback", self.apply_contract)
 
-    def test_no_apply_implementation_exists(self) -> None:
-        self.assertFalse((self.repository / "scripts/postgresql-main-deploy.py").exists())
+    def test_apply_implementation_is_separate_from_read_only_planner(self) -> None:
+        deploy = self.repository / "scripts/postgresql-main-deploy.py"
+        self.assertTrue(deploy.is_file())
+        planner_parser = planner.create_parser()
+        choices = next(
+            action.choices
+            for action in planner_parser._actions
+            if isinstance(action, planner.argparse._SubParsersAction)
+        )
+        self.assertEqual(set(choices), {"plan"})
 
 
 def dataclasses_replace(instance, **changes):

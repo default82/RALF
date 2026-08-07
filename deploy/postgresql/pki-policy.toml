@@ -1,0 +1,14 @@
+schema_version = 1
+
+[ca]
+key_algorithm = "rsa"
+key_bits = 4096
+validity_days = 3650
+digest = "sha256"
+
+[server]
+key_algorithm = "rsa"
+key_bits = 3072
+validity_days = 397
+digest = "sha256"
+extended_key_usage = ["serverAuth"]

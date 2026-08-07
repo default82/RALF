@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -9,7 +10,8 @@ SCRIPTS = pathlib.Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from postgresql_main.host import (
-    CONFIG_PATH, LOCK_PATH, Provisioner, build_pct_create_arguments,
+    ARTIFACT_PATHS, CONFIG_PATH, GUEST_ROOT, HostBackend, LOCK_PATH, Provisioner,
+    build_pct_create_arguments,
 )
 from postgresql_main.models import ALLOCATION_IDS, ProvisioningError
 from postgresql_main_support import NOW, make_environment
@@ -88,6 +90,41 @@ class ApplyBoundaryTests(unittest.TestCase):
             self.assertIn("--unprivileged", args)
             self.assertNotIn("mp0", " ".join(args))
             self.assertNotIn("gpu", " ".join(args).lower())
+
+    def test_production_bundle_push_precedes_read_only_verification(self):
+        calls: list[list[str]] = []
+
+        def executor(arguments, **_kwargs):
+            args = list(arguments)
+            calls.append(args)
+            if args[4:6] == ["/usr/bin/stat", "--format=%F|%a|%u|%g|%s"]:
+                return subprocess.CompletedProcess(args, 0, stdout="regular file|644|0|0|5\n", stderr="")
+            if args[4:6] == ["/usr/bin/sha256sum", str(GUEST_ROOT / "guest-plan.json")]:
+                import hashlib
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=hashlib.sha256(b"hello").hexdigest() + "  file\n", stderr=""
+                )
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as raw:
+            source = pathlib.Path(raw) / "guest-plan.json"
+            source.write_bytes(b"hello")
+            backend = HostBackend(executor=executor)
+            backend.push_bundle_item(250, source, "guest-plan.json", 0o644)
+            self.assertEqual(calls[1][:4], ["pct", "push", "250", str(source)])
+            backend.verify_guest_bundle_item(250, source, "guest-plan.json", 0o644)
+            self.assertEqual(len([args for args in calls if args[:2] == ["pct", "push"]]), 1)
+
+    def test_transferred_guest_artifact_is_standalone_executable(self):
+        result = subprocess.run(
+            [sys.executable, str(ARTIFACT_PATHS["guest"]), "--help"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_cleanup_failure_is_reported_without_hiding_original_error(self):
         with tempfile.TemporaryDirectory() as raw:

@@ -79,6 +79,12 @@ Für `gitea`, `openbao`, `semaphore` und `nodered` entstehen jeweils:
 - Mitgliedschaft ausschließlich in der eigenen Eigentümerrolle,
 - entzogenes globales `PUBLIC CONNECT` und keine Fremddatenbankrechte.
 
+Die Rollenmitgliedschaft wird mit deaktivierter Vererbung und ohne
+`SET ROLE`-Möglichkeit erteilt. `USAGE` und `CREATE` auf dem eigenen
+Anwendungsschema gehen direkt an die Loginrolle. Dadurch erhält sie die für
+anwendungseigene Migrationen benötigten Rechte, ohne die Datenbank als
+Eigentümer löschen zu können.
+
 Lokale administrative Prüfungen bestätigen Rollenattribute, Eigentum, SET-ROLE-Schreib-/Lesetest, HBA, TLS, SCRAM und fehlende Fremdrechte. Ohne laufende Consumer kann jedoch keine Verbindung aus deren späteren Quellnetzen bestätigt werden. Der Marker meldet daher:
 
 ```text

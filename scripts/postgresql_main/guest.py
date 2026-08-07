@@ -19,7 +19,21 @@ import sys
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 
-from .models import ALLOCATION_IDS, ProvisioningError
+try:
+    from .models import ALLOCATION_IDS, ProvisioningError
+except ImportError:
+    # The host transfers this file as the single, standalone guest program.
+    # Keep the fallback deliberately minimal so the exact same implementation
+    # is importable in the repository and executable in the LXC bundle.
+    ALLOCATION_IDS = ("gitea", "openbao", "semaphore", "nodered")
+
+    class ProvisioningError(RuntimeError):
+        """A bounded guest provisioning step cannot continue safely."""
+
+        def __init__(self, code: str, message: str) -> None:
+            super().__init__(message)
+            self.code = code
+            self.message = message
 
 
 GUEST_PHASES = (
@@ -139,6 +153,17 @@ def read_secret(path: pathlib.Path) -> str:
         flags |= os.O_NOFOLLOW
     fd = os.open(path, flags)
     try:
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or stat.S_IMODE(opened.st_mode) != 0o600
+            or opened.st_uid != 0
+            or opened.st_gid != 0
+            or opened.st_size == 0
+        ):
+            raise ProvisioningError(
+                "SECRET_METADATA_INVALID", f"Secretmetadaten ungültig: {path.name}"
+            )
         data = os.read(fd, 4097)
     finally:
         os.close(fd)
@@ -453,9 +478,11 @@ class GuestProvisioner:
         key = self.bundle / "server.key"
         self.runner.run(["openssl", "verify", "-CAfile", str(ca), str(certificate)])
         text = self.runner.run([
-            "openssl", "x509", "-in", str(certificate), "-noout", "-text",
+            "openssl", "x509", "-in", str(certificate), "-noout", "-ext", "subjectAltName",
         ]).decode("utf-8", "replace")
-        if f"DNS:{self.plan['fqdn']}" not in text or f"IP Address:{self.plan['provider_ip']}" not in text:
+        dns_names = re.findall(r"DNS:([^,\s]+)", text)
+        ip_addresses = re.findall(r"IP Address:([^,\s]+)", text)
+        if dns_names != [str(self.plan["fqdn"])] or ip_addresses != [str(self.plan["provider_ip"])]:
             raise ProvisioningError("PKI_SAN_MISMATCH", "Serverzertifikat bindet Plan nicht")
         key_public = self.runner.run(["openssl", "pkey", "-in", str(key), "-pubout"])
         cert_public = self.runner.run(["openssl", "x509", "-in", str(certificate), "-pubkey", "-noout"])
@@ -508,7 +535,10 @@ class GuestProvisioner:
             f"SELECT pg_has_role({_quote_literal(login)}, {_quote_literal(owner)}, 'member');\n"
         )
         if membership not in {"t", "true"}:
-            self._psql(f"GRANT {_quote_identifier(owner)} TO {_quote_identifier(login)};\n")
+            self._psql(
+                f"GRANT {_quote_identifier(owner)} TO {_quote_identifier(login)} "
+                "WITH INHERIT FALSE, SET FALSE;\n"
+            )
         database_owner = self._query(
             "SELECT pg_get_userbyid(datdba) FROM pg_database "
             f"WHERE datname={_quote_literal(database)};\n"
@@ -528,7 +558,7 @@ class GuestProvisioner:
         )
         self._psql(
             "REVOKE CREATE ON SCHEMA public FROM PUBLIC;\n"
-            "GRANT USAGE, CREATE ON SCHEMA public TO " + _quote_identifier(owner) + ";\n",
+            "GRANT USAGE, CREATE ON SCHEMA public TO " + _quote_identifier(login) + ";\n",
             database=database,
         )
         self.fault(f"after_allocation:{allocation_id}")
@@ -559,6 +589,16 @@ class GuestProvisioner:
         )
         if result.splitlines() != ["1", "1", "1"]:
             raise ProvisioningError("ALLOCATION_CONFIGURATION_CONFLICT", f"Allocationattribute weichen ab: {item}")
+        membership = self._query(
+            "SELECT pg_has_role(" + login + ", " + owner + ", 'member')::text||'|'||"
+            "pg_has_role(" + login + ", " + owner + ", 'usage')::text||'|'||"
+            "pg_has_role(" + login + ", " + owner + ", 'set')::text;\n"
+        )
+        if membership not in {"true|false|false", "t|f|f"}:
+            raise ProvisioningError(
+                "ALLOCATION_ROLE_CONFLICT",
+                f"Eigentümermitgliedschaft ist zu weitreichend: {item}",
+            )
         allocation = self._allocation(item)
         login_name = _safe_identifier(str(allocation["application_identity"]))
         database_name = _safe_identifier(str(allocation["database_name"]))
@@ -677,3 +717,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if cleanup_failed:
             print("SECURITY_CLEANUP_FAILED: temporäre Gastsecrets konnten nicht vollständig entfernt werden", file=sys.stderr)
         return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

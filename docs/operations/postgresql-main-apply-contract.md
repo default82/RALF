@@ -301,6 +301,13 @@ Später werden exakt `gitea`, `openbao`, `semaphore` und `nodered` angelegt. Jed
 - keine Superuser-, `CREATEDB`-, `CREATEROLE`- oder Replikationsrechte,
 - keine Rechte auf fremde Datenbanken.
 
+Die Loginidentität wird zwar ausschließlich ihrer eigenen Eigentümerrolle
+zugeordnet, darf deren Privilegien aber weder erben noch per `SET ROLE`
+aktivieren. Die für anwendungseigene Migrationen erforderlichen Rechte auf dem
+eigenen Anwendungsschema werden stattdessen direkt und begrenzt erteilt. Damit
+kann die Anwendung Schemaobjekte verwalten, aber nicht in die
+Datenbankeigentümerrolle wechseln oder die Datenbank selbst löschen.
+
 Die Anwendung darf ausschließlich in ihrer logischen Datenbank eigene Schemaobjekte erzeugen und migrieren, aber die Datenbank nicht löschen. Die exakte PostgreSQL-Rechteabbildung wird erst im Apply-Implementierungs-PR festgelegt und mit positiven sowie negativen Tests belegt.
 
 Vor `allocations_created` müssen Objektmenge, Eigentum, Loginstatus, Rollenattribute und fehlende Fremdrechte vollständig bestätigt sein. Ein vorhandener unerwarteter Zustand wird nicht korrigiert oder gelöscht, sondern als Konflikt gemeldet.

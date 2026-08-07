@@ -35,7 +35,7 @@ class FakeRunner:
             return b"Installed: (none)\nCandidate: 18.4-0ubuntu0.26.04.1\n"
         if args[:2] == ["openssl", "verify"]:
             return b"ok"
-        if args[:3] == ["openssl", "x509", "-in"] and "-text" in args:
+        if args[:3] == ["openssl", "x509", "-in"] and ("-text" in args or "subjectAltName" in args):
             return b"DNS:postgresql-main.example.internal, IP Address:10.20.0.10\n"
         if args[:2] == ["openssl", "pkey"] or (args[:2] == ["openssl", "x509"] and "-pubkey" in args):
             return b"same-public-key"
@@ -218,11 +218,30 @@ class GuestValidationTests(unittest.TestCase):
             original = runner.run
 
             def wrong_san(arguments, **kwargs):
-                if arguments[:3] == ["openssl", "x509", "-in"] and "-text" in arguments:
+                if arguments[:3] == ["openssl", "x509", "-in"] and ("-text" in arguments or "subjectAltName" in arguments):
                     return b"DNS:other.example, IP Address:192.0.2.1\n"
                 return original(arguments, **kwargs)
 
             runner.run = wrong_san
+            provisioner = GuestProvisioner(runner=runner, bundle=bundle, root=target)
+            with self.assertRaisesRegex(ProvisioningError, "bindet Plan nicht"):
+                provisioner._validate_bundle_pki()
+
+    def test_additional_certificate_san_is_rejected(self):
+        with tempfile.TemporaryDirectory() as raw:
+            bundle, target, _plan = make_bundle(pathlib.Path(raw))
+            runner = FakeRunner()
+            original = runner.run
+
+            def extra_san(arguments, **kwargs):
+                if arguments[:3] == ["openssl", "x509", "-in"] and "subjectAltName" in arguments:
+                    return (
+                        b"DNS:postgresql-main.example.internal, DNS:extra.example.internal, "
+                        b"IP Address:10.20.0.10\n"
+                    )
+                return original(arguments, **kwargs)
+
+            runner.run = extra_san
             provisioner = GuestProvisioner(runner=runner, bundle=bundle, root=target)
             with self.assertRaisesRegex(ProvisioningError, "bindet Plan nicht"):
                 provisioner._validate_bundle_pki()
@@ -238,6 +257,10 @@ class GuestValidationTests(unittest.TestCase):
             argv = "\n".join(" ".join(arguments) for arguments, _input in runner.calls)
             self.assertNotIn(secret, argv)
             self.assertTrue(any(secret.encode() in (input_data or b"") for _args, input_data in runner.calls))
+            sql = b"\n".join(input_data or b"" for _args, input_data in runner.calls)
+            self.assertIn(b"WITH INHERIT FALSE, SET FALSE", sql)
+            self.assertIn(b"GRANT USAGE, CREATE ON SCHEMA public TO \"gitea\"", sql)
+            self.assertNotIn(b"GRANT USAGE, CREATE ON SCHEMA public TO \"gitea_owner\"", sql)
 
     def test_global_listener_is_rejected(self):
         with tempfile.TemporaryDirectory() as raw:

@@ -58,7 +58,9 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 ARTIFACT_PATHS = {
     "planner": REPO_ROOT / "scripts/postgresql-main-plan.py",
     "deployer": REPO_ROOT / "scripts/postgresql-main-deploy.py",
-    "guest": REPO_ROOT / "scripts/postgresql-main-guest.py",
+    # The transferred guest artifact must be executable without the repository
+    # package being present in the new container.
+    "guest": REPO_ROOT / "scripts/postgresql_main/guest.py",
     "pki_policy": REPO_ROOT / "deploy/postgresql/pki-policy.toml",
     "version_matrix": REPO_ROOT / "deploy/postgresql/version-matrix.toml",
 }
@@ -230,26 +232,37 @@ class HostBackend:
         config = self._run(["pct", "config", str(vmid)], mutating=False)
         pending = self._run(["pct", "pending", str(vmid)], mutating=False)
         expected = build_pct_create_arguments(plan)
-        required_fragments = {
-            "hostname: postgresql-main",
-            "unprivileged: 1",
-            "features: nesting=1",
-            f"cores: {expected[expected.index('--cores') + 1]}",
-            f"memory: {expected[expected.index('--memory') + 1]}",
-            f"swap: {expected[expected.index('--swap') + 1]}",
-            f"net0: {expected[expected.index('--net0') + 1]}",
-            f"nameserver: {expected[expected.index('--nameserver') + 1]}",
-            "onboot: 1",
+        parsed = {
+            key.strip(): value.strip()
+            for line in config.splitlines()
+            if ":" in line
+            for key, value in (line.split(":", 1),)
         }
-        if any(item not in config for item in required_fragments):
+        required = {
+            "hostname": "postgresql-main",
+            "arch": "amd64",
+            "ostype": "ubuntu",
+            "unprivileged": "1",
+            "features": "nesting=1",
+            "cores": expected[expected.index("--cores") + 1],
+            "memory": expected[expected.index("--memory") + 1],
+            "swap": expected[expected.index("--swap") + 1],
+            "net0": expected[expected.index("--net0") + 1],
+            "nameserver": expected[expected.index("--nameserver") + 1],
+            "onboot": "1",
+        }
+        if any(parsed.get(key) != value for key, value in required.items()):
             raise ProvisioningError("LXC_CONFIG_CONFLICT", "Containerkonfiguration weicht vom Plan ab")
         rootfs_lines = [line for line in config.splitlines() if line.startswith("rootfs: ")]
         storage = str(plan["proxmox_observations"]["storage"])
         disk_gib = int(plan["plan_inputs"]["lxc"]["disk_gib"])
         if len(rootfs_lines) != 1 or storage not in rootfs_lines[0] or f"size={disk_gib}G" not in rootfs_lines[0]:
             raise ProvisioningError("LXC_CONFIG_CONFLICT", "Root-Disk weicht vom Plan ab")
-        forbidden_prefixes = ("mp0:", "mp1:", "dev0:", "hookscript:")
-        if any(line.startswith(forbidden_prefixes) for line in config.splitlines()):
+        forbidden_keys = re.compile(r"^(?:mp|dev|usb|hostpci)\d+$")
+        if any(
+            forbidden_keys.fullmatch(key) or key in {"hookscript", "lxc.mount.entry"}
+            for key in parsed
+        ):
             raise ProvisioningError("LXC_CONFIG_CONFLICT", "Unerlaubte LXC-Erweiterung")
         if any(line.strip() for line in pending.splitlines()[1:]):
             raise ProvisioningError("LXC_PENDING_CONFLICT", "Pending-Konfiguration vorhanden")
@@ -264,6 +277,11 @@ class HostBackend:
         architecture = self._run(["pct", "exec", vmid, "--", "/usr/bin/uname", "-m"], mutating=True).strip()
         if architecture not in {"x86_64", "amd64"}:
             raise ProvisioningError("GUEST_ARCH_CONFLICT", architecture)
+        hostname = self._run(
+            ["pct", "exec", vmid, "--", "/usr/bin/hostname"], mutating=True
+        ).strip()
+        if hostname != "postgresql-main":
+            raise ProvisioningError("GUEST_HOSTNAME_CONFLICT", hostname)
         self._run(["pct", "exec", vmid, "--", "/usr/bin/systemctl", "is-system-running"], mutating=True)
         failed = self._run(["pct", "exec", vmid, "--", "/usr/bin/systemctl", "--failed", "--no-legend"], mutating=True)
         if failed.strip():
@@ -272,6 +290,28 @@ class HostBackend:
         routes = self._run(["pct", "exec", vmid, "--", "/usr/sbin/ip", "-4", "route", "show"], mutating=True)
         if provider_ip not in addresses or f"default via {lxc['gateway']}" not in routes:
             raise ProvisioningError("GUEST_NETWORK_CONFLICT", "Adresse oder Default-Route weicht ab")
+        resolv = self._run(
+            ["pct", "exec", vmid, "--", "/usr/bin/cat", "/etc/resolv.conf"],
+            mutating=True,
+        )
+        if any(f"nameserver {server}" not in resolv for server in lxc["dns_servers"]):
+            raise ProvisioningError("GUEST_DNS_CONFLICT", "DNS-Konfiguration weicht ab")
+        disk = self._run(
+            ["pct", "exec", vmid, "--", "/usr/bin/df", "-Pk", "/"], mutating=True
+        )
+        lines = [line for line in disk.splitlines() if line.strip()]
+        fields = lines[-1].split() if lines else []
+        if len(fields) < 4 or not fields[3].isdigit() or int(fields[3]) < 2_097_152:
+            raise ProvisioningError("GUEST_STORAGE_LOW", "Weniger als 2 GiB frei")
+        https = self._run(
+            [
+                "pct", "exec", vmid, "--", "/usr/bin/python3", "-c",
+                "import urllib.request; print(urllib.request.urlopen('https://archive.ubuntu.com/ubuntu/', timeout=10).status)",
+            ],
+            mutating=True,
+        ).strip()
+        if https != "200":
+            raise ProvisioningError("UBUNTU_HTTPS_UNAVAILABLE", "Ubuntu-Paketquelle nicht per HTTPS erreichbar")
 
     def verify_guest_base(self, vmid: int, plan: Mapping[str, object]) -> None:
         arguments = [
@@ -293,6 +333,10 @@ class HostBackend:
         self._run([
             "pct", "exec", str(vmid), "--", "/usr/bin/install", "-d", "-o", "root", "-g", "root", "-m", "0700", parent,
         ], mutating=True)
+        self._run([
+            "pct", "push", str(vmid), str(source), destination,
+            "--perms", f"{mode:04o}", "--user", "0", "--group", "0",
+        ], mutating=True)
 
     def verify_guest_bundle_item(
         self, vmid: int, source: pathlib.Path, relative: str, mode: int
@@ -311,10 +355,6 @@ class HostBackend:
             ], mutating=True).split()[0]
             if remote_hash != sha256_path(source):
                 raise ProvisioningError("BUNDLE_ITEM_CONFLICT", relative)
-        self._run([
-            "pct", "push", str(vmid), str(source), destination,
-            "--perms", f"{mode:04o}", "--user", "0", "--group", "0",
-        ], mutating=True)
 
     def verify_guest_bundle(self, vmid: int) -> None:
         self.verify_guest_base(vmid, {})
@@ -323,6 +363,12 @@ class HostBackend:
         """Rehydrate only ephemeral password copies removed by failure cleanup."""
         for allocation in ALLOCATION_IDS:
             self.push_bundle_item(
+                vmid,
+                sources[allocation],
+                f"{allocation}/application-password",
+                0o600,
+            )
+            self.verify_guest_bundle_item(
                 vmid,
                 sources[allocation],
                 f"{allocation}/application-password",
@@ -695,11 +741,13 @@ class Provisioner:
                             raise
                         # Error cleanup intentionally removed the ephemeral copy.
                         self.backend.push_bundle_item(vmid, source, item, mode)
+                        self.backend.verify_guest_bundle_item(vmid, source, item, mode)
                     marker = self.store.progress(marker, "guest_bundle_ready", item)
                     continue
                 marker = self.store.begin(marker, "guest_bundle_ready", item)
                 self.backend.push_bundle_item(vmid, source, item, mode)
                 self.fault(f"after_bundle:{item}")
+                self.backend.verify_guest_bundle_item(vmid, source, item, mode)
                 marker = self.store.progress(marker, "guest_bundle_ready", item)
         self.backend.verify_guest_bundle(vmid)
         return self.store.complete(marker, "guest_bundle_ready")

@@ -201,11 +201,16 @@ class PkiManager:
         self.fs.validate(self._logical("ca.crt"), kind="file", mode=0o644, require_nonempty=True)
         self.fs.validate(self._logical("server.crt"), kind="file", mode=0o644, require_nonempty=True)
         self.runner.run(["openssl", "verify", "-CAfile", str(ca_crt), str(server_crt)])
+        san_text = self.runner.run([
+            "openssl", "x509", "-in", str(server_crt), "-noout", "-ext", "subjectAltName",
+        ]).decode("utf-8", "replace")
+        dns_names = re.findall(r"DNS:([^,\s]+)", san_text)
+        ip_addresses = re.findall(r"IP Address:([^,\s]+)", san_text)
+        if dns_names != [fqdn] or ip_addresses != [provider_ip]:
+            raise ProvisioningError("PKI_SAN_MISMATCH", "Server-SAN stimmt nicht")
         text = self.runner.run([
             "openssl", "x509", "-in", str(server_crt), "-noout", "-text",
         ]).decode("utf-8", "replace")
-        if f"DNS:{fqdn}" not in text or f"IP Address:{provider_ip}" not in text:
-            raise ProvisioningError("PKI_SAN_MISMATCH", "Server-SAN stimmt nicht")
         if "TLS Web Server Authentication" not in text or "CA:FALSE" not in text:
             raise ProvisioningError("PKI_CERTIFICATE_INVALID", "Serverzertifikat verletzt Policy")
         ca_text = self.runner.run([
@@ -213,6 +218,10 @@ class PkiManager:
         ]).decode("utf-8", "replace")
         if "CA:TRUE, pathlen:0" not in ca_text:
             raise ProvisioningError("PKI_CA_INVALID", "CA-Beschränkung fehlt")
+        ca_key_public = self.runner.run(["openssl", "pkey", "-in", str(ca_key), "-pubout"])
+        ca_cert_public = self.runner.run(["openssl", "x509", "-in", str(ca_crt), "-pubkey", "-noout"])
+        if hashlib.sha256(ca_key_public).digest() != hashlib.sha256(ca_cert_public).digest():
+            raise ProvisioningError("PKI_KEY_MISMATCH", "CA-Key und Zertifikat stimmen nicht")
         key_public = self.runner.run(["openssl", "pkey", "-in", str(server_key), "-pubout"])
         cert_public = self.runner.run(["openssl", "x509", "-in", str(server_crt), "-pubkey", "-noout"])
         if hashlib.sha256(key_public).digest() != hashlib.sha256(cert_public).digest():
